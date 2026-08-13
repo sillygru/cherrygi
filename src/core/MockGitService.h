@@ -46,6 +46,7 @@ public:
     // Diff
     QList<DiffLine> getDiffForFile(const QString &filePath) override;
     QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath) override;
+    QList<DiffLine> getDiffForStashFile(const QString &stashId, const QString &filePath) override;
 
     // Commit & History
     QList<CommitItem> getCommitHistory(int limit = 100) override;
@@ -62,6 +63,7 @@ public:
 
     // Stashing
     QList<StashItem> getStashes() override;
+    std::optional<StashItem> getStashDetails(const QString &stashId) override;
     bool stashChanges(const QString &message = QString()) override;
     bool popStash(const QString &stashId = QString()) override;
     bool dropStash(const QString &stashId) override;

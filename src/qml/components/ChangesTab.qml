@@ -20,7 +20,7 @@ ColumnLayout {
         }
 
         QQC2.MenuItem {
-            text: qsTr("Drop Stash")
+            text: qsTr("Discard Stash")
             icon.name: "edit-delete"
             onTriggered: appController.dropStash(stashContextMenu.targetStashId)
         }
@@ -155,7 +155,7 @@ ColumnLayout {
                 required property int additions
                 required property int deletions
 
-                highlighted: appController.selectedFilePath === fileDelegate.filePath
+                highlighted: appController.selectedStashId === "" && appController.selectedFilePath === fileDelegate.filePath
 
                 background: Rectangle {
                     color: fileDelegate.highlighted ? CherryStyle.activeBackground : (fileDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
@@ -241,13 +241,18 @@ ColumnLayout {
         }
     }
 
-    // Stashed Changes Section
+    // Stashed Changes Section (Clickable row to view, with restore and discard buttons)
     Rectangle {
+        id: stashSection
         Layout.fillWidth: true
-        height: 38
+        height: 42
         visible: appController.stashes.count > 0
-        color: CherryStyle.cardBackground
-        border.color: CherryStyle.borderColor
+
+        property bool isSelected: appController.selectedStashId !== ""
+        property bool isHovered: stashMouseArea.containsMouse
+
+        color: isSelected ? CherryStyle.activeBackground : (isHovered ? CherryStyle.hoverBackground : CherryStyle.cardBackground)
+        border.color: isSelected ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
         border.width: 1
 
         RowLayout {
@@ -267,13 +272,25 @@ ColumnLayout {
                 text: qsTr("Stashed Changes (%1)").arg(appController.stashes.count)
                 font.bold: true
                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                color: Kirigami.Theme.textColor
+                color: stashSection.isSelected ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                 Layout.fillWidth: true
             }
 
             QQC2.Button {
+                text: qsTr("Discard")
+                icon.name: "edit-delete"
+                QQC2.ToolTip.text: qsTr("Discard and clear this stash")
+                QQC2.ToolTip.visible: hovered
+                onClicked: appController.dropStash("")
+            }
+
+            QQC2.Button {
                 text: qsTr("Restore")
-                onClicked: appController.popStash()
+                icon.name: "edit-undo"
+                highlighted: true
+                QQC2.ToolTip.text: qsTr("Restore stashed changes to working directory")
+                QQC2.ToolTip.visible: hovered
+                onClicked: appController.popStash("")
             }
 
             QQC2.ToolButton {
@@ -283,6 +300,21 @@ ColumnLayout {
                 onClicked: {
                     stashContextMenu.targetStashId = "";
                     stashContextMenu.popup();
+                }
+            }
+        }
+
+        MouseArea {
+            id: stashMouseArea
+            anchors.fill: parent
+            anchors.rightMargin: 170 // leave room for buttons
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                if (appController.selectedStashId !== "") {
+                    appController.clearStashSelection();
+                } else {
+                    appController.selectStash("");
                 }
             }
         }

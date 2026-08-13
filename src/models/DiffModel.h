@@ -38,6 +38,7 @@ public:
 
     Q_INVOKABLE void loadDiffForFile(const QString &filePath);
     Q_INVOKABLE void loadDiffForCommit(const QString &commitSha, const QString &filePath);
+    Q_INVOKABLE void loadDiffForStash(const QString &stashId, const QString &filePath);
     Q_INVOKABLE void clear();
 
 signals:

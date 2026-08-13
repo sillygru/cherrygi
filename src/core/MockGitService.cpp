@@ -505,6 +505,23 @@ QList<DiffLine> MockGitService::getDiffForCommitFile(const QString &commitSha, c
     return {};
 }
 
+QList<DiffLine> MockGitService::getDiffForStashFile(const QString &stashId, const QString &filePath)
+{
+    auto *state = activeState();
+    if (!state) return {};
+
+    for (const auto &s : state->stashes) {
+        if (stashId.isEmpty() || s.id == stashId) {
+            for (const auto &f : s.files) {
+                if (filePath.isEmpty() || f.filePath == filePath) {
+                    return f.diffLines;
+                }
+            }
+        }
+    }
+    return {};
+}
+
 QList<CommitItem> MockGitService::getCommitHistory(int limit)
 {
     auto *state = activeState();
@@ -707,6 +724,19 @@ QList<StashItem> MockGitService::getStashes()
     auto *state = activeState();
     if (!state) return {};
     return state->stashes;
+}
+
+std::optional<StashItem> MockGitService::getStashDetails(const QString &stashId)
+{
+    auto *state = activeState();
+    if (!state) return std::nullopt;
+
+    for (const auto &s : state->stashes) {
+        if (stashId.isEmpty() || s.id == stashId) {
+            return s;
+        }
+    }
+    return std::nullopt;
 }
 
 bool MockGitService::stashChanges(const QString &message)

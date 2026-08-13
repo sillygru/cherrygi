@@ -12,7 +12,11 @@ Rectangle {
 
     StackLayout {
         anchors.fill: parent
-        currentIndex: appController.activeTab === "changes" ? 0 : 1
+        currentIndex: {
+            if (appController.activeTab === "history") return 1;
+            if (appController.selectedStashId !== "") return 2;
+            return 0;
+        }
 
         // Changes Mode -> Diff Viewer
         DiffViewer {
@@ -24,6 +28,11 @@ Rectangle {
         // History Mode -> Commit Inspector
         CommitInspector {
             id: mainCommitInspector
+        }
+
+        // Stash Mode -> Stash Inspector
+        StashInspector {
+            id: mainStashInspector
         }
     }
 }

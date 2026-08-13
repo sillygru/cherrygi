@@ -110,6 +110,21 @@ void DiffModel::loadDiffForCommit(const QString &commitSha, const QString &fileP
     setDiffLines(lines);
 }
 
+void DiffModel::loadDiffForStash(const QString &stashId, const QString &filePath)
+{
+    m_filePath = filePath;
+    m_commitSha.clear();
+    emit filePathChanged();
+
+    if (!m_service || filePath.isEmpty()) {
+        clear();
+        return;
+    }
+
+    auto lines = m_service->getDiffForStashFile(stashId, filePath);
+    setDiffLines(lines);
+}
+
 void DiffModel::clear()
 {
     beginResetModel();

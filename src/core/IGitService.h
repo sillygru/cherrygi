@@ -36,6 +36,7 @@ public:
     // Diff
     virtual QList<DiffLine> getDiffForFile(const QString &filePath) = 0;
     virtual QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath) = 0;
+    virtual QList<DiffLine> getDiffForStashFile(const QString &stashId, const QString &filePath) = 0;
 
     // Commit & History
     virtual QList<CommitItem> getCommitHistory(int limit = 100) = 0;
@@ -52,6 +53,7 @@ public:
 
     // Stashing
     virtual QList<StashItem> getStashes() = 0;
+    virtual std::optional<StashItem> getStashDetails(const QString &stashId) = 0;
     virtual bool stashChanges(const QString &message = QString()) = 0;
     virtual bool popStash(const QString &stashId = QString()) = 0;
     virtual bool dropStash(const QString &stashId) = 0;

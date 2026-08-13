@@ -47,6 +47,8 @@ class AppController : public QObject {
     Q_PROPERTY(QString selectedFilePath READ selectedFilePath WRITE setSelectedFilePath NOTIFY selectedFilePathChanged)
     Q_PROPERTY(QString selectedCommitSha READ selectedCommitSha WRITE setSelectedCommitSha NOTIFY selectedCommitShaChanged)
     Q_PROPERTY(QVariant selectedCommitData READ selectedCommitData NOTIFY selectedCommitShaChanged)
+    Q_PROPERTY(QString selectedStashId READ selectedStashId WRITE setSelectedStashId NOTIFY selectedStashIdChanged)
+    Q_PROPERTY(QVariant selectedStashData READ selectedStashData NOTIFY selectedStashIdChanged)
 
     // Diff Options
     Q_PROPERTY(QString diffViewMode READ diffViewMode WRITE setDiffViewMode NOTIFY diffViewModeChanged)
@@ -97,6 +99,10 @@ public:
     void setSelectedCommitSha(const QString &sha);
     QVariant selectedCommitData() const;
 
+    QString selectedStashId() const { return m_selectedStashId; }
+    void setSelectedStashId(const QString &id);
+    QVariant selectedStashData() const;
+
     QString diffViewMode() const { return m_diffViewMode; }
     void setDiffViewMode(const QString &mode);
 
@@ -135,6 +141,8 @@ public:
 
     Q_INVOKABLE void selectFileForDiff(const QString &filePath);
     Q_INVOKABLE void selectCommit(const QString &sha);
+    Q_INVOKABLE void selectStash(const QString &stashId);
+    Q_INVOKABLE void clearStashSelection();
     Q_INVOKABLE void revertCommit(const QString &sha);
 
     Q_INVOKABLE void hideToast();
@@ -147,6 +155,7 @@ signals:
     void activeTabChanged();
     void selectedFilePathChanged();
     void selectedCommitShaChanged();
+    void selectedStashIdChanged();
     void diffViewModeChanged();
     void showWhitespaceChanged();
     void undoStateChanged();
@@ -167,6 +176,7 @@ private:
     QString m_activeTab{"changes"}; // "changes" | "history"
     QString m_selectedFilePath;
     QString m_selectedCommitSha;
+    QString m_selectedStashId;
     QString m_diffViewMode{"unified"}; // "unified" | "split"
     bool m_showWhitespace{true};
 

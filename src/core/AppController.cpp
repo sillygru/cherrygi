@@ -172,6 +172,45 @@ QVariant AppController::selectedCommitData() const
     return map;
 }
 
+void AppController::setSelectedStashId(const QString &id)
+{
+    if (m_selectedStashId == id) return;
+    m_selectedStashId = id;
+    emit selectedStashIdChanged();
+}
+
+QVariant AppController::selectedStashData() const
+{
+    auto s = m_service->getStashDetails(m_selectedStashId);
+    if (!s) {
+        auto stashes = m_service->getStashes();
+        if (!stashes.isEmpty()) {
+            s = stashes.first();
+        } else {
+            return QVariantMap();
+        }
+    }
+
+    QVariantMap map;
+    map["stashId"] = s->id;
+    map["message"] = s->message;
+    map["branchName"] = s->branchName;
+    map["timestamp"] = s->timestamp.toString("yyyy-MM-dd hh:mm");
+
+    QVariantList files;
+    for (const auto &f : s->files) {
+        QVariantMap fm;
+        fm["filePath"] = f.filePath;
+        fm["status"] = static_cast<int>(f.status);
+        fm["statusText"] = (f.status == FileChangeType::Added) ? "Added" : ((f.status == FileChangeType::Deleted) ? "Deleted" : "Modified");
+        fm["additions"] = f.additions;
+        fm["deletions"] = f.deletions;
+        files.append(fm);
+    }
+    map["files"] = files;
+    return map;
+}
+
 void AppController::setDiffViewMode(const QString &mode)
 {
     if (m_diffViewMode == mode) return;
@@ -307,22 +346,58 @@ void AppController::stashChanges(const QString &message)
 
 void AppController::popStash(const QString &stashId)
 {
-    m_service->popStash(stashId);
+    QString id = stashId.isEmpty() ? m_selectedStashId : stashId;
+    m_service->popStash(id);
+    clearStashSelection();
 }
 
 void AppController::dropStash(const QString &stashId)
 {
-    m_service->dropStash(stashId);
+    QString id = stashId.isEmpty() ? m_selectedStashId : stashId;
+    m_service->dropStash(id);
+    clearStashSelection();
 }
 
 void AppController::selectFileForDiff(const QString &filePath)
 {
+    if (!m_selectedStashId.isEmpty()) {
+        m_selectedStashId.clear();
+        emit selectedStashIdChanged();
+    }
     setSelectedFilePath(filePath);
     m_diffModel->loadDiffForFile(filePath);
 }
 
+void AppController::selectStash(const QString &stashId)
+{
+    QString id = stashId;
+    if (id.isEmpty()) {
+        auto stashes = m_service->getStashes();
+        if (!stashes.isEmpty()) id = stashes.first().id;
+    }
+    setSelectedStashId(id);
+    auto s = m_service->getStashDetails(id);
+    if (s && !s->files.isEmpty()) {
+        m_diffModel->loadDiffForStash(id, s->files.first().filePath);
+    }
+}
+
+void AppController::clearStashSelection()
+{
+    if (m_selectedStashId.isEmpty()) return;
+    m_selectedStashId.clear();
+    emit selectedStashIdChanged();
+    if (!m_selectedFilePath.isEmpty()) {
+        m_diffModel->loadDiffForFile(m_selectedFilePath);
+    }
+}
+
 void AppController::selectCommit(const QString &sha)
 {
+    if (!m_selectedStashId.isEmpty()) {
+        m_selectedStashId.clear();
+        emit selectedStashIdChanged();
+    }
     setSelectedCommitSha(sha);
     auto details = m_service->getCommitDetails(sha);
     if (details && !details->changedFiles.isEmpty()) {

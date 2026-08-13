@@ -90,6 +90,7 @@ qt_add_qml_module(cherrygi
         src/qml/components/DiffHeader.qml
         src/qml/components/DiffViewer.qml
         src/qml/components/CommitInspector.qml
+        src/qml/components/StashInspector.qml
         src/qml/components/UndoToast.qml
 )
 
