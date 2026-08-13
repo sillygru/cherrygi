@@ -8,6 +8,9 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Disable static QML plugin imports (Kirigami plugins are dynamic shared libraries)
+set(QT_NO_IMPORT_QML_PLUGINS ON)
+
 find_package(ECM REQUIRED NO_MODULE)
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
 
@@ -23,6 +26,10 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
     QuickControls2
     Widgets
 )
+
+# Qt QML policies
+qt_policy(SET QTP0001 NEW)
+qt_policy(SET QTP0004 NEW)
 
 find_package(KF6 REQUIRED COMPONENTS
     Kirigami
@@ -61,6 +68,7 @@ qt_add_qml_module(cherrygi
     URI org.kde.cherrygi
     VERSION 1.0
     RESOURCE_PREFIX /qt/qml
+    NO_PLUGIN
     QML_FILES
         src/qml/Main.qml
         src/qml/style/CherryStyle.qml

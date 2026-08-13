@@ -24,8 +24,8 @@ int main(int argc, char *argv[])
     // Register translation domain
     KLocalizedString::setApplicationDomain("cherrygi");
 
-    // Load Main QML from module
-    const QUrl url(QStringLiteral("qrc:/qt/qml/org/kde/cherrygi/Main.qml"));
+    // Load Main QML from module resources
+    const QUrl url(QStringLiteral("qrc:/qt/qml/org/kde/cherrygi/src/qml/Main.qml"));
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreated,
