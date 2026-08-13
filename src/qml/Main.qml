@@ -2,14 +2,16 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import org.kde.cherrygi
 import "components"
 import "style"
 
 Kirigami.ApplicationWindow {
     id: window
-    title: appController.currentRepoName !== "" ?
-           i18n("%1 - cherrygi", appController.currentRepoName) :
-           i18n("cherrygi - KDE Plasma Git Client")
+    readonly property var appController: AppController
+    title: (appController && appController.currentRepoName !== "") ?
+           qsTr("%1 - cherrygi").arg(appController.currentRepoName) :
+           qsTr("cherrygi - KDE Plasma Git Client")
 
     width: 1100
     height: 720

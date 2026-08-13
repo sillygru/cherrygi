@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "../style"
+import org.kde.cherrygi
 
 ColumnLayout {
     id: root
@@ -24,7 +24,7 @@ ColumnLayout {
             QQC2.TextField {
                 id: searchInput
                 Layout.fillWidth: true
-                placeholderText: i18n("Search commits by message, author, or SHA...")
+                placeholderText: qsTr("Search commits by message, author, or SHA...")
                 leftPadding: Kirigami.Units.largeSpacing + 10
 
                 Kirigami.Icon {
@@ -59,7 +59,22 @@ ColumnLayout {
                 id: commitDelegate
                 width: commitListView.width
                 height: 64
-                highlighted: appController.selectedCommitSha === model.sha
+
+                required property int index
+                required property string sha
+                required property string shortSha
+                required property string summary
+                required property string description
+                required property string authorName
+                required property string authorEmail
+                required property string authorAvatarUrl
+                required property string relativeTime
+                required property string timestamp
+                required property var coAuthors
+                required property string coAuthorsText
+                required property int changedFilesCount
+
+                highlighted: appController.selectedCommitSha === commitDelegate.sha
 
                 background: Rectangle {
                     color: commitDelegate.highlighted ? CherryStyle.activeBackground : (commitDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
@@ -80,7 +95,7 @@ ColumnLayout {
 
                         QQC2.Label {
                             anchors.centerIn: parent
-                            text: model.authorName.length > 0 ? model.authorName.charAt(0).toUpperCase() : "G"
+                            text: commitDelegate.authorName.length > 0 ? commitDelegate.authorName.charAt(0).toUpperCase() : "G"
                             font.bold: true
                             color: Kirigami.Theme.highlightedTextColor
                         }
@@ -96,7 +111,7 @@ ColumnLayout {
                             spacing: Kirigami.Units.smallSpacing
 
                             QQC2.Label {
-                                text: model.summary
+                                text: commitDelegate.summary
                                 font.bold: true
                                 color: commitDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                                 elide: Text.ElideRight
@@ -115,7 +130,7 @@ ColumnLayout {
                                 QQC2.Label {
                                     id: shaLabel
                                     anchors.centerIn: parent
-                                    text: model.shortSha
+                                    text: commitDelegate.shortSha
                                     font.family: CherryStyle.codeFont.family
                                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                     color: Kirigami.Theme.disabledTextColor
@@ -128,7 +143,7 @@ ColumnLayout {
                             spacing: 4
 
                             QQC2.Label {
-                                text: model.authorName
+                                text: commitDelegate.authorName
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
                                 color: Kirigami.Theme.disabledTextColor
                                 elide: Text.ElideRight
@@ -141,7 +156,7 @@ ColumnLayout {
                             }
 
                             QQC2.Label {
-                                text: model.relativeTime
+                                text: commitDelegate.relativeTime
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
                                 color: Kirigami.Theme.disabledTextColor
                             }
@@ -152,7 +167,7 @@ ColumnLayout {
                 }
 
                 onClicked: {
-                    appController.selectCommit(model.sha);
+                    appController.selectCommit(commitDelegate.sha);
                 }
             }
         }

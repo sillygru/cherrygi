@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "../style"
+import org.kde.cherrygi
 
 QQC2.Popup {
     id: popup
@@ -38,7 +38,7 @@ QQC2.Popup {
         QQC2.TextField {
             id: searchField
             Layout.fillWidth: true
-            placeholderText: i18n("Filter repositories...")
+            placeholderText: qsTr("Filter repositories...")
             leftPadding: Kirigami.Units.largeSpacing + 10
             rightPadding: text.length > 0 ? Kirigami.Units.largeSpacing + 10 : Kirigami.Units.smallSpacing
 
@@ -69,9 +69,9 @@ QQC2.Popup {
                 anchors.left: parent.left
                 anchors.leftMargin: Kirigami.Units.smallSpacing
                 anchors.verticalCenter: parent.verticalCenter
-                text: i18n("Repositories")
+                text: qsTr("Repositories")
                 font.bold: true
-                font.pixelSize: Kirigami.Units.fontMetrics.font.pixelSize - 1
+                font.pixelSize: CherryStyle.basePixelSize - 1
                 color: Kirigami.Theme.disabledTextColor
             }
         }
@@ -88,15 +88,28 @@ QQC2.Popup {
                 spacing: 2
 
                 delegate: QQC2.ItemDelegate {
+                    id: repoDelegate
                     width: repoListView.width
                     height: 48
-                    highlighted: model.isCurrent
+
+                    required property int index
+                    required property string repoId
+                    required property string name
+                    required property string path
+                    required property bool isCurrent
+                    required property string currentBranch
+                    required property int changedFilesCount
+                    required property int aheadCount
+                    required property int behindCount
+                    required property string lastFetchedTime
+
+                    highlighted: repoDelegate.isCurrent
 
                     background: Rectangle {
-                        color: parent.highlighted ? CherryStyle.activeBackground : (parent.hovered ? CherryStyle.hoverBackground : "transparent")
+                        color: repoDelegate.highlighted ? CherryStyle.activeBackground : (repoDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
                         radius: CherryStyle.radiusSmall
-                        border.color: parent.highlighted ? Kirigami.Theme.highlightColor : "transparent"
-                        border.width: parent.highlighted ? 1 : 0
+                        border.color: repoDelegate.highlighted ? Kirigami.Theme.highlightColor : "transparent"
+                        border.width: repoDelegate.highlighted ? 1 : 0
                     }
 
                     contentItem: RowLayout {
@@ -106,7 +119,7 @@ QQC2.Popup {
                             source: "folder-git"
                             width: Kirigami.Units.iconSizes.medium
                             height: width
-                            color: model.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: repoDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                         }
 
                         ColumnLayout {
@@ -115,9 +128,9 @@ QQC2.Popup {
 
                             RowLayout {
                                 QQC2.Label {
-                                    text: model.name
-                                    font.bold: model.isCurrent
-                                    color: model.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                    text: repoDelegate.name
+                                    font.bold: repoDelegate.isCurrent
+                                    color: repoDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                                     elide: Text.ElideRight
                                 }
 
@@ -125,7 +138,7 @@ QQC2.Popup {
 
                                 // Changed files badge if any
                                 Rectangle {
-                                    visible: model.changedFilesCount > 0
+                                    visible: repoDelegate.changedFilesCount > 0
                                     width: countLabel.width + 10
                                     height: 18
                                     radius: 9
@@ -136,7 +149,7 @@ QQC2.Popup {
                                     QQC2.Label {
                                         id: countLabel
                                         anchors.centerIn: parent
-                                        text: model.changedFilesCount
+                                        text: repoDelegate.changedFilesCount
                                         font.pixelSize: CherryStyle.smallFont.pixelSize
                                         font.bold: true
                                         color: CherryStyle.modifiedColor
@@ -145,7 +158,7 @@ QQC2.Popup {
                             }
 
                             QQC2.Label {
-                                text: model.path
+                                text: repoDelegate.path
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
                                 color: Kirigami.Theme.disabledTextColor
                                 elide: Text.ElideMiddle
@@ -155,7 +168,7 @@ QQC2.Popup {
                     }
 
                     onClicked: {
-                        appController.switchRepository(model.repoId);
+                        appController.switchRepository(repoDelegate.repoId);
                         popup.close();
                     }
                 }
@@ -173,20 +186,20 @@ QQC2.Popup {
 
             QQC2.Button {
                 Layout.fillWidth: true
-                text: i18n("Add Local...")
+                text: qsTr("Add Local...")
                 icon.name: "list-add"
                 onClicked: {
-                    appController.showToast(i18n("Add repository dialog opened"));
+                    appController.showToast(qsTr("Add repository dialog opened"));
                     popup.close();
                 }
             }
 
             QQC2.Button {
                 Layout.fillWidth: true
-                text: i18n("Clone...")
+                text: qsTr("Clone...")
                 icon.name: "vcs-clone"
                 onClicked: {
-                    appController.showToast(i18n("Clone repository dialog opened"));
+                    appController.showToast(qsTr("Clone repository dialog opened"));
                     popup.close();
                 }
             }

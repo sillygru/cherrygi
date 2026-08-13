@@ -2,26 +2,26 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "../style"
+import org.kde.cherrygi
 
 QQC2.Menu {
     id: menu
 
     QQC2.MenuItem {
-        text: i18n("Fetch origin")
+        text: qsTr("Fetch origin")
         icon.name: "view-refresh"
         onTriggered: appController.fetchOrigin()
     }
 
     QQC2.MenuItem {
-        text: appController.behindCount > 0 ? i18n("Pull origin (%1 commits behind)", appController.behindCount) : i18n("Pull origin")
+        text: appController.behindCount > 0 ? qsTr("Pull origin (%1 commits behind)").arg(appController.behindCount) : qsTr("Pull origin")
         icon.name: "vcs-pull-symbolic"
         enabled: appController.behindCount > 0
         onTriggered: appController.pullOrigin()
     }
 
     QQC2.MenuItem {
-        text: appController.aheadCount > 0 ? i18n("Push origin (%1 commits ahead)", appController.aheadCount) : i18n("Push origin")
+        text: appController.aheadCount > 0 ? qsTr("Push origin (%1 commits ahead)").arg(appController.aheadCount) : qsTr("Push origin")
         icon.name: "vcs-push-symbolic"
         enabled: appController.aheadCount > 0
         onTriggered: appController.pushOrigin()
@@ -30,20 +30,20 @@ QQC2.Menu {
     QQC2.MenuSeparator {}
 
     QQC2.MenuItem {
-        text: i18n("Create Pull Request")
+        text: qsTr("Create Pull Request")
         icon.name: "vcs-merge-request"
-        onTriggered: appController.showToast(i18n("Opening pull request in browser..."))
+        onTriggered: appController.showToast(qsTr("Opening pull request in browser..."))
     }
 
     QQC2.MenuItem {
-        text: i18n("View on GitHub")
+        text: qsTr("View on GitHub")
         icon.name: "globe"
-        onTriggered: appController.showToast(i18n("Opening repository on GitHub..."))
+        onTriggered: appController.showToast(qsTr("Opening repository on GitHub..."))
     }
 
     QQC2.MenuItem {
-        text: i18n("Open in Terminal")
+        text: qsTr("Open in Terminal")
         icon.name: "utilities-terminal"
-        onTriggered: appController.showToast(i18n("Opened terminal in repository directory"))
+        onTriggered: appController.showToast(qsTr("Opened terminal in repository directory"))
     }
 }

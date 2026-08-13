@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "../style"
+import org.kde.cherrygi
 
 ColumnLayout {
     id: root
@@ -14,13 +14,13 @@ ColumnLayout {
         property string targetStashId: ""
 
         QQC2.MenuItem {
-            text: i18n("Restore Stash")
+            text: qsTr("Restore Stash")
             icon.name: "edit-undo"
             onTriggered: appController.popStash(stashContextMenu.targetStashId)
         }
 
         QQC2.MenuItem {
-            text: i18n("Drop Stash")
+            text: qsTr("Drop Stash")
             icon.name: "edit-delete"
             onTriggered: appController.dropStash(stashContextMenu.targetStashId)
         }
@@ -32,16 +32,16 @@ ColumnLayout {
         property string targetFilePath: ""
 
         QQC2.MenuItem {
-            text: i18n("Discard Changes...")
+            text: qsTr("Discard Changes...")
             icon.name: "edit-delete"
             onTriggered: appController.discardFileChanges(fileContextMenu.targetFilePath)
         }
 
         QQC2.MenuItem {
-            text: i18n("Copy Relative Path")
+            text: qsTr("Copy Relative Path")
             icon.name: "edit-copy"
             onTriggered: {
-                appController.showToast(i18n("Path copied to clipboard"));
+                appController.showToast(qsTr("Path copied to clipboard"));
             }
         }
     }
@@ -71,8 +71,8 @@ ColumnLayout {
 
             QQC2.Label {
                 text: appController.changedFiles.count > 0 ?
-                      i18n("%1 changed files", appController.changedFiles.count) :
-                      i18n("No local changes")
+                      qsTr("%1 changed files").arg(appController.changedFiles.count) :
+                      qsTr("No local changes")
                 font.bold: true
                 font.pixelSize: CherryStyle.smallFont.pixelSize
                 color: Kirigami.Theme.textColor
@@ -84,7 +84,7 @@ ColumnLayout {
                 icon.width: 14
                 icon.height: 14
                 visible: appController.changedFiles.count > 0
-                QQC2.ToolTip.text: i18n("Discard all changes")
+                QQC2.ToolTip.text: qsTr("Discard all changes")
                 QQC2.ToolTip.visible: hovered
                 onClicked: appController.discardAllChanges()
             }
@@ -122,14 +122,14 @@ ColumnLayout {
                     }
 
                     QQC2.Label {
-                        text: i18n("No uncommitted changes")
+                        text: qsTr("No uncommitted changes")
                         font.bold: true
                         Layout.alignment: Qt.AlignHCenter
                         color: Kirigami.Theme.textColor
                     }
 
                     QQC2.Label {
-                        text: i18n("Your working directory is clean.")
+                        text: qsTr("Your working directory is clean.")
                         font.pixelSize: CherryStyle.smallFont.pixelSize
                         Layout.alignment: Qt.AlignHCenter
                         color: Kirigami.Theme.disabledTextColor
@@ -141,7 +141,21 @@ ColumnLayout {
                 id: fileDelegate
                 width: fileListView.width
                 height: 36
-                highlighted: appController.selectedFilePath === model.filePath
+
+                required property int index
+                required property string fileId
+                required property string filePath
+                required property string fileName
+                required property string fileDir
+                required property int status
+                required property string statusText
+                required property string statusIcon
+                required property color statusColor
+                required property bool isSelected
+                required property int additions
+                required property int deletions
+
+                highlighted: appController.selectedFilePath === fileDelegate.filePath
 
                 background: Rectangle {
                     color: fileDelegate.highlighted ? CherryStyle.activeBackground : (fileDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
@@ -155,9 +169,9 @@ ColumnLayout {
 
                     // Inclusion Checkbox
                     QQC2.CheckBox {
-                        checked: model.isSelected
+                        checked: fileDelegate.isSelected
                         onClicked: {
-                            appController.changedFiles.toggleSelected(index);
+                            appController.changedFiles.toggleSelected(fileDelegate.index);
                         }
                     }
 
@@ -167,22 +181,22 @@ ColumnLayout {
                         height: 18
                         radius: 3
                         color: Qt.rgba(0, 0, 0, 0.05)
-                        border.color: model.statusColor
+                        border.color: fileDelegate.statusColor
                         border.width: 1
 
                         Kirigami.Icon {
                             anchors.centerIn: parent
-                            source: model.statusIcon
+                            source: fileDelegate.statusIcon
                             width: 12
                             height: 12
-                            color: model.statusColor
+                            color: fileDelegate.statusColor
                         }
                     }
 
                     // File path
                     QQC2.Label {
-                        text: model.filePath
-                        font.pixelSize: Kirigami.Units.fontMetrics.font.pixelSize - 1
+                        text: fileDelegate.filePath
+                        font.pixelSize: CherryStyle.basePixelSize - 1
                         color: fileDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                         elide: Text.ElideMiddle
                         Layout.fillWidth: true
@@ -191,35 +205,35 @@ ColumnLayout {
                     // Additions / Deletions count tag
                     RowLayout {
                         spacing: 2
-                        visible: model.additions > 0 || model.deletions > 0
+                        visible: fileDelegate.additions > 0 || fileDelegate.deletions > 0
 
                         QQC2.Label {
-                            text: "+" + model.additions
+                            text: "+" + fileDelegate.additions
                             font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                             font.bold: true
                             color: CherryStyle.additionColor
-                            visible: model.additions > 0
+                            visible: fileDelegate.additions > 0
                         }
 
                         QQC2.Label {
-                            text: "-" + model.deletions
+                            text: "-" + fileDelegate.deletions
                             font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                             font.bold: true
                             color: CherryStyle.deletionColor
-                            visible: model.deletions > 0
+                            visible: fileDelegate.deletions > 0
                         }
                     }
                 }
 
                 onClicked: {
-                    appController.selectFileForDiff(model.filePath);
+                    appController.selectFileForDiff(fileDelegate.filePath);
                 }
 
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.RightButton
                     onClicked: {
-                        fileContextMenu.targetFilePath = model.filePath;
+                        fileContextMenu.targetFilePath = fileDelegate.filePath;
                         fileContextMenu.popup();
                     }
                 }
@@ -250,7 +264,7 @@ ColumnLayout {
             }
 
             QQC2.Label {
-                text: i18n("Stashed Changes (%1)", appController.stashes.count)
+                text: qsTr("Stashed Changes (%1)").arg(appController.stashes.count)
                 font.bold: true
                 font.pixelSize: CherryStyle.smallFont.pixelSize
                 color: Kirigami.Theme.textColor
@@ -258,7 +272,7 @@ ColumnLayout {
             }
 
             QQC2.Button {
-                text: i18n("Restore")
+                text: qsTr("Restore")
                 onClicked: appController.popStash()
             }
 

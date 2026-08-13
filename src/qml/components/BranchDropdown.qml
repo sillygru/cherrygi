@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "../style"
+import org.kde.cherrygi
 
 QQC2.Popup {
     id: popup
@@ -42,7 +42,7 @@ QQC2.Popup {
             QQC2.TextField {
                 id: searchField
                 Layout.fillWidth: true
-                placeholderText: i18n("Filter branches...")
+                placeholderText: qsTr("Filter branches...")
                 leftPadding: Kirigami.Units.largeSpacing + 10
 
                 Kirigami.Icon {
@@ -61,7 +61,7 @@ QQC2.Popup {
             }
 
             QQC2.Button {
-                text: i18n("New Branch")
+                text: qsTr("New Branch")
                 icon.name: "list-add"
                 onClicked: {
                     popup.isCreatingBranch = true;
@@ -86,14 +86,14 @@ QQC2.Popup {
                 spacing: Kirigami.Units.smallSpacing
 
                 QQC2.Label {
-                    text: i18n("Create a branch from '%1'", appController.currentBranchName)
+                    text: qsTr("Create a branch from '%1'").arg(appController.currentBranchName)
                     font.bold: true
                 }
 
                 QQC2.TextField {
                     id: newBranchField
                     Layout.fillWidth: true
-                    placeholderText: i18n("Name")
+                    placeholderText: qsTr("Name")
                     onAccepted: createBtn.clicked()
                 }
 
@@ -102,7 +102,7 @@ QQC2.Popup {
                     spacing: Kirigami.Units.smallSpacing
 
                     QQC2.Button {
-                        text: i18n("Cancel")
+                        text: qsTr("Cancel")
                         onClicked: {
                             popup.isCreatingBranch = false;
                         }
@@ -110,11 +110,11 @@ QQC2.Popup {
 
                     QQC2.Button {
                         id: createBtn
-                        text: i18n("Create Branch")
+                        text: qsTr("Create Branch")
                         highlighted: true
-                        enabled: newBranchField.text.trimmed().length > 0
+                        enabled: newBranchField.text.trim().length > 0
                         onClicked: {
-                            appController.createBranch(newBranchField.text.trimmed());
+                            appController.createBranch(newBranchField.text.trim());
                             popup.isCreatingBranch = false;
                             popup.close();
                         }
@@ -131,9 +131,9 @@ QQC2.Popup {
                 anchors.left: parent.left
                 anchors.leftMargin: Kirigami.Units.smallSpacing
                 anchors.verticalCenter: parent.verticalCenter
-                text: i18n("Branches (%1)", appController.branches.count)
+                text: qsTr("Branches (%1)").arg(appController.branches.count)
                 font.bold: true
-                font.pixelSize: Kirigami.Units.fontMetrics.font.pixelSize - 1
+                font.pixelSize: CherryStyle.basePixelSize - 1
                 color: Kirigami.Theme.disabledTextColor
             }
         }
@@ -150,38 +150,49 @@ QQC2.Popup {
                 spacing: 2
 
                 delegate: QQC2.ItemDelegate {
+                    id: branchDelegate
                     width: branchListView.width
                     height: 40
-                    highlighted: model.isCurrent
+
+                    required property int index
+                    required property string name
+                    required property bool isCurrent
+                    required property bool isDefault
+                    required property bool isRemote
+                    required property string prNumber
+                    required property bool prMergedOrActive
+                    required property string tipCommitSha
+
+                    highlighted: branchDelegate.isCurrent
 
                     background: Rectangle {
-                        color: parent.highlighted ? CherryStyle.activeBackground : (parent.hovered ? CherryStyle.hoverBackground : "transparent")
+                        color: branchDelegate.highlighted ? CherryStyle.activeBackground : (branchDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
                         radius: CherryStyle.radiusSmall
-                        border.color: parent.highlighted ? Kirigami.Theme.highlightColor : "transparent"
-                        border.width: parent.highlighted ? 1 : 0
+                        border.color: branchDelegate.highlighted ? Kirigami.Theme.highlightColor : "transparent"
+                        border.width: branchDelegate.highlighted ? 1 : 0
                     }
 
                     contentItem: RowLayout {
                         spacing: Kirigami.Units.smallSpacing
 
                         Kirigami.Icon {
-                            source: model.isCurrent ? "vcs-branch" : "vcs-branch"
+                            source: "vcs-branch"
                             width: Kirigami.Units.iconSizes.small
                             height: width
-                            color: model.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: branchDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                         }
 
                         QQC2.Label {
-                            text: model.name
-                            font.bold: model.isCurrent
-                            color: model.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            text: branchDelegate.name
+                            font.bold: branchDelegate.isCurrent
+                            color: branchDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
 
                         // PR badge if present
                         Rectangle {
-                            visible: model.prNumber !== ""
+                            visible: branchDelegate.prNumber !== ""
                             width: prLabel.width + 12
                             height: 20
                             radius: 10
@@ -195,7 +206,7 @@ QQC2.Popup {
 
                                 QQC2.Label {
                                     id: prLabel
-                                    text: model.prNumber
+                                    text: branchDelegate.prNumber
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
                                     font.bold: true
                                     color: "#3584e4"
@@ -206,14 +217,14 @@ QQC2.Popup {
                                     width: 12
                                     height: 12
                                     color: "#2ec27e"
-                                    visible: model.prMergedOrActive
+                                    visible: branchDelegate.prMergedOrActive
                                 }
                             }
                         }
 
                         // Default badge
                         Rectangle {
-                            visible: model.isDefault
+                            visible: branchDelegate.isDefault
                             width: defLabel.width + 8
                             height: 18
                             radius: 4
@@ -224,7 +235,7 @@ QQC2.Popup {
                             QQC2.Label {
                                 id: defLabel
                                 anchors.centerIn: parent
-                                text: i18n("default")
+                                text: qsTr("default")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                 color: Kirigami.Theme.disabledTextColor
                             }
@@ -232,7 +243,7 @@ QQC2.Popup {
                     }
 
                     onClicked: {
-                        appController.switchBranch(model.name);
+                        appController.switchBranch(branchDelegate.name);
                         popup.close();
                     }
                 }

@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "../style"
+import org.kde.cherrygi
 
 Rectangle {
     id: root
@@ -33,7 +33,7 @@ Rectangle {
             spacing: Kirigami.Units.smallSpacing
 
             QQC2.Label {
-                text: i18n("Add Co-Author")
+                text: qsTr("Add Co-Author")
                 font.bold: true
             }
 
@@ -49,18 +49,18 @@ Rectangle {
                 spacing: Kirigami.Units.smallSpacing
 
                 QQC2.Button {
-                    text: i18n("Cancel")
+                    text: qsTr("Cancel")
                     onClicked: addCoAuthorPopup.close()
                 }
 
                 QQC2.Button {
                     id: addBtn
-                    text: i18n("Add")
+                    text: qsTr("Add")
                     highlighted: true
-                    enabled: coAuthorInput.text.trimmed().length > 0
+                    enabled: coAuthorInput.text.trim().length > 0
                     onClicked: {
                         var list = root.coAuthorsList.slice();
-                        list.push(coAuthorInput.text.trimmed());
+                        list.push(coAuthorInput.text.trim());
                         root.coAuthorsList = list;
                         coAuthorInput.text = "";
                         addCoAuthorPopup.close();
@@ -101,7 +101,7 @@ Rectangle {
                 }
 
                 QQC2.Label {
-                    text: i18n("Commit created!")
+                    text: qsTr("Commit created!")
                     font.bold: true
                     font.pixelSize: CherryStyle.smallFont.pixelSize
                     color: Kirigami.Theme.textColor
@@ -110,7 +110,7 @@ Rectangle {
                 }
 
                 QQC2.Button {
-                    text: i18n("Undo")
+                    text: qsTr("Undo")
                     font.bold: true
                     onClicked: {
                         var restoredSummary = appController.lastUndoCommitSummary;
@@ -149,7 +149,7 @@ Rectangle {
             QQC2.TextField {
                 id: summaryField
                 Layout.fillWidth: true
-                placeholderText: i18n("Summary (required)")
+                placeholderText: qsTr("Summary (required)")
                 text: "Bring `onRowKeyboardFocus` to `SectionList`"
             }
         }
@@ -163,7 +163,7 @@ Rectangle {
 
             QQC2.TextArea {
                 id: descArea
-                placeholderText: i18n("Description")
+                placeholderText: qsTr("Description")
                 wrapMode: TextEdit.Wrap
             }
         }
@@ -178,7 +178,7 @@ Rectangle {
                 icon.name: "user-identity"
                 icon.width: 14
                 icon.height: 14
-                QQC2.ToolTip.text: i18n("Add Co-Author")
+                QQC2.ToolTip.text: qsTr("Add Co-Author")
                 QQC2.ToolTip.visible: hovered
                 onClicked: {
                     addCoAuthorPopup.x = parent.x;
@@ -188,7 +188,7 @@ Rectangle {
             }
 
             QQC2.Label {
-                text: i18n("Co-Authors")
+                text: qsTr("Co-Authors")
                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                 color: Kirigami.Theme.disabledTextColor
                 visible: root.coAuthorsList.length > 0
@@ -246,14 +246,14 @@ Rectangle {
             Layout.fillWidth: true
             implicitHeight: 36
             highlighted: true
-            enabled: summaryField.text.trimmed().length > 0 && appController.changedFiles.selectedCount > 0
+            enabled: summaryField.text.trim().length > 0 && appController.changedFiles.selectedCount > 0
 
             contentItem: RowLayout {
                 anchors.centerIn: parent
                 spacing: 4
 
                 QQC2.Label {
-                    text: i18n("Commit to")
+                    text: qsTr("Commit to")
                     font.bold: true
                     color: commitBtn.enabled ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
                 }
@@ -268,7 +268,7 @@ Rectangle {
             }
 
             onClicked: {
-                var summary = summaryField.text.trimmed();
+                var summary = summaryField.text.trim();
                 var desc = descArea.text.trim();
                 if (appController.commit(summary, desc, root.coAuthorsList)) {
                     summaryField.text = "";

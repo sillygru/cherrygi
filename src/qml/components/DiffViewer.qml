@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "../style"
+import org.kde.cherrygi
 
 ColumnLayout {
     id: root
@@ -42,15 +42,15 @@ ColumnLayout {
                 }
 
                 QQC2.Label {
-                    text: i18n("No diff to display")
+                    text: qsTr("No diff to display")
                     font.bold: true
-                    font.pixelSize: Kirigami.Units.fontMetrics.font.pixelSize + 2
+                    font.pixelSize: CherryStyle.basePixelSize + 2
                     Layout.alignment: Qt.AlignHCenter
                     color: Kirigami.Theme.textColor
                 }
 
                 QQC2.Label {
-                    text: i18n("Select a modified file from the changes list to view the diff.")
+                    text: qsTr("Select a modified file from the changes list to view the diff.")
                     font.pixelSize: CherryStyle.smallFont.pixelSize
                     Layout.alignment: Qt.AlignHCenter
                     color: Kirigami.Theme.disabledTextColor
@@ -73,14 +73,22 @@ ColumnLayout {
                 spacing: 0
 
                 delegate: Rectangle {
+                    id: unifiedLineDelegate
                     width: unifiedListView.width
                     height: 22
 
+                    required property int index
+                    required property int lineType
+                    required property string oldLineNumStr
+                    required property string newLineNumStr
+                    required property string marker
+                    required property string content
+
                     // Background color based on line type
                     color: {
-                        if (model.lineType === 1) return CherryStyle.additionBg;       // Addition (+)
-                        if (model.lineType === 2) return CherryStyle.deletionBg;       // Deletion (-)
-                        if (model.lineType === 3) return CherryStyle.hunkHeaderBg;     // Hunk Header (@@)
+                        if (unifiedLineDelegate.lineType === 1) return CherryStyle.additionBg;       // Addition (+)
+                        if (unifiedLineDelegate.lineType === 2) return CherryStyle.deletionBg;       // Deletion (-)
+                        if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderBg;     // Hunk Header (@@)
                         return "transparent";
                     }
 
@@ -93,9 +101,9 @@ ColumnLayout {
                             Layout.preferredWidth: 46
                             Layout.fillHeight: true
                             color: {
-                                if (model.lineType === 1) return CherryStyle.additionGutterBg;
-                                if (model.lineType === 2) return CherryStyle.deletionGutterBg;
-                                if (model.lineType === 3) return CherryStyle.hunkHeaderBg;
+                                if (unifiedLineDelegate.lineType === 1) return CherryStyle.additionGutterBg;
+                                if (unifiedLineDelegate.lineType === 2) return CherryStyle.deletionGutterBg;
+                                if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderBg;
                                 return CherryStyle.cardBackground;
                             }
                             border.color: CherryStyle.subtleBorderColor
@@ -103,7 +111,7 @@ ColumnLayout {
 
                             QQC2.Label {
                                 anchors.centerIn: parent
-                                text: model.oldLineNumStr
+                                text: unifiedLineDelegate.oldLineNumStr
                                 font: CherryStyle.codeFont
                                 color: Kirigami.Theme.disabledTextColor
                             }
@@ -114,9 +122,9 @@ ColumnLayout {
                             Layout.preferredWidth: 46
                             Layout.fillHeight: true
                             color: {
-                                if (model.lineType === 1) return CherryStyle.additionGutterBg;
-                                if (model.lineType === 2) return CherryStyle.deletionGutterBg;
-                                if (model.lineType === 3) return CherryStyle.hunkHeaderBg;
+                                if (unifiedLineDelegate.lineType === 1) return CherryStyle.additionGutterBg;
+                                if (unifiedLineDelegate.lineType === 2) return CherryStyle.deletionGutterBg;
+                                if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderBg;
                                 return CherryStyle.cardBackground;
                             }
                             border.color: CherryStyle.subtleBorderColor
@@ -124,7 +132,7 @@ ColumnLayout {
 
                             QQC2.Label {
                                 anchors.centerIn: parent
-                                text: model.newLineNumStr
+                                text: unifiedLineDelegate.newLineNumStr
                                 font: CherryStyle.codeFont
                                 color: Kirigami.Theme.disabledTextColor
                             }
@@ -138,13 +146,12 @@ ColumnLayout {
 
                             QQC2.Label {
                                 anchors.centerIn: parent
-                                text: model.marker
-                                font: CherryStyle.codeFont
-                                font.bold: true
+                                text: unifiedLineDelegate.marker
+                                font: CherryStyle.codeFontBold
                                 color: {
-                                    if (model.lineType === 1) return CherryStyle.additionColor;
-                                    if (model.lineType === 2) return CherryStyle.deletionColor;
-                                    if (model.lineType === 3) return CherryStyle.hunkHeaderColor;
+                                    if (unifiedLineDelegate.lineType === 1) return CherryStyle.additionColor;
+                                    if (unifiedLineDelegate.lineType === 2) return CherryStyle.deletionColor;
+                                    if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderColor;
                                     return Kirigami.Theme.disabledTextColor;
                                 }
                             }
@@ -159,14 +166,14 @@ ColumnLayout {
                                 anchors.left: parent.left
                                 anchors.leftMargin: Kirigami.Units.smallSpacing
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: model.content
+                                text: unifiedLineDelegate.content
                                 font: CherryStyle.codeFont
                                 color: {
-                                    if (model.lineType === 3) return CherryStyle.hunkHeaderColor;
-                                    if (model.content.trim().startsWith("//") || model.content.trim().startsWith("/*") || model.content.trim().startsWith("*")) {
+                                    if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderColor;
+                                    if (unifiedLineDelegate.content.trim().startsWith("//") || unifiedLineDelegate.content.trim().startsWith("/*") || unifiedLineDelegate.content.trim().startsWith("*")) {
                                         return "#2ec27e"; // comment styling
                                     }
-                                    if (model.content.includes("readonly") || model.content.includes("interface") || model.content.includes("return") || model.content.includes("const") || model.content.includes("export")) {
+                                    if (unifiedLineDelegate.content.includes("readonly") || unifiedLineDelegate.content.includes("interface") || unifiedLineDelegate.content.includes("return") || unifiedLineDelegate.content.includes("const") || unifiedLineDelegate.content.includes("export")) {
                                         return Kirigami.Theme.textColor;
                                     }
                                     return Kirigami.Theme.textColor;
@@ -200,9 +207,16 @@ ColumnLayout {
                     spacing: 0
 
                     delegate: Rectangle {
+                        id: splitLeftDelegate
                         width: splitLeftListView.width
                         height: 22
-                        color: (model.lineType === 2) ? CherryStyle.deletionBg : (model.lineType === 3 ? CherryStyle.hunkHeaderBg : (model.lineType === 1 ? CherryStyle.cardBackground : "transparent"))
+
+                        required property int index
+                        required property int lineType
+                        required property string oldLineNumStr
+                        required property string content
+
+                        color: (splitLeftDelegate.lineType === 2) ? CherryStyle.deletionBg : (splitLeftDelegate.lineType === 3 ? CherryStyle.hunkHeaderBg : (splitLeftDelegate.lineType === 1 ? CherryStyle.cardBackground : "transparent"))
 
                         RowLayout {
                             anchors.fill: parent
@@ -217,19 +231,19 @@ ColumnLayout {
 
                                 QQC2.Label {
                                     anchors.centerIn: parent
-                                    text: model.oldLineNumStr
+                                    text: splitLeftDelegate.oldLineNumStr
                                     font: CherryStyle.codeFont
                                     color: Kirigami.Theme.disabledTextColor
                                 }
                             }
 
                             QQC2.Label {
-                                anchors.left: parent.left
-                                anchors.leftMargin: 48
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: (model.lineType !== 1) ? model.content : ""
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.leftMargin: Kirigami.Units.smallSpacing
+                                text: (splitLeftDelegate.lineType !== 1) ? splitLeftDelegate.content : ""
                                 font: CherryStyle.codeFont
-                                color: (model.lineType === 2) ? CherryStyle.deletionColor : Kirigami.Theme.textColor
+                                color: (splitLeftDelegate.lineType === 2) ? CherryStyle.deletionColor : Kirigami.Theme.textColor
                             }
                         }
                     }
@@ -251,9 +265,16 @@ ColumnLayout {
                     spacing: 0
 
                     delegate: Rectangle {
+                        id: splitRightDelegate
                         width: splitRightListView.width
                         height: 22
-                        color: (model.lineType === 1) ? CherryStyle.additionBg : (model.lineType === 3 ? CherryStyle.hunkHeaderBg : (model.lineType === 2 ? CherryStyle.cardBackground : "transparent"))
+
+                        required property int index
+                        required property int lineType
+                        required property string newLineNumStr
+                        required property string content
+
+                        color: (splitRightDelegate.lineType === 1) ? CherryStyle.additionBg : (splitRightDelegate.lineType === 3 ? CherryStyle.hunkHeaderBg : (splitRightDelegate.lineType === 2 ? CherryStyle.cardBackground : "transparent"))
 
                         RowLayout {
                             anchors.fill: parent
@@ -268,19 +289,19 @@ ColumnLayout {
 
                                 QQC2.Label {
                                     anchors.centerIn: parent
-                                    text: model.newLineNumStr
+                                    text: splitRightDelegate.newLineNumStr
                                     font: CherryStyle.codeFont
                                     color: Kirigami.Theme.disabledTextColor
                                 }
                             }
 
                             QQC2.Label {
-                                anchors.left: parent.left
-                                anchors.leftMargin: 48
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: (model.lineType !== 2) ? model.content : ""
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.leftMargin: Kirigami.Units.smallSpacing
+                                text: (splitRightDelegate.lineType !== 2) ? splitRightDelegate.content : ""
                                 font: CherryStyle.codeFont
-                                color: (model.lineType === 1) ? CherryStyle.additionColor : Kirigami.Theme.textColor
+                                color: (splitRightDelegate.lineType === 1) ? CherryStyle.additionColor : Kirigami.Theme.textColor
                             }
                         }
                     }

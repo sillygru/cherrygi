@@ -64,6 +64,12 @@ set(CHERRYGI_SOURCES
 
 qt_add_executable(cherrygi ${CHERRYGI_SOURCES})
 
+# Mark CherryStyle.qml as a QML singleton type
+set_source_files_properties(src/qml/style/CherryStyle.qml
+    PROPERTIES
+        QT_QML_SINGLETON_TYPE TRUE
+)
+
 qt_add_qml_module(cherrygi
     URI org.kde.cherrygi
     VERSION 1.0

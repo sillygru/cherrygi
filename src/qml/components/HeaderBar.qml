@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "../style"
+import org.kde.cherrygi
 
 Rectangle {
     id: root
@@ -57,7 +57,7 @@ Rectangle {
                 spacing: 1
 
                 QQC2.Label {
-                    text: i18n("Current repository")
+                    text: qsTr("Current repository")
                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                     color: Kirigami.Theme.disabledTextColor
                 }
@@ -139,7 +139,7 @@ Rectangle {
                 spacing: 1
 
                 QQC2.Label {
-                    text: i18n("Current branch")
+                    text: qsTr("Current branch")
                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                     color: Kirigami.Theme.disabledTextColor
                 }
@@ -283,12 +283,12 @@ Rectangle {
 
                         QQC2.Label {
                             text: {
-                                if (appController.isPulling) return i18n("Pulling...");
-                                if (appController.isPushing) return i18n("Pushing...");
-                                if (appController.isFetching) return i18n("Fetching...");
-                                if (appController.behindCount > 0) return i18n("Pull origin");
-                                if (appController.aheadCount > 0) return i18n("Push origin");
-                                return i18n("Fetch origin");
+                                if (appController.isPulling) return qsTr("Pulling...");
+                                if (appController.isPushing) return qsTr("Pushing...");
+                                if (appController.isFetching) return qsTr("Fetching...");
+                                if (appController.behindCount > 0) return qsTr("Pull origin");
+                                if (appController.aheadCount > 0) return qsTr("Push origin");
+                                return qsTr("Fetch origin");
                             }
                             font.bold: true
                             color: Kirigami.Theme.textColor

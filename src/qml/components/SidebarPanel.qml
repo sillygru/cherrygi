@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "../style"
+import org.kde.cherrygi
 
 Rectangle {
     id: root
@@ -48,7 +48,7 @@ Rectangle {
                         spacing: Kirigami.Units.smallSpacing
 
                         QQC2.Label {
-                            text: i18n("Changes")
+                            text: qsTr("Changes")
                             font.bold: appController.activeTab === "changes"
                             color: appController.activeTab === "changes" ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
                         }
@@ -105,7 +105,7 @@ Rectangle {
                         spacing: Kirigami.Units.smallSpacing
 
                         QQC2.Label {
-                            text: i18n("History")
+                            text: qsTr("History")
                             font.bold: appController.activeTab === "history"
                             color: appController.activeTab === "history" ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
                         }
