@@ -10,6 +10,17 @@ Rectangle {
     implicitHeight: layout.implicitHeight + Kirigami.Units.mediumSpacing * 2
     color: CherryStyle.surfaceHeader
 
+    // Generate a stable hue-based avatar color from the author name
+    function avatarColor(name) {
+        if (!name || name.length === 0) return Kirigami.Theme.disabledTextColor;
+        var hash = 0;
+        for (var i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        var hue = Math.abs(hash % 360);
+        return Qt.hsla(hue / 360.0, 0.55, 0.45, 1.0);
+    }
+
     // Top separator
     Rectangle {
         anchors.top: parent.top
@@ -163,7 +174,7 @@ Rectangle {
                 width: 28
                 height: 28
                 radius: 14
-                color: Kirigami.Theme.highlightColor
+                color: avatarColor("You")
                 Layout.alignment: Qt.AlignVCenter
 
                 QQC2.Label {

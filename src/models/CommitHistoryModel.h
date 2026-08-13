@@ -23,7 +23,8 @@ public:
         TimestampRole,
         CoAuthorsRole,
         CoAuthorsTextRole,
-        ChangedFilesCountRole
+        ChangedFilesCountRole,
+        IsLocalRole
     };
 
     explicit CommitHistoryModel(IGitService *service, QObject *parent = nullptr);
@@ -35,12 +36,15 @@ public:
     QString filterText() const { return m_filterText; }
     void setFilterText(const QString &text);
 
+    void setAheadCount(int count);
+
     Q_INVOKABLE QString getSha(int index) const;
     Q_INVOKABLE void reload();
 
 signals:
     void countChanged();
     void filterTextChanged();
+    void aheadCountChanged();
 
 private:
     void applyFilter();
@@ -49,6 +53,7 @@ private:
     QList<CommitItem> m_allCommits;
     QList<CommitItem> m_filteredCommits;
     QString m_filterText;
+    int m_aheadCount{0};
 };
 
 } // namespace Cherry

@@ -54,8 +54,6 @@ Rectangle {
                 anchors.margins: 6
                 radius: CherryStyle.radiusMedium
                 color: repoDropdown.visible ? CherryStyle.activeBackground : (repoMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
-                border.color: repoDropdown.visible ? Kirigami.Theme.highlightColor : (repoMouse.containsMouse ? CherryStyle.borderColor : "transparent")
-                border.width: 1
             }
 
             ColumnLayout {
@@ -139,8 +137,6 @@ Rectangle {
                 anchors.margins: 6
                 radius: CherryStyle.radiusMedium
                 color: branchDropdown.visible ? CherryStyle.activeBackground : (branchMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
-                border.color: branchDropdown.visible ? Kirigami.Theme.highlightColor : (branchMouse.containsMouse ? CherryStyle.borderColor : "transparent")
-                border.width: 1
             }
 
             ColumnLayout {
@@ -183,8 +179,6 @@ Rectangle {
                         implicitHeight: 20
                         radius: 10
                         color: Qt.rgba(0.2, 0.6, 1.0, 0.18)
-                        border.color: Qt.rgba(0.2, 0.6, 1.0, 0.6)
-                        border.width: 1
 
                         RowLayout {
                             id: prRow
@@ -257,8 +251,6 @@ Rectangle {
                 anchors.margins: 6
                 radius: CherryStyle.radiusMedium
                 color: remotePrimaryMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
-                border.color: remotePrimaryMouse.containsMouse ? CherryStyle.borderColor : "transparent"
-                border.width: 1
             }
 
             RowLayout {
@@ -406,8 +398,6 @@ Rectangle {
                     height: 32
                     radius: CherryStyle.radiusMedium
                     color: remoteMenuMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
-                    border.color: remoteMenuMouse.containsMouse ? CherryStyle.borderColor : "transparent"
-                    border.width: 1
 
                     Kirigami.Icon {
                         anchors.centerIn: parent

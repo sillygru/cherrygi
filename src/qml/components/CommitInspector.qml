@@ -9,6 +9,17 @@ ColumnLayout {
     id: root
     spacing: 0
 
+    // Generate a stable hue-based avatar color from the author name
+    function avatarColor(name) {
+        if (!name || name.length === 0) return Kirigami.Theme.disabledTextColor;
+        var hash = 0;
+        for (var i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        var hue = Math.abs(hash % 360);
+        return Qt.hsla(hue / 360.0, 0.55, 0.45, 1.0);
+    }
+
     property var commitData: appController.selectedCommitData
     property string activeFilePath: ""
 
@@ -73,7 +84,7 @@ ColumnLayout {
                     width: 34
                     height: 34
                     radius: 17
-                    color: Kirigami.Theme.highlightColor
+                    color: avatarColor(root.commitData && root.commitData.authorName ? root.commitData.authorName : "")
 
                     QQC2.Label {
                         anchors.centerIn: parent

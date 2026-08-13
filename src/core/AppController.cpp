@@ -45,6 +45,7 @@ void AppController::connectServiceSignals()
 
     connect(m_service.get(), &IGitService::remoteStatusUpdated, this, [this](const RemoteStatus &status) {
         m_remoteStatus = status;
+        m_commitHistoryModel->setAheadCount(m_remoteStatus.ahead);
         emit remoteStatusChanged();
     });
 
@@ -73,6 +74,7 @@ void AppController::connectServiceSignals()
 void AppController::updateCurrentState()
 {
     m_remoteStatus = m_service->getRemoteStatus();
+    m_commitHistoryModel->setAheadCount(m_remoteStatus.ahead);
     emit remoteStatusChanged();
     emit currentRepoChanged();
     emit currentBranchChanged();

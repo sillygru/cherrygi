@@ -51,6 +51,8 @@ QVariant CommitHistoryModel::data(const QModelIndex &index, int role) const
         return commit.coAuthors.join(", ");
     case ChangedFilesCountRole:
         return commit.changedFiles.size();
+    case IsLocalRole:
+        return index.row() < m_aheadCount;
     default:
         return QVariant();
     }
@@ -70,8 +72,19 @@ QHash<int, QByteArray> CommitHistoryModel::roleNames() const
         {TimestampRole, "timestamp"},
         {CoAuthorsRole, "coAuthors"},
         {CoAuthorsTextRole, "coAuthorsText"},
-        {ChangedFilesCountRole, "changedFilesCount"}
+        {ChangedFilesCountRole, "changedFilesCount"},
+        {IsLocalRole, "isLocal"}
     };
+}
+
+void CommitHistoryModel::setAheadCount(int count)
+{
+    if (m_aheadCount == count) return;
+    m_aheadCount = count;
+    if (!m_filteredCommits.isEmpty()) {
+        emit dataChanged(index(0, 0), index(qMin(m_aheadCount, (int)m_filteredCommits.size() - 1), 0), {IsLocalRole});
+    }
+    emit aheadCountChanged();
 }
 
 void CommitHistoryModel::setFilterText(const QString &text)

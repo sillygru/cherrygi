@@ -9,6 +9,17 @@ ColumnLayout {
     id: root
     spacing: 0
 
+    // Generate a stable hue-based avatar color from the author name
+    function avatarColor(name) {
+        if (!name || name.length === 0) return Kirigami.Theme.disabledTextColor;
+        var hash = 0;
+        for (var i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        var hue = Math.abs(hash % 360);
+        return Qt.hsla(hue / 360.0, 0.55, 0.45, 1.0);
+    }
+
     // Search bar
     Rectangle {
         Layout.fillWidth: true
@@ -31,7 +42,7 @@ ColumnLayout {
                     color: CherryStyle.inputBackground
                     border.color: searchInput.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
                     border.width: searchInput.activeFocus ? 2 : 1
-                    radius: CherryStyle.radiusSmall
+                    radius: CherryStyle.radiusMedium
                 }
 
                 Kirigami.Icon {
@@ -73,7 +84,7 @@ ColumnLayout {
         ListView {
             id: commitListView
             model: appController.commitHistory
-            spacing: 2
+            spacing: 1
 
             delegate: QQC2.ItemDelegate {
                 id: commitDelegate
@@ -93,6 +104,7 @@ ColumnLayout {
                 required property var coAuthors
                 required property string coAuthorsText
                 required property int changedFilesCount
+                required property bool isLocal
 
                 highlighted: appController.selectedCommitSha === commitDelegate.sha
 
@@ -124,7 +136,7 @@ ColumnLayout {
                         width: 36
                         height: 36
                         radius: 18
-                        color: Kirigami.Theme.highlightColor
+                        color: avatarColor(commitDelegate.authorName)
                         Layout.alignment: Qt.AlignVCenter
 
                         QQC2.Label {
@@ -193,6 +205,28 @@ ColumnLayout {
                                 text: commitDelegate.relativeTime
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
                                 color: Kirigami.Theme.disabledTextColor
+                            }
+
+                            // Unpushed commit indicator
+                            Rectangle {
+                                visible: commitDelegate.isLocal
+                                implicitWidth: localRow.implicitWidth + 8
+                                implicitHeight: 16
+                                radius: 8
+                                color: Qt.rgba(Kirigami.Theme.positiveTextColor.r, Kirigami.Theme.positiveTextColor.g, Kirigami.Theme.positiveTextColor.b, 0.15)
+
+                                RowLayout {
+                                    id: localRow
+                                    anchors.centerIn: parent
+                                    spacing: 2
+
+                                    Kirigami.Icon {
+                                        source: "vcs-push-symbolic"
+                                        width: 10
+                                        height: 10
+                                        color: Kirigami.Theme.positiveTextColor
+                                    }
+                                }
                             }
 
                             Item { Layout.fillWidth: true }

@@ -220,9 +220,7 @@ QQC2.Popup {
 
                     background: Rectangle {
                         color: branchDelegate.highlighted ? CherryStyle.activeBackground : (branchDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
-                        radius: CherryStyle.radiusSmall
-                        border.color: branchDelegate.highlighted ? Kirigami.Theme.highlightColor : (branchDelegate.hovered ? CherryStyle.borderColor : "transparent")
-                        border.width: 1
+                        radius: CherryStyle.radiusMedium
                     }
 
                     contentItem: RowLayout {
@@ -294,6 +292,15 @@ QQC2.Popup {
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                 color: Kirigami.Theme.disabledTextColor
                             }
+                        }
+
+                        // Current branch checkmark
+                        Kirigami.Icon {
+                            visible: branchDelegate.isCurrent
+                            source: "checkmark"
+                            width: 16
+                            height: 16
+                            color: Kirigami.Theme.highlightColor
                         }
                     }
 
