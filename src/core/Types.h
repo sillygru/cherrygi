@@ -85,9 +85,12 @@ struct StashItem {
 };
 
 struct RemoteStatus {
+    bool hasRemote{false};
+    QString remoteName{"origin"};
+    QString remoteUrl;
     int ahead{0};
     int behind{0};
-    QString lastFetchedText{"Last fetched 8 minutes ago"};
+    QString lastFetchedText{"No remote repository configured"};
     bool isFetching{false};
     bool isPulling{false};
     bool isPushing{false};

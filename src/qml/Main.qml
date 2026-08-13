@@ -80,4 +80,26 @@ Kirigami.ApplicationWindow {
             appController.isBackendDialogVisible = false;
         }
     }
+
+    // ==========================================
+    // APP SETTINGS MODAL DIALOG
+    // ==========================================
+    AppSettingsDialog {
+        id: settingsDialog
+        visible: appController.isSettingsDialogVisible
+        onClosed: {
+            appController.isSettingsDialogVisible = false;
+        }
+    }
+
+    // ==========================================
+    // PUBLISH REPOSITORY MODAL DIALOG
+    // ==========================================
+    PublishRepositoryDialog {
+        id: publishDialog
+        visible: appController.isPublishDialogVisible
+        onClosed: {
+            appController.isPublishDialogVisible = false;
+        }
+    }
 }

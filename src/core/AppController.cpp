@@ -12,13 +12,20 @@ namespace Cherry {
 
 AppController::AppController(QObject *parent)
     : QObject(parent)
+    , m_settings(std::make_unique<AppSettings>(this))
     , m_gitCliService(std::make_unique<GitCliService>())
     , m_mockService(std::make_unique<MockGitService>())
 {
     // Default to real git, but isBackendDialogVisible is true on startup
     m_activeService = m_gitCliService.get();
-    m_backendMode = "real";
-    m_isBackendDialogVisible = true;
+    m_backendMode = m_settings->startupBackend() == "mock" ? "mock" : "real";
+    m_isBackendDialogVisible = (m_settings->startupBackend() == "ask");
+    if (m_backendMode == "mock") {
+        m_activeService = m_mockService.get();
+    }
+
+    m_diffViewMode = m_settings->diffViewMode();
+    m_showWhitespace = m_settings->showWhitespace();
 
     m_repoModel = new RepositoryListModel(m_activeService, this);
     m_branchModel = new BranchListModel(m_activeService, this);
@@ -120,12 +127,12 @@ void AppController::connectServiceSignals()
 
     disconnect(m_activeService, nullptr, this, nullptr);
 
-    connect(m_activeService, &IGitService::repositoryChanged, this, [this]() {
+    connect(m_activeService, &IGitService::repositoryChanged, this, [this](const RepositoryInfo &) {
         updateCurrentState();
         emit currentRepoChanged();
     });
 
-    connect(m_activeService, &IGitService::currentBranchChanged, this, [this]() {
+    connect(m_activeService, &IGitService::currentBranchChanged, this, [this](const BranchInfo &) {
         emit currentBranchChanged();
     });
 
@@ -133,6 +140,7 @@ void AppController::connectServiceSignals()
         m_remoteStatus = status;
         m_commitHistoryModel->setAheadCount(m_remoteStatus.ahead);
         emit remoteStatusChanged();
+        emit undoStateChanged();
     });
 
     connect(m_activeService, &IGitService::operationSucceeded, this, [this](const QString &msg) {
@@ -155,6 +163,14 @@ void AppController::connectServiceSignals()
             }
         }
     });
+
+    connect(m_activeService, &IGitService::commitHistoryUpdated, this, [this]() {
+        emit undoStateChanged();
+        auto commits = m_activeService->getCommitHistory(1);
+        if (!commits.isEmpty() && m_selectedCommitSha.isEmpty()) {
+            setSelectedCommitSha(commits.first().sha);
+        }
+    });
 }
 
 void AppController::updateCurrentState()
@@ -167,6 +183,7 @@ void AppController::updateCurrentState()
     emit currentRepoChanged();
     emit currentBranchChanged();
     emit undoStateChanged();
+    emit authorInfoChanged();
 }
 
 QString AppController::currentRepoName() const
@@ -217,6 +234,11 @@ QString AppController::currentAuthorInitial() const
     return name.left(1).toUpper();
 }
 
+bool AppController::isGhAvailable() const
+{
+    return m_settings ? m_settings->isGhAvailable() : false;
+}
+
 void AppController::setActiveTab(const QString &tab)
 {
     if (m_activeTab == tab) return;
@@ -230,6 +252,11 @@ void AppController::setActiveTab(const QString &tab)
     } else if (m_activeTab == "history") {
         if (!m_selectedCommitSha.isEmpty()) {
             selectCommit(m_selectedCommitSha);
+        } else {
+            auto commits = m_activeService->getCommitHistory(1);
+            if (!commits.isEmpty()) {
+                selectCommit(commits.first().sha);
+            }
         }
     }
 }
@@ -327,6 +354,7 @@ void AppController::setDiffViewMode(const QString &mode)
 {
     if (m_diffViewMode == mode) return;
     m_diffViewMode = mode;
+    if (m_settings) m_settings->setDiffViewMode(mode);
     emit diffViewModeChanged();
 }
 
@@ -334,12 +362,13 @@ void AppController::setShowWhitespace(bool show)
 {
     if (m_showWhitespace == show) return;
     m_showWhitespace = show;
+    if (m_settings) m_settings->setShowWhitespace(show);
     emit showWhitespaceChanged();
 }
 
-bool AppController::hasUndoCommit() const
+bool AppController::canUndoCommit() const
 {
-    return m_activeService ? m_activeService->hasUndoCommit() : false;
+    return m_activeService ? m_activeService->canUndoCommit() : false;
 }
 
 QString AppController::lastUndoCommitSummary() const
@@ -350,6 +379,163 @@ QString AppController::lastUndoCommitSummary() const
 QString AppController::lastUndoCommitDescription() const
 {
     return m_activeService ? m_activeService->getLastUndoCommitDescription() : QString();
+}
+
+QStringList AppController::lastUndoCommitCoAuthors() const
+{
+    return m_activeService ? m_activeService->getLastUndoCommitCoAuthors() : QStringList();
+}
+
+void AppController::setSettingsDialogVisible(bool visible)
+{
+    if (m_isSettingsDialogVisible == visible) return;
+    m_isSettingsDialogVisible = visible;
+    emit settingsDialogVisibleChanged();
+}
+
+void AppController::setPublishDialogVisible(bool visible)
+{
+    if (m_isPublishDialogVisible == visible) return;
+    m_isPublishDialogVisible = visible;
+    emit publishDialogVisibleChanged();
+}
+
+void AppController::setSettingsTab(const QString &tab)
+{
+    if (m_settingsTab == tab) return;
+    m_settingsTab = tab;
+    emit settingsTabChanged();
+}
+
+QString AppController::defaultEditor() const
+{
+    return m_settings ? m_settings->defaultEditor() : "kate";
+}
+
+QString AppController::customEditorCommand() const
+{
+    return m_settings ? m_settings->customEditorCommand() : "";
+}
+
+QString AppController::defaultTerminal() const
+{
+    return m_settings ? m_settings->defaultTerminal() : "konsole";
+}
+
+QString AppController::customTerminalCommand() const
+{
+    return m_settings ? m_settings->customTerminalCommand() : "";
+}
+
+QStringList AppController::availableEditors() const
+{
+    return m_settings ? m_settings->availableEditors() : QStringList();
+}
+
+QStringList AppController::availableTerminals() const
+{
+    return m_settings ? m_settings->availableTerminals() : QStringList();
+}
+
+QString AppController::globalAuthorName() const
+{
+    return m_activeService ? m_activeService->getGlobalAuthorName() : "";
+}
+
+QString AppController::globalAuthorEmail() const
+{
+    return m_activeService ? m_activeService->getGlobalAuthorEmail() : "";
+}
+
+QString AppController::localAuthorName() const
+{
+    return m_activeService ? m_activeService->getAuthorName() : "";
+}
+
+QString AppController::localAuthorEmail() const
+{
+    return m_activeService ? m_activeService->getAuthorEmail() : "";
+}
+
+void AppController::showSettingsDialog(const QString &tab)
+{
+    setSettingsTab(tab);
+    setSettingsDialogVisible(true);
+}
+
+void AppController::hideSettingsDialog()
+{
+    setSettingsDialogVisible(false);
+}
+
+void AppController::showPublishDialog()
+{
+    setPublishDialogVisible(true);
+}
+
+void AppController::hidePublishDialog()
+{
+    setPublishDialogVisible(false);
+}
+
+bool AppController::publishRepository(const QString &name, const QString &description, bool isPrivate)
+{
+    if (!m_activeService) return false;
+    bool res = m_activeService->publishRepository(name, description, isPrivate);
+    if (res) {
+        hidePublishDialog();
+        updateCurrentState();
+    }
+    return res;
+}
+
+bool AppController::saveRemoteUrl(const QString &url, const QString &remoteName)
+{
+    if (!m_activeService) return false;
+    bool res = m_activeService->setRemoteUrl(url, remoteName);
+    if (res) {
+        updateCurrentState();
+    }
+    return res;
+}
+
+bool AppController::removeRemoteUrl(const QString &remoteName)
+{
+    if (!m_activeService) return false;
+    bool res = m_activeService->removeRemote(remoteName);
+    if (res) {
+        updateCurrentState();
+    }
+    return res;
+}
+
+bool AppController::saveAuthorInfo(const QString &name, const QString &email, bool global)
+{
+    if (!m_activeService) return false;
+    bool res = m_activeService->setAuthorInfo(name, email, global);
+    if (res) {
+        emit authorInfoChanged();
+        emit currentRepoChanged();
+    }
+    return res;
+}
+
+void AppController::saveEditorSettings(const QString &editor, const QString &customCmd)
+{
+    if (!m_settings) return;
+    m_settings->setDefaultEditor(editor);
+    m_settings->setCustomEditorCommand(customCmd);
+    emit editorSettingsChanged();
+    showToast(QString("Saved editor settings"));
+}
+
+void AppController::saveTerminalSettings(const QString &terminal, const QString &customCmd)
+{
+    if (!m_settings) return;
+    m_settings->setDefaultTerminal(terminal);
+    m_settings->setCustomTerminalCommand(customCmd);
+    emit terminalSettingsChanged();
+    showToast(QString("Saved terminal settings"));
 }
 
 void AppController::openLocalRepositoryDialog()
@@ -425,6 +611,13 @@ bool AppController::commit(const QString &summary, const QString &description, c
     if (res) {
         emit undoStateChanged();
         emit remoteStatusChanged();
+
+        // Synchronously update commit history and selection
+        auto commits = m_activeService->getCommitHistory(1);
+        if (!commits.isEmpty()) {
+            setSelectedCommitSha(commits.first().sha);
+        }
+
         auto files = m_activeService->getChangedFiles();
         if (!files.isEmpty()) {
             setSelectedFilePath(files.first().filePath);
@@ -444,6 +637,12 @@ bool AppController::undoLastCommit()
     if (res) {
         emit undoStateChanged();
         emit remoteStatusChanged();
+
+        auto commits = m_activeService->getCommitHistory(1);
+        if (!commits.isEmpty()) {
+            setSelectedCommitSha(commits.first().sha);
+        }
+
         auto files = m_activeService->getChangedFiles();
         if (!files.isEmpty()) {
             setSelectedFilePath(files.first().filePath);
@@ -552,6 +751,17 @@ void AppController::revertCommit(const QString &sha)
     if (m_activeService) m_activeService->revertCommit(sha);
 }
 
+void AppController::openInEditor(const QString &filePath)
+{
+    if (!m_settings) return;
+    bool ok = m_settings->openInEditor(filePath, currentRepoPath());
+    if (ok) {
+        showToast(QString("Opened %1 in %2").arg(filePath.isEmpty() ? currentRepoName() : QFileInfo(filePath).fileName(), m_settings->defaultEditor()));
+    } else {
+        showToast("Could not launch configured text editor", true);
+    }
+}
+
 void AppController::openInTerminal(const QString &path)
 {
     QString targetDir = path.isEmpty() ? currentRepoPath() : path;
@@ -560,16 +770,16 @@ void AppController::openInTerminal(const QString &path)
         return;
     }
 
-    // Try konsole first, then default terminal fallback
-    bool started = QProcess::startDetached("konsole", {"--workdir", targetDir});
-    if (!started) {
-        started = QProcess::startDetached("x-terminal-emulator", {"--working-directory", targetDir});
-    }
-    if (!started) {
-        started = QProcess::startDetached("ptyxis", {"--working-directory", targetDir});
+    if (m_settings) {
+        bool started = m_settings->openInTerminal(targetDir);
+        if (started) {
+            showToast(QString("Opened terminal in %1").arg(QFileInfo(targetDir).fileName()));
+            return;
+        }
     }
 
-    if (started) {
+    // Fallback konsole
+    if (QProcess::startDetached("konsole", {"--workdir", targetDir})) {
         showToast(QString("Opened terminal in %1").arg(QFileInfo(targetDir).fileName()));
     } else {
         showToast("Could not launch terminal emulator", true);
@@ -591,8 +801,8 @@ void AppController::openInFileManager(const QString &path)
 void AppController::openOnGitHub()
 {
     QString url;
-    if (m_backendMode == "real" && m_gitCliService) {
-        url = m_gitCliService->getRemoteUrl();
+    if (m_activeService) {
+        url = m_activeService->getRemoteUrl();
     }
 
     if (url.isEmpty()) {
@@ -617,8 +827,8 @@ void AppController::openOnGitHub()
 void AppController::createPullRequest()
 {
     QString url;
-    if (m_backendMode == "real" && m_gitCliService) {
-        url = m_gitCliService->getRemoteUrl();
+    if (m_activeService) {
+        url = m_activeService->getRemoteUrl();
     }
 
     if (url.isEmpty()) {

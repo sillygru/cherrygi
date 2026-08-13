@@ -38,12 +38,15 @@ void MockGitService::initializeMockData()
         {"release/3.4.1", false, false, false, "", false, "104ab72"}
     };
 
-    desktopRepo.remoteStatus = {
-        0, // ahead
-        3, // behind
-        "Last fetched 8 minutes ago",
-        false, false, false
-    };
+    desktopRepo.remoteStatus.hasRemote = true;
+    desktopRepo.remoteStatus.remoteName = "origin";
+    desktopRepo.remoteStatus.remoteUrl = "https://github.com/desktop/desktop.git";
+    desktopRepo.remoteStatus.ahead = 0;
+    desktopRepo.remoteStatus.behind = 3;
+    desktopRepo.remoteStatus.lastFetchedText = "Last fetched 8 minutes ago";
+    desktopRepo.remoteStatus.isFetching = false;
+    desktopRepo.remoteStatus.isPulling = false;
+    desktopRepo.remoteStatus.isPushing = false;
 
     // --- Changed File 1: section-list.tsx ---
     FileChange change1;
@@ -214,7 +217,12 @@ void MockGitService::initializeMockData()
         {"feat/kirigami-breeze-theme", false, false, false, "#2", true, "90df12c"},
         {"feat/diff-split-mode", false, false, false, "#5", false, "bc41029"}
     };
-    cherryRepo.remoteStatus = {1, 0, "Last fetched 2 minutes ago", false, false, false};
+    cherryRepo.remoteStatus.hasRemote = true;
+    cherryRepo.remoteStatus.remoteName = "origin";
+    cherryRepo.remoteStatus.remoteUrl = "https://github.com/cherry/cherrygi.git";
+    cherryRepo.remoteStatus.ahead = 1;
+    cherryRepo.remoteStatus.behind = 0;
+    cherryRepo.remoteStatus.lastFetchedText = "Last fetched 2 minutes ago";
 
     FileChange cfile;
     cfile.id = "cg-1";
@@ -252,7 +260,12 @@ void MockGitService::initializeMockData()
         {"master", true, true, false, "", false, "ff82910"},
         {"plasma/6.2", false, false, false, "", false, "ee10294"}
     };
-    plasmaRepo.remoteStatus = {0, 12, "Last fetched 1 hour ago", false, false, false};
+    plasmaRepo.remoteStatus.hasRemote = true;
+    plasmaRepo.remoteStatus.remoteName = "origin";
+    plasmaRepo.remoteStatus.remoteUrl = "https://invent.kde.org/plasma/plasma-workspace.git";
+    plasmaRepo.remoteStatus.ahead = 0;
+    plasmaRepo.remoteStatus.behind = 12;
+    plasmaRepo.remoteStatus.lastFetchedText = "Last fetched 1 hour ago";
     plasmaRepo.changedFiles = {change2, change3};
     plasmaRepo.commitHistory = {c4, c5};
     m_repositories.insert(plasmaRepo.info.id, plasmaRepo);
@@ -288,10 +301,25 @@ std::optional<RepositoryInfo> MockGitService::getCurrentRepository()
     return state->info;
 }
 
-bool MockGitService::openRepository(const QString &pathOrId)
+bool MockGitService::openRepository(const QString &repoIdOrPath)
 {
+    if (m_repositories.contains(repoIdOrPath)) {
+        m_currentRepoId = repoIdOrPath;
+        const auto &repo = m_repositories[repoIdOrPath];
+        emit repositoryChanged(repo.info);
+        emit branchListChanged();
+        if (auto b = getCurrentBranch()) {
+            emit currentBranchChanged(*b);
+        }
+        emit changedFilesUpdated();
+        emit commitHistoryUpdated();
+        emit remoteStatusUpdated(activeState()->remoteStatus);
+        emit stashesUpdated();
+        return true;
+    }
+
     for (auto it = m_repositories.begin(); it != m_repositories.end(); ++it) {
-        if (it.key() == pathOrId || it.value().info.path == pathOrId || it.value().info.name == pathOrId) {
+        if (it.value().info.path == repoIdOrPath || it.value().info.name == repoIdOrPath) {
             m_currentRepoId = it.key();
             emit repositoryChanged(it.value().info);
             emit branchListChanged();
@@ -300,11 +328,12 @@ bool MockGitService::openRepository(const QString &pathOrId)
             }
             emit changedFilesUpdated();
             emit commitHistoryUpdated();
-            emit remoteStatusUpdated(it.value().remoteStatus);
+            emit remoteStatusUpdated(activeState()->remoteStatus);
             emit stashesUpdated();
             return true;
         }
     }
+
     return false;
 }
 
@@ -315,7 +344,12 @@ bool MockGitService::addRepository(const QString &name, const QString &path)
     newRepo.info = {id, name, path, "main", 0, 0, 0, "Just now"};
     newRepo.currentBranch = "main";
     newRepo.branches = {{"main", true, true, false, "", false, "init123"}};
-    newRepo.remoteStatus = {0, 0, "Just now", false, false, false};
+    newRepo.remoteStatus.hasRemote = false;
+    newRepo.remoteStatus.remoteName = "origin";
+    newRepo.remoteStatus.remoteUrl = "";
+    newRepo.remoteStatus.ahead = 0;
+    newRepo.remoteStatus.behind = 0;
+    newRepo.remoteStatus.lastFetchedText = "No remote repository configured";
     m_repositories.insert(id, newRepo);
     openRepository(id);
     return true;
@@ -831,6 +865,80 @@ bool MockGitService::dropStash(const QString &stashId)
         }
     }
     return false;
+}
+
+bool MockGitService::hasRemote() const
+{
+    auto *state = const_cast<MockGitService*>(this)->activeState();
+    return state ? state->remoteStatus.hasRemote : true;
+}
+
+QString MockGitService::getRemoteUrl(const QString &remoteName) const
+{
+    Q_UNUSED(remoteName);
+    auto *state = const_cast<MockGitService*>(this)->activeState();
+    return state ? state->remoteStatus.remoteUrl : QString("https://github.com/desktop/desktop.git");
+}
+
+bool MockGitService::setRemoteUrl(const QString &url, const QString &remoteName)
+{
+    auto *state = activeState();
+    if (!state) return false;
+    state->remoteStatus.hasRemote = true;
+    state->remoteStatus.remoteName = remoteName.isEmpty() ? "origin" : remoteName;
+    state->remoteStatus.remoteUrl = url;
+    state->remoteStatus.lastFetchedText = "Just now";
+    emit remoteStatusUpdated(state->remoteStatus);
+    emit operationSucceeded(QString("Set remote '%1' to %2").arg(state->remoteStatus.remoteName, url));
+    return true;
+}
+
+bool MockGitService::removeRemote(const QString &remoteName)
+{
+    auto *state = activeState();
+    if (!state) return false;
+    state->remoteStatus.hasRemote = false;
+    state->remoteStatus.remoteUrl.clear();
+    state->remoteStatus.lastFetchedText = "No remote repository configured";
+    emit remoteStatusUpdated(state->remoteStatus);
+    emit operationSucceeded(QString("Removed remote '%1'").arg(remoteName));
+    return true;
+}
+
+bool MockGitService::publishRepository(const QString &name, const QString &description, bool isPrivate)
+{
+    auto *state = activeState();
+    if (!state) return false;
+    Q_UNUSED(description);
+    Q_UNUSED(isPrivate);
+    QString repoName = name.isEmpty() ? state->info.name : name;
+    state->remoteStatus.hasRemote = true;
+    state->remoteStatus.remoteUrl = QString("https://github.com/mock-user/%1.git").arg(repoName);
+    state->remoteStatus.lastFetchedText = "Just now";
+    state->remoteStatus.ahead = 0;
+    state->info.aheadCount = 0;
+    emit remoteStatusUpdated(state->remoteStatus);
+    emit operationSucceeded(QString("Successfully published '%1' to GitHub!").arg(repoName));
+    return true;
+}
+
+QString MockGitService::getAuthorName() const
+{
+    return "Desktop Contributor";
+}
+
+QString MockGitService::getAuthorEmail() const
+{
+    return "contributor@desktop.local";
+}
+
+bool MockGitService::setAuthorInfo(const QString &name, const QString &email, bool global)
+{
+    Q_UNUSED(name);
+    Q_UNUSED(email);
+    Q_UNUSED(global);
+    emit operationSucceeded("Updated author info");
+    return true;
 }
 
 } // namespace Cherry

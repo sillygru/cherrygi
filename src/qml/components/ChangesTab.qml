@@ -33,6 +33,12 @@ ColumnLayout {
         property string targetFilePath: ""
 
         QQC2.MenuItem {
+            text: qsTr("Open in External Editor")
+            icon.name: "accessories-text-editor"
+            onTriggered: appController.openInEditor(fileContextMenu.targetFilePath)
+        }
+
+        QQC2.MenuItem {
             text: qsTr("Discard Changes...")
             icon.name: "edit-delete"
             onTriggered: appController.discardFileChanges(fileContextMenu.targetFilePath)

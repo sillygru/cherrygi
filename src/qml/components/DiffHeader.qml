@@ -32,7 +32,7 @@ Rectangle {
         QQC2.MenuItem {
             text: qsTr("Open in External Editor")
             icon.name: "accessories-text-editor"
-            onTriggered: appController.showToast(qsTr("Opening file in editor..."))
+            onTriggered: appController.openInEditor(root.filePath)
         }
     }
 
@@ -144,6 +144,15 @@ Rectangle {
                     color: CherryStyle.deletionColor
                 }
             }
+        }
+
+        // Open in Editor ToolButton
+        QQC2.ToolButton {
+            icon.name: "accessories-text-editor"
+            visible: root.filePath.length > 0
+            QQC2.ToolTip.text: qsTr("Open file in external editor")
+            QQC2.ToolTip.visible: hovered
+            onClicked: appController.openInEditor(root.filePath)
         }
 
         // Split / Unified Toggle Button

@@ -786,6 +786,7 @@ bool GitCliService::createCommit(const QString &summary, const QString &descript
             m_lastUndoCommitSha = shaRes.stdOut.trimmed();
             m_lastUndoCommitSummary = summary.trimmed();
             m_lastUndoCommitDescription = description;
+            m_lastUndoCommitCoAuthors = coAuthors;
         }
 
         emit commitHistoryUpdated();
@@ -799,24 +800,98 @@ bool GitCliService::createCommit(const QString &summary, const QString &descript
     return false;
 }
 
+bool GitCliService::canUndoCommit() const
+{
+    if (m_repoPath.isEmpty()) return false;
+
+    // Check if HEAD exists
+    GitResult headRes = const_cast<GitCliService*>(this)->runGit({"rev-parse", "--verify", "HEAD"}, QString(), 2000);
+    if (!headRes.success) return false;
+
+    // If there are unpushed commits ahead of upstream
+    if (m_remoteStatus.ahead > 0) return true;
+
+    // If no remote origin configured or no upstream set, any local commit on current branch is undoable
+    if (!hasRemote()) return true;
+
+    GitResult upstreamRes = const_cast<GitCliService*>(this)->runGit({"rev-parse", "--verify", "@{upstream}"}, QString(), 2000);
+    if (!upstreamRes.success) {
+        // Branch has no upstream tracking: any commit is local/undoable
+        return true;
+    }
+
+    return !m_lastUndoCommitSha.isEmpty();
+}
+
 bool GitCliService::undoLastCommit()
 {
-    if (m_repoPath.isEmpty() || m_lastUndoCommitSha.isEmpty()) {
+    if (m_repoPath.isEmpty()) {
+        emit operationFailed("No repository active");
+        return false;
+    }
+
+    // Inspect current HEAD to extract its message and co-authors before resetting
+    GitResult headLog = runGit({"log", "-1", "--format=%H\x1f%s\x1f%b\x1f%B"}, QString(), 3000);
+    if (!headLog.success || headLog.stdOut.trimmed().isEmpty()) {
         emit operationFailed("No commit available to undo");
         return false;
     }
 
-    GitResult res = runGit({"reset", "--soft", "HEAD~1"}, QString(), 10000);
-    if (res.success) {
-        m_lastUndoCommitSha.clear();
+    QStringList p = headLog.stdOut.split('\x1f');
+    QString sha = p.value(0).trimmed();
+    QString summary = p.value(1).trimmed();
+    QString description = p.value(2).trimmed();
+    QString fullMessage = p.value(3);
+
+    // Extract co-authors from description/fullMessage
+    QStringList coAuthors;
+    QRegularExpression coRegex(R"(Co-authored-by:\s*(.*?)(?:<|$))", QRegularExpression::CaseInsensitiveOption);
+    auto it = coRegex.globalMatch(fullMessage);
+    while (it.hasNext()) {
+        auto m = it.next();
+        QString ca = m.captured(1).trimmed();
+        if (!ca.isEmpty()) coAuthors.append(ca);
+    }
+
+    // Clean description of co-authored trailers
+    QString cleanedDesc = description;
+    cleanedDesc.remove(QRegularExpression(R"(\n*Co-authored-by:.*$)", QRegularExpression::MultilineOption));
+    cleanedDesc = cleanedDesc.trimmed();
+
+    // Check if HEAD~1 exists (i.e. whether this is a root commit or normal commit)
+    GitResult parentCheck = runGit({"rev-parse", "--verify", "HEAD~1"}, QString(), 2000);
+    bool resetSuccess = false;
+
+    if (parentCheck.success) {
+        // Normal commit with parent: soft reset to HEAD~1
+        GitResult res = runGit({"reset", "--soft", "HEAD~1"}, QString(), 10000);
+        resetSuccess = res.success;
+    } else {
+        // Root commit with no parent: delete HEAD ref safely
+        GitResult res = runGit({"update-ref", "-d", "HEAD"}, QString(), 10000);
+        resetSuccess = res.success;
+    }
+
+    if (resetSuccess) {
+        m_lastUndoCommitSha = sha;
+        m_lastUndoCommitSummary = summary;
+        m_lastUndoCommitDescription = cleanedDesc;
+        m_lastUndoCommitCoAuthors = coAuthors;
+
+        // Select all restored files in working directory
+        auto changed = getChangedFiles();
+        for (const auto &f : changed) {
+            m_fileSelection[f.filePath] = true;
+        }
+
         emit commitHistoryUpdated();
         emit changedFilesUpdated();
         getRemoteStatus();
-        emit operationSucceeded("Successfully undid last commit");
+        emit operationSucceeded(QString("Undid commit: %1").arg(summary.isEmpty() ? sha.left(7) : summary));
         return true;
     }
 
-    emit operationFailed(res.stdErr.trimmed().isEmpty() ? "Undo failed" : res.stdErr.trimmed());
+    emit operationFailed("Failed to undo commit");
     return false;
 }
 
@@ -837,9 +912,138 @@ bool GitCliService::revertCommit(const QString &sha)
     return false;
 }
 
+bool GitCliService::hasRemote() const
+{
+    if (m_repoPath.isEmpty()) return false;
+    GitResult res = const_cast<GitCliService*>(this)->runGit({"remote"}, QString(), 2000);
+    return res.success && !res.stdOut.trimmed().isEmpty();
+}
+
+QString GitCliService::getRemoteUrl(const QString &remoteName) const
+{
+    if (m_repoPath.isEmpty()) return QString();
+    QString target = remoteName.isEmpty() ? "origin" : remoteName;
+    GitResult res = const_cast<GitCliService*>(this)->runGit({"remote", "get-url", target}, QString(), 2000);
+    if (res.success) {
+        return res.stdOut.trimmed();
+    }
+    return QString();
+}
+
+bool GitCliService::setRemoteUrl(const QString &url, const QString &remoteName)
+{
+    if (m_repoPath.isEmpty() || url.trimmed().isEmpty()) {
+        emit operationFailed("Remote URL cannot be empty");
+        return false;
+    }
+
+    QString target = remoteName.isEmpty() ? "origin" : remoteName.trimmed();
+    QString cleanUrl = url.trimmed();
+
+    GitResult checkRemote = runGit({"remote"}, QString(), 2000);
+    QStringList existingRemotes = checkRemote.stdOut.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+
+    GitResult res;
+    if (existingRemotes.contains(target)) {
+        res = runGit({"remote", "set-url", target, cleanUrl}, QString(), 3000);
+    } else {
+        res = runGit({"remote", "add", target, cleanUrl}, QString(), 3000);
+    }
+
+    if (res.success) {
+        getRemoteStatus();
+        emit branchListChanged();
+        emit operationSucceeded(QString("Remote '%1' set to %2").arg(target, cleanUrl));
+        return true;
+    }
+
+    emit operationFailed(res.stdErr.trimmed().isEmpty() ? "Failed to set remote URL" : res.stdErr.trimmed());
+    return false;
+}
+
+bool GitCliService::removeRemote(const QString &remoteName)
+{
+    if (m_repoPath.isEmpty()) return false;
+    QString target = remoteName.isEmpty() ? "origin" : remoteName.trimmed();
+
+    GitResult res = runGit({"remote", "remove", target}, QString(), 3000);
+    if (res.success) {
+        getRemoteStatus();
+        emit branchListChanged();
+        emit operationSucceeded(QString("Removed remote '%1'").arg(target));
+        return true;
+    }
+
+    emit operationFailed(res.stdErr.trimmed().isEmpty() ? "Failed to remove remote" : res.stdErr.trimmed());
+    return false;
+}
+
+bool GitCliService::publishRepository(const QString &name, const QString &description, bool isPrivate)
+{
+    if (m_repoPath.isEmpty()) {
+        emit operationFailed("No active repository to publish");
+        return false;
+    }
+
+    QString repoName = name.trimmed().isEmpty() ? m_repoName : name.trimmed();
+
+    // Check if gh CLI is installed
+    QString ghExe = QStandardPaths::findExecutable("gh");
+    if (!ghExe.isEmpty()) {
+        QStringList args = {"repo", "create", repoName, isPrivate ? "--private" : "--public", "--source=.", "--remote=origin", "--push"};
+        if (!description.trimmed().isEmpty()) {
+            args << "--description" << description.trimmed();
+        }
+
+        m_remoteStatus.isPushing = true;
+        emit remoteStatusUpdated(m_remoteStatus);
+
+        QProcess process;
+        process.setWorkingDirectory(m_repoPath);
+        process.start("gh", args);
+        bool finished = process.waitForFinished(60000);
+
+        m_remoteStatus.isPushing = false;
+        int exitCode = process.exitCode();
+        QString stdOut = QString::fromUtf8(process.readAllStandardOutput());
+        QString stdErr = QString::fromUtf8(process.readAllStandardError());
+
+        if (finished && exitCode == 0) {
+            getRemoteStatus();
+            emit branchListChanged();
+            emit commitHistoryUpdated();
+            emit operationSucceeded(QString("Successfully published '%1' to GitHub!").arg(repoName));
+            return true;
+        }
+
+        QString errorMsg = stdErr.trimmed().isEmpty() ? stdOut.trimmed() : stdErr.trimmed();
+        emit operationFailed(QString("Failed to publish with gh CLI: %1").arg(errorMsg.isEmpty() ? "Unknown error" : errorMsg));
+        getRemoteStatus();
+        return false;
+    }
+
+    emit operationFailed("GitHub CLI ('gh') is not installed. Please configure a remote origin URL manually in Repository Settings.");
+    return false;
+}
+
 RemoteStatus GitCliService::getRemoteStatus()
 {
     if (m_repoPath.isEmpty()) return m_remoteStatus;
+
+    // First check if any remote is configured
+    bool remoteExists = hasRemote();
+    m_remoteStatus.hasRemote = remoteExists;
+
+    if (!remoteExists) {
+        m_remoteStatus.remoteUrl.clear();
+        m_remoteStatus.ahead = 0;
+        m_remoteStatus.behind = 0;
+        m_remoteStatus.lastFetchedText = "No remote repository configured";
+        emit remoteStatusUpdated(m_remoteStatus);
+        return m_remoteStatus;
+    }
+
+    m_remoteStatus.remoteUrl = getRemoteUrl("origin");
 
     GitResult revRes = runGit({"rev-list", "--left-right", "--count", "HEAD...@{upstream}"}, QString(), 2000);
     if (revRes.success) {
@@ -849,8 +1053,15 @@ RemoteStatus GitCliService::getRemoteStatus()
             m_remoteStatus.behind = parts[1].toInt();
         }
     } else {
-        m_remoteStatus.ahead = 0;
-        m_remoteStatus.behind = 0;
+        // Check if there are unpushed commits on a branch without upstream
+        GitResult unpushedRes = runGit({"rev-list", "--count", "HEAD"}, QString(), 2000);
+        if (unpushedRes.success) {
+            m_remoteStatus.ahead = unpushedRes.stdOut.trimmed().toInt();
+            m_remoteStatus.behind = 0;
+        } else {
+            m_remoteStatus.ahead = 0;
+            m_remoteStatus.behind = 0;
+        }
     }
 
     if (m_lastFetchTime.isValid()) {
@@ -866,6 +1077,11 @@ RemoteStatus GitCliService::getRemoteStatus()
 void GitCliService::fetchOrigin()
 {
     if (m_repoPath.isEmpty()) return;
+
+    if (!hasRemote()) {
+        emit operationFailed("No remote repository configured. Set a remote URL in Repository Settings to fetch.");
+        return;
+    }
 
     m_remoteStatus.isFetching = true;
     emit remoteStatusUpdated(m_remoteStatus);
@@ -888,6 +1104,11 @@ void GitCliService::fetchOrigin()
 void GitCliService::pullOrigin()
 {
     if (m_repoPath.isEmpty()) return;
+
+    if (!hasRemote()) {
+        emit operationFailed("No remote repository configured. Cannot pull.");
+        return;
+    }
 
     m_remoteStatus.isPulling = true;
     emit remoteStatusUpdated(m_remoteStatus);
@@ -913,10 +1134,26 @@ void GitCliService::pushOrigin()
 {
     if (m_repoPath.isEmpty()) return;
 
+    if (!hasRemote()) {
+        emit operationFailed("No remote repository configured. Publish repository or add a remote origin before pushing.");
+        return;
+    }
+
     m_remoteStatus.isPushing = true;
     emit remoteStatusUpdated(m_remoteStatus);
 
-    runGitAsync({"push"}, [this](const GitResult &res) {
+    // Check if current branch has upstream
+    auto curBranch = getCurrentBranch();
+    QString branchName = curBranch ? curBranch->name : "main";
+
+    GitResult upstreamCheck = runGit({"rev-parse", "--verify", "@{upstream}"}, QString(), 2000);
+    QStringList pushArgs = {"push"};
+    if (!upstreamCheck.success) {
+        // Set upstream tracking on initial push
+        pushArgs = {"push", "-u", "origin", branchName};
+    }
+
+    runGitAsync(pushArgs, [this](const GitResult &res) {
         m_remoteStatus.isPushing = false;
         if (res.success) {
             getRemoteStatus();
@@ -933,7 +1170,6 @@ QList<StashItem> GitCliService::getStashes()
 {
     if (m_repoPath.isEmpty()) return {};
 
-    // Lazy stash list: only fetch summary list without running numstat for every entry
     GitResult res = runGit({"stash", "list", "--format=%gd\x1f%gs\x1f%ci"}, QString(), 3000);
     if (!res.success) return {};
 
@@ -962,7 +1198,6 @@ std::optional<StashItem> GitCliService::getStashDetails(const QString &stashId)
     auto stashes = getStashes();
     for (auto &s : stashes) {
         if (s.id == id) {
-            // Lazy load files only for this specific stash on demand
             GitResult fileRes = runGit({"stash", "show", "--numstat", s.id}, QString(), 3000);
             if (fileRes.success) {
                 for (const QString &fline : fileRes.stdOut.split('\n', Qt::SkipEmptyParts)) {
@@ -1046,16 +1281,6 @@ bool GitCliService::dropStash(const QString &stashId)
     return false;
 }
 
-QString GitCliService::getRemoteUrl() const
-{
-    if (m_repoPath.isEmpty()) return QString();
-    GitResult res = const_cast<GitCliService*>(this)->runGit({"remote", "get-url", "origin"}, QString(), 2000);
-    if (res.success) {
-        return res.stdOut.trimmed();
-    }
-    return QString();
-}
-
 QString GitCliService::formatRelativeTime(const QDateTime &dt) const
 {
     if (!dt.isValid()) return "";
@@ -1069,8 +1294,27 @@ QString GitCliService::formatRelativeTime(const QDateTime &dt) const
 
 QString GitCliService::getAuthorName() const
 {
-    if (m_repoPath.isEmpty()) return "User";
-    GitResult res = const_cast<GitCliService*>(this)->runGit({"config", "user.name"}, QString(), 1000);
+    if (m_repoPath.isEmpty()) return getGlobalAuthorName();
+    GitResult res = const_cast<GitCliService*>(this)->runGit({"config", "--local", "user.name"}, QString(), 1000);
+    if (res.success && !res.stdOut.trimmed().isEmpty()) {
+        return res.stdOut.trimmed();
+    }
+    return getGlobalAuthorName();
+}
+
+QString GitCliService::getAuthorEmail() const
+{
+    if (m_repoPath.isEmpty()) return getGlobalAuthorEmail();
+    GitResult res = const_cast<GitCliService*>(this)->runGit({"config", "--local", "user.email"}, QString(), 1000);
+    if (res.success && !res.stdOut.trimmed().isEmpty()) {
+        return res.stdOut.trimmed();
+    }
+    return getGlobalAuthorEmail();
+}
+
+QString GitCliService::getGlobalAuthorName() const
+{
+    GitResult res = const_cast<GitCliService*>(this)->runGit({"config", "--global", "user.name"}, QString(), 1000);
     if (res.success && !res.stdOut.trimmed().isEmpty()) {
         return res.stdOut.trimmed();
     }
@@ -1078,14 +1322,33 @@ QString GitCliService::getAuthorName() const
     return user.isEmpty() ? "User" : user;
 }
 
-QString GitCliService::getAuthorEmail() const
+QString GitCliService::getGlobalAuthorEmail() const
 {
-    if (m_repoPath.isEmpty()) return "user@localhost";
-    GitResult res = const_cast<GitCliService*>(this)->runGit({"config", "user.email"}, QString(), 1000);
+    GitResult res = const_cast<GitCliService*>(this)->runGit({"config", "--global", "user.email"}, QString(), 1000);
     if (res.success && !res.stdOut.trimmed().isEmpty()) {
         return res.stdOut.trimmed();
     }
     return "user@localhost";
+}
+
+bool GitCliService::setAuthorInfo(const QString &name, const QString &email, bool global)
+{
+    QString scope = global ? "--global" : "--local";
+    bool ok = true;
+    if (!name.trimmed().isEmpty()) {
+        GitResult r1 = runGit({"config", scope, "user.name", name.trimmed()}, QString(), 2000);
+        ok = ok && r1.success;
+    }
+    if (!email.trimmed().isEmpty()) {
+        GitResult r2 = runGit({"config", scope, "user.email", email.trimmed()}, QString(), 2000);
+        ok = ok && r2.success;
+    }
+    if (ok) {
+        emit operationSucceeded(QString("Updated Git author info (%1)").arg(global ? "global" : "repository"));
+    } else {
+        emit operationFailed("Failed to update Git author config");
+    }
+    return ok;
 }
 
 } // namespace Cherry

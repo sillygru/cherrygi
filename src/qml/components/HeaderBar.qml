@@ -280,13 +280,14 @@ Rectangle {
                                 id: syncIcon
                                 anchors.centerIn: parent
                                 source: {
+                                    if (!appController.hasRemote) return "cloud-upload";
                                     if (appController.behindCount > 0) return "vcs-pull-symbolic";
                                     if (appController.aheadCount > 0) return "vcs-push-symbolic";
                                     return "view-refresh";
                                 }
                                 width: 18
                                 height: 18
-                                color: Kirigami.Theme.textColor
+                                color: !appController.hasRemote ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                                 rotation: 0
 
                                 NumberAnimation on rotation {
@@ -321,6 +322,7 @@ Rectangle {
 
                                 QQC2.Label {
                                     text: {
+                                        if (!appController.hasRemote) return qsTr("Publish repository");
                                         if (appController.isPulling) return qsTr("Pulling...");
                                         if (appController.isPushing) return qsTr("Pushing...");
                                         if (appController.isFetching) return qsTr("Fetching...");
@@ -329,14 +331,14 @@ Rectangle {
                                         return qsTr("Fetch origin");
                                     }
                                     font.bold: true
-                                    color: Kirigami.Theme.textColor
+                                    color: !appController.hasRemote ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
                                 }
 
                                 // Clean non-overlapping Badge count (e.g. 3 ↓ or 1 ↑)
                                 Rectangle {
-                                    visible: appController.behindCount > 0 || appController.aheadCount > 0
+                                    visible: appController.hasRemote && (appController.behindCount > 0 || appController.aheadCount > 0)
                                     implicitWidth: syncBadgeRow.implicitWidth + 10
                                     implicitHeight: 18
                                     radius: 9
@@ -366,7 +368,7 @@ Rectangle {
                             }
 
                             QQC2.Label {
-                                text: appController.lastFetchedText
+                                text: appController.hasRemote ? appController.lastFetchedText : qsTr("Publish to GitHub or add remote")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                 color: Kirigami.Theme.disabledTextColor
                                 elide: Text.ElideRight
@@ -381,7 +383,9 @@ Rectangle {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            if (appController.behindCount > 0) {
+                            if (!appController.hasRemote) {
+                                appController.showPublishDialog();
+                            } else if (appController.behindCount > 0) {
                                 appController.pullOrigin();
                             } else if (appController.aheadCount > 0) {
                                 appController.pushOrigin();
@@ -431,6 +435,42 @@ Rectangle {
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
+        }
+
+        // ==========================================
+        // QUICK ACTION BUTTONS (Editor & Settings)
+        // ==========================================
+        RowLayout {
+            Layout.alignment: Qt.AlignVCenter
+            Layout.rightMargin: Kirigami.Units.smallSpacing
+            spacing: 2
+
+            QQC2.ToolButton {
+                icon.name: "accessories-text-editor"
+                icon.width: 16
+                icon.height: 16
+                QQC2.ToolTip.text: qsTr("Open repository in default text editor")
+                QQC2.ToolTip.visible: hovered
+                onClicked: appController.openInEditor()
+            }
+
+            QQC2.ToolButton {
+                icon.name: "utilities-terminal"
+                icon.width: 16
+                icon.height: 16
+                QQC2.ToolTip.text: qsTr("Open repository in terminal")
+                QQC2.ToolTip.visible: hovered
+                onClicked: appController.openInTerminal()
+            }
+
+            QQC2.ToolButton {
+                icon.name: "settings-configure"
+                icon.width: 16
+                icon.height: 16
+                QQC2.ToolTip.text: qsTr("Settings")
+                QQC2.ToolTip.visible: hovered
+                onClicked: appController.showSettingsDialog()
+            }
         }
 
         // ==========================================

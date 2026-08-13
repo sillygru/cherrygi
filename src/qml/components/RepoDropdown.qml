@@ -30,6 +30,12 @@ QQC2.Popup {
         property string targetRepoName: ""
 
         QQC2.MenuItem {
+            text: qsTr("Open in External Editor")
+            icon.name: "accessories-text-editor"
+            onTriggered: appController.openInEditor()
+        }
+
+        QQC2.MenuItem {
             text: qsTr("Open in File Manager")
             icon.name: "folder"
             onTriggered: appController.openInFileManager(repoContextMenu.targetRepoPath)
@@ -50,6 +56,14 @@ QQC2.Popup {
         }
 
         QQC2.MenuSeparator {}
+
+        QQC2.MenuItem {
+            text: qsTr("Repository Settings...")
+            icon.name: "settings-configure"
+            onTriggered: {
+                appController.showSettingsDialog("repository");
+            }
+        }
 
         QQC2.MenuItem {
             text: qsTr("Remove from Cherrygi")

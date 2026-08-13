@@ -53,12 +53,19 @@ public:
     bool createCommit(const QString &summary, const QString &description, const QStringList &coAuthors) override;
     bool undoLastCommit() override;
     bool revertCommit(const QString &sha) override;
-    bool hasUndoCommit() const override { return m_lastUndoCommitSha.length() > 0; }
+    bool canUndoCommit() const override;
+    QString getLastUndoCommitSha() const override { return m_lastUndoCommitSha; }
     QString getLastUndoCommitSummary() const override { return m_lastUndoCommitSummary; }
     QString getLastUndoCommitDescription() const override { return m_lastUndoCommitDescription; }
+    QStringList getLastUndoCommitCoAuthors() const override { return m_lastUndoCommitCoAuthors; }
 
-    // Remote Operations
+    // Remote Operations & Publishing
     RemoteStatus getRemoteStatus() override;
+    bool hasRemote() const override;
+    QString getRemoteUrl(const QString &remoteName = "origin") const override;
+    bool setRemoteUrl(const QString &url, const QString &remoteName = "origin") override;
+    bool removeRemote(const QString &remoteName = "origin") override;
+    bool publishRepository(const QString &name, const QString &description, bool isPrivate) override;
     void fetchOrigin() override;
     void pullOrigin() override;
     void pushOrigin() override;
@@ -73,13 +80,15 @@ public:
     // User / Author Info
     QString getAuthorName() const override;
     QString getAuthorEmail() const override;
+    QString getGlobalAuthorName() const override;
+    QString getGlobalAuthorEmail() const override;
+    bool setAuthorInfo(const QString &name, const QString &email, bool global = false) override;
 
     // Helper utilities
     GitResult runGit(const QStringList &args, const QString &workingDir = QString(), int timeoutMs = 30000);
     void runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback);
 
     QString activeRepoPath() const { return m_repoPath; }
-    QString getRemoteUrl() const;
 
 private:
     void loadSavedRepositories();
@@ -99,6 +108,7 @@ private:
     QString m_lastUndoCommitSha;
     QString m_lastUndoCommitSummary;
     QString m_lastUndoCommitDescription;
+    QStringList m_lastUndoCommitCoAuthors;
 };
 
 } // namespace Cherry

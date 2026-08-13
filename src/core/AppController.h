@@ -8,6 +8,7 @@
 #include "IGitService.h"
 #include "GitCliService.h"
 #include "MockGitService.h"
+#include "AppSettings.h"
 #include "../models/RepositoryListModel.h"
 #include "../models/BranchListModel.h"
 #include "../models/ChangedFilesModel.h"
@@ -41,13 +42,16 @@ class AppController : public QObject {
     Q_PROPERTY(QString currentAuthorName READ currentAuthorName NOTIFY currentRepoChanged)
     Q_PROPERTY(QString currentAuthorInitial READ currentAuthorInitial NOTIFY currentRepoChanged)
 
-    // Remote Sync State
+    // Remote Sync State & Capabilities
+    Q_PROPERTY(bool hasRemote READ hasRemote NOTIFY remoteStatusChanged)
+    Q_PROPERTY(QString remoteUrl READ remoteUrl NOTIFY remoteStatusChanged)
     Q_PROPERTY(int aheadCount READ aheadCount NOTIFY remoteStatusChanged)
     Q_PROPERTY(int behindCount READ behindCount NOTIFY remoteStatusChanged)
     Q_PROPERTY(QString lastFetchedText READ lastFetchedText NOTIFY remoteStatusChanged)
     Q_PROPERTY(bool isFetching READ isFetching NOTIFY remoteStatusChanged)
     Q_PROPERTY(bool isPulling READ isPulling NOTIFY remoteStatusChanged)
     Q_PROPERTY(bool isPushing READ isPushing NOTIFY remoteStatusChanged)
+    Q_PROPERTY(bool isGhAvailable READ isGhAvailable CONSTANT)
 
     // Selection & Navigation
     Q_PROPERTY(QString activeTab READ activeTab WRITE setActiveTab NOTIFY activeTabChanged)
@@ -62,9 +66,30 @@ class AppController : public QObject {
     Q_PROPERTY(bool showWhitespace READ showWhitespace WRITE setShowWhitespace NOTIFY showWhitespaceChanged)
 
     // Undo State
-    Q_PROPERTY(bool hasUndoCommit READ hasUndoCommit NOTIFY undoStateChanged)
+    Q_PROPERTY(bool canUndoCommit READ canUndoCommit NOTIFY undoStateChanged)
+    Q_PROPERTY(bool hasUndoCommit READ canUndoCommit NOTIFY undoStateChanged)
     Q_PROPERTY(QString lastUndoCommitSummary READ lastUndoCommitSummary NOTIFY undoStateChanged)
     Q_PROPERTY(QString lastUndoCommitDescription READ lastUndoCommitDescription NOTIFY undoStateChanged)
+    Q_PROPERTY(QStringList lastUndoCommitCoAuthors READ lastUndoCommitCoAuthors NOTIFY undoStateChanged)
+
+    // Settings & Dialogs
+    Q_PROPERTY(bool isSettingsDialogVisible READ isSettingsDialogVisible WRITE setSettingsDialogVisible NOTIFY settingsDialogVisibleChanged)
+    Q_PROPERTY(bool isPublishDialogVisible READ isPublishDialogVisible WRITE setPublishDialogVisible NOTIFY publishDialogVisibleChanged)
+    Q_PROPERTY(QString settingsTab READ settingsTab WRITE setSettingsTab NOTIFY settingsTabChanged)
+
+    // External Tools & Preferences
+    Q_PROPERTY(QString defaultEditor READ defaultEditor NOTIFY editorSettingsChanged)
+    Q_PROPERTY(QString customEditorCommand READ customEditorCommand NOTIFY editorSettingsChanged)
+    Q_PROPERTY(QString defaultTerminal READ defaultTerminal NOTIFY terminalSettingsChanged)
+    Q_PROPERTY(QString customTerminalCommand READ customTerminalCommand NOTIFY terminalSettingsChanged)
+    Q_PROPERTY(QStringList availableEditors READ availableEditors CONSTANT)
+    Q_PROPERTY(QStringList availableTerminals READ availableTerminals CONSTANT)
+
+    // Author Config
+    Q_PROPERTY(QString globalAuthorName READ globalAuthorName NOTIFY authorInfoChanged)
+    Q_PROPERTY(QString globalAuthorEmail READ globalAuthorEmail NOTIFY authorInfoChanged)
+    Q_PROPERTY(QString localAuthorName READ localAuthorName NOTIFY authorInfoChanged)
+    Q_PROPERTY(QString localAuthorEmail READ localAuthorEmail NOTIFY authorInfoChanged)
 
     // Notification / Toast
     Q_PROPERTY(QString toastMessage READ toastMessage NOTIFY toastChanged)
@@ -98,12 +123,15 @@ public:
     QString currentAuthorName() const;
     QString currentAuthorInitial() const;
 
+    bool hasRemote() const { return m_remoteStatus.hasRemote; }
+    QString remoteUrl() const { return m_remoteStatus.remoteUrl; }
     int aheadCount() const { return m_remoteStatus.ahead; }
     int behindCount() const { return m_remoteStatus.behind; }
     QString lastFetchedText() const { return m_remoteStatus.lastFetchedText; }
     bool isFetching() const { return m_remoteStatus.isFetching; }
     bool isPulling() const { return m_remoteStatus.isPulling; }
     bool isPushing() const { return m_remoteStatus.isPushing; }
+    bool isGhAvailable() const;
 
     QString activeTab() const { return m_activeTab; }
     void setActiveTab(const QString &tab);
@@ -125,9 +153,33 @@ public:
     bool showWhitespace() const { return m_showWhitespace; }
     void setShowWhitespace(bool show);
 
-    bool hasUndoCommit() const;
+    bool canUndoCommit() const;
     QString lastUndoCommitSummary() const;
     QString lastUndoCommitDescription() const;
+    QStringList lastUndoCommitCoAuthors() const;
+
+    // Settings Dialog
+    bool isSettingsDialogVisible() const { return m_isSettingsDialogVisible; }
+    void setSettingsDialogVisible(bool visible);
+
+    bool isPublishDialogVisible() const { return m_isPublishDialogVisible; }
+    void setPublishDialogVisible(bool visible);
+
+    QString settingsTab() const { return m_settingsTab; }
+    void setSettingsTab(const QString &tab);
+
+    // Tools & Author info
+    QString defaultEditor() const;
+    QString customEditorCommand() const;
+    QString defaultTerminal() const;
+    QString customTerminalCommand() const;
+    QStringList availableEditors() const;
+    QStringList availableTerminals() const;
+
+    QString globalAuthorName() const;
+    QString globalAuthorEmail() const;
+    QString localAuthorName() const;
+    QString localAuthorEmail() const;
 
     QString toastMessage() const { return m_toastMessage; }
     bool toastIsError() const { return m_toastIsError; }
@@ -137,6 +189,19 @@ public:
     Q_INVOKABLE void showBackendSelectionDialog();
     Q_INVOKABLE void hideBackendSelectionDialog();
     Q_INVOKABLE void selectBackend(const QString &mode); // "real" | "mock"
+
+    Q_INVOKABLE void showSettingsDialog(const QString &tab = "repository");
+    Q_INVOKABLE void hideSettingsDialog();
+
+    Q_INVOKABLE void showPublishDialog();
+    Q_INVOKABLE void hidePublishDialog();
+    Q_INVOKABLE bool publishRepository(const QString &name, const QString &description, bool isPrivate);
+
+    Q_INVOKABLE bool saveRemoteUrl(const QString &url, const QString &remoteName = "origin");
+    Q_INVOKABLE bool removeRemoteUrl(const QString &remoteName = "origin");
+    Q_INVOKABLE bool saveAuthorInfo(const QString &name, const QString &email, bool global = false);
+    Q_INVOKABLE void saveEditorSettings(const QString &editor, const QString &customCmd);
+    Q_INVOKABLE void saveTerminalSettings(const QString &terminal, const QString &customCmd);
 
     Q_INVOKABLE void openLocalRepositoryDialog();
     Q_INVOKABLE void switchRepository(const QString &repoIdOrPath);
@@ -167,6 +232,7 @@ public:
     Q_INVOKABLE void clearStashSelection();
     Q_INVOKABLE void revertCommit(const QString &sha);
 
+    Q_INVOKABLE void openInEditor(const QString &filePath = QString());
     Q_INVOKABLE void openInTerminal(const QString &path = QString());
     Q_INVOKABLE void openInFileManager(const QString &path = QString());
     Q_INVOKABLE void openOnGitHub();
@@ -188,18 +254,28 @@ signals:
     void diffViewModeChanged();
     void showWhitespaceChanged();
     void undoStateChanged();
+    void settingsDialogVisibleChanged();
+    void publishDialogVisibleChanged();
+    void settingsTabChanged();
+    void editorSettingsChanged();
+    void terminalSettingsChanged();
+    void authorInfoChanged();
     void toastChanged();
 
 private:
     void updateCurrentState();
     void connectServiceSignals();
 
+    std::unique_ptr<AppSettings> m_settings;
     std::unique_ptr<GitCliService> m_gitCliService;
     std::unique_ptr<MockGitService> m_mockService;
     IGitService *m_activeService{nullptr};
 
     QString m_backendMode{"real"};
-    bool m_isBackendDialogVisible{true}; // Always show startup choice
+    bool m_isBackendDialogVisible{true};
+    bool m_isSettingsDialogVisible{false};
+    bool m_isPublishDialogVisible{false};
+    QString m_settingsTab{"repository"};
 
     RepositoryListModel *m_repoModel{nullptr};
     BranchListModel *m_branchModel{nullptr};
@@ -208,11 +284,11 @@ private:
     DiffModel *m_diffModel{nullptr};
     StashModel *m_stashModel{nullptr};
 
-    QString m_activeTab{"changes"}; // "changes" | "history"
+    QString m_activeTab{"changes"};
     QString m_selectedFilePath;
     QString m_selectedCommitSha;
     QString m_selectedStashId;
-    QString m_diffViewMode{"unified"}; // "unified" | "split"
+    QString m_diffViewMode{"unified"};
     bool m_showWhitespace{true};
 
     RemoteStatus m_remoteStatus;
@@ -223,3 +299,4 @@ private:
 };
 
 } // namespace Cherry
+

@@ -8,22 +8,30 @@ QQC2.Menu {
     id: menu
 
     QQC2.MenuItem {
+        text: qsTr("Publish Repository...")
+        icon.name: "cloud-upload"
+        visible: !appController.hasRemote
+        onTriggered: appController.showPublishDialog()
+    }
+
+    QQC2.MenuItem {
         text: qsTr("Fetch origin")
         icon.name: "view-refresh"
+        enabled: appController.hasRemote
         onTriggered: appController.fetchOrigin()
     }
 
     QQC2.MenuItem {
         text: appController.behindCount > 0 ? qsTr("Pull origin (%1 commits behind)").arg(appController.behindCount) : qsTr("Pull origin")
         icon.name: "vcs-pull-symbolic"
-        enabled: appController.behindCount > 0
+        enabled: appController.hasRemote && appController.behindCount > 0
         onTriggered: appController.pullOrigin()
     }
 
     QQC2.MenuItem {
         text: appController.aheadCount > 0 ? qsTr("Push origin (%1 commits ahead)").arg(appController.aheadCount) : qsTr("Push origin")
         icon.name: "vcs-push-symbolic"
-        enabled: appController.aheadCount > 0
+        enabled: appController.hasRemote && appController.aheadCount > 0
         onTriggered: appController.pushOrigin()
     }
 
@@ -32,13 +40,23 @@ QQC2.Menu {
     QQC2.MenuItem {
         text: qsTr("Create Pull Request")
         icon.name: "vcs-merge-request"
+        enabled: appController.hasRemote
         onTriggered: appController.createPullRequest()
     }
 
     QQC2.MenuItem {
         text: qsTr("View on GitHub")
         icon.name: "globe"
+        enabled: appController.hasRemote
         onTriggered: appController.openOnGitHub()
+    }
+
+    QQC2.MenuSeparator {}
+
+    QQC2.MenuItem {
+        text: qsTr("Open in External Editor")
+        icon.name: "accessories-text-editor"
+        onTriggered: appController.openInEditor()
     }
 
     QQC2.MenuItem {
@@ -51,5 +69,19 @@ QQC2.Menu {
         text: qsTr("Open in File Manager")
         icon.name: "folder"
         onTriggered: appController.openInFileManager()
+    }
+
+    QQC2.MenuSeparator {}
+
+    QQC2.MenuItem {
+        text: qsTr("Repository Settings...")
+        icon.name: "folder-git"
+        onTriggered: appController.showSettingsDialog("repository")
+    }
+
+    QQC2.MenuItem {
+        text: qsTr("Application Settings...")
+        icon.name: "settings-configure"
+        onTriggered: appController.showSettingsDialog("editor")
     }
 }

@@ -20,6 +20,56 @@ ColumnLayout {
         return Qt.hsla(hue / 360.0, 0.55, 0.45, 1.0);
     }
 
+    // Commit Context Menu
+    QQC2.Menu {
+        id: commitContextMenu
+        property string targetSha: ""
+        property string targetSummary: ""
+        property bool targetIsLocal: false
+
+        QQC2.MenuItem {
+            text: qsTr("Undo Commit")
+            icon.name: "edit-undo"
+            visible: commitContextMenu.targetIsLocal
+            onTriggered: appController.undoLastCommit()
+        }
+
+        QQC2.MenuItem {
+            text: qsTr("Revert Changes in Commit")
+            icon.name: "edit-undo"
+            onTriggered: appController.revertCommit(commitContextMenu.targetSha)
+        }
+
+        QQC2.MenuSeparator {}
+
+        QQC2.MenuItem {
+            text: qsTr("Copy SHA (%1)").arg(commitContextMenu.targetSha.substring(0, 7))
+            icon.name: "edit-copy"
+            onTriggered: appController.showToast(qsTr("Commit SHA copied"))
+        }
+
+        QQC2.MenuItem {
+            text: qsTr("Copy Commit Message")
+            icon.name: "edit-copy"
+            onTriggered: appController.showToast(qsTr("Commit message copied"))
+        }
+
+        QQC2.MenuSeparator {}
+
+        QQC2.MenuItem {
+            text: qsTr("Open Repository in Editor")
+            icon.name: "accessories-text-editor"
+            onTriggered: appController.openInEditor()
+        }
+
+        QQC2.MenuItem {
+            text: qsTr("View on GitHub")
+            icon.name: "globe"
+            visible: appController.hasRemote
+            onTriggered: appController.openOnGitHub()
+        }
+    }
+
     // Search bar
     Rectangle {
         Layout.fillWidth: true
@@ -234,8 +284,19 @@ ColumnLayout {
                     }
                 }
 
-                onClicked: {
-                    appController.selectCommit(commitDelegate.sha);
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: function(mouse) {
+                        if (mouse.button === Qt.RightButton) {
+                            commitContextMenu.targetSha = commitDelegate.sha;
+                            commitContextMenu.targetSummary = commitDelegate.summary;
+                            commitContextMenu.targetIsLocal = commitDelegate.isLocal;
+                            commitContextMenu.popup();
+                        } else {
+                            appController.selectCommit(commitDelegate.sha);
+                        }
+                    }
                 }
             }
         }

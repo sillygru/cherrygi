@@ -45,12 +45,19 @@ public:
     virtual bool createCommit(const QString &summary, const QString &description, const QStringList &coAuthors) = 0;
     virtual bool undoLastCommit() = 0;
     virtual bool revertCommit(const QString &sha) = 0;
-    virtual bool hasUndoCommit() const = 0;
+    virtual bool canUndoCommit() const = 0;
+    virtual QString getLastUndoCommitSha() const = 0;
     virtual QString getLastUndoCommitSummary() const = 0;
     virtual QString getLastUndoCommitDescription() const = 0;
+    virtual QStringList getLastUndoCommitCoAuthors() const = 0;
 
-    // Remote Operations
+    // Remote Operations & Publishing
     virtual RemoteStatus getRemoteStatus() = 0;
+    virtual bool hasRemote() const = 0;
+    virtual QString getRemoteUrl(const QString &remoteName = "origin") const = 0;
+    virtual bool setRemoteUrl(const QString &url, const QString &remoteName = "origin") = 0;
+    virtual bool removeRemote(const QString &remoteName = "origin") = 0;
+    virtual bool publishRepository(const QString &name, const QString &description, bool isPrivate) = 0;
     virtual void fetchOrigin() = 0;
     virtual void pullOrigin() = 0;
     virtual void pushOrigin() = 0;
@@ -65,6 +72,9 @@ public:
     // User / Author Info
     virtual QString getAuthorName() const = 0;
     virtual QString getAuthorEmail() const = 0;
+    virtual QString getGlobalAuthorName() const = 0;
+    virtual QString getGlobalAuthorEmail() const = 0;
+    virtual bool setAuthorInfo(const QString &name, const QString &email, bool global = false) = 0;
 
 signals:
     void repositoryChanged(const RepositoryInfo &repo);

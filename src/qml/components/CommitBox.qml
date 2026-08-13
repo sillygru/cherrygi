@@ -115,12 +115,12 @@ Rectangle {
         anchors.margins: Kirigami.Units.mediumSpacing
         spacing: Kirigami.Units.smallSpacing
 
-        // Undo Banner if available
+        // Undo Banner if available (GitHub Desktop style: active for unpushed commits)
         Rectangle {
             id: undoBanner
             Layout.fillWidth: true
             height: 34
-            visible: appController.hasUndoCommit
+            visible: appController.canUndoCommit
             radius: CherryStyle.radiusMedium
             color: Qt.rgba(0.2, 0.6, 1.0, 0.18)
             border.color: Qt.rgba(0.2, 0.6, 1.0, 0.5)
@@ -140,7 +140,9 @@ Rectangle {
                 }
 
                 QQC2.Label {
-                    text: qsTr("Commit created!")
+                    text: appController.lastUndoCommitSummary.length > 0 ?
+                          qsTr("Undo commit: %1").arg(appController.lastUndoCommitSummary) :
+                          qsTr("Unpushed commit available to undo")
                     font.bold: true
                     font.pixelSize: CherryStyle.smallFont.pixelSize
                     color: Kirigami.Theme.textColor
@@ -153,11 +155,10 @@ Rectangle {
                     font.bold: true
                     implicitHeight: 26
                     onClicked: {
-                        var restoredSummary = appController.lastUndoCommitSummary;
-                        var restoredDesc = appController.lastUndoCommitDescription;
                         if (appController.undoLastCommit()) {
-                            summaryField.text = restoredSummary;
-                            descArea.text = restoredDesc;
+                            summaryField.text = appController.lastUndoCommitSummary;
+                            descArea.text = appController.lastUndoCommitDescription;
+                            root.coAuthorsList = appController.lastUndoCommitCoAuthors;
                         }
                     }
                 }

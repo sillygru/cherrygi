@@ -55,12 +55,19 @@ public:
     bool createCommit(const QString &summary, const QString &description, const QStringList &coAuthors) override;
     bool undoLastCommit() override;
     bool revertCommit(const QString &sha) override;
-    bool hasUndoCommit() const override { return !m_undoStack.isEmpty(); }
+    bool canUndoCommit() const override { return !m_undoStack.isEmpty(); }
+    QString getLastUndoCommitSha() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.sha; }
     QString getLastUndoCommitSummary() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.summary; }
     QString getLastUndoCommitDescription() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.description; }
+    QStringList getLastUndoCommitCoAuthors() const override { return m_undoStack.isEmpty() ? QStringList() : m_undoStack.top().commit.coAuthors; }
 
-    // Remote Operations
+    // Remote Operations & Publishing
     RemoteStatus getRemoteStatus() override;
+    bool hasRemote() const override;
+    QString getRemoteUrl(const QString &remoteName = "origin") const override;
+    bool setRemoteUrl(const QString &url, const QString &remoteName = "origin") override;
+    bool removeRemote(const QString &remoteName = "origin") override;
+    bool publishRepository(const QString &name, const QString &description, bool isPrivate) override;
     void fetchOrigin() override;
     void pullOrigin() override;
     void pushOrigin() override;
@@ -73,8 +80,11 @@ public:
     bool dropStash(const QString &stashId) override;
 
     // User / Author Info
-    QString getAuthorName() const override { return "Desktop Contributor"; }
-    QString getAuthorEmail() const override { return "contributor@desktop.local"; }
+    QString getAuthorName() const override;
+    QString getAuthorEmail() const override;
+    QString getGlobalAuthorName() const override { return "Desktop Contributor"; }
+    QString getGlobalAuthorEmail() const override { return "contributor@desktop.local"; }
+    bool setAuthorInfo(const QString &name, const QString &email, bool global = false) override;
 
     // Undo commit snapshot
     struct UndoSnapshot {
