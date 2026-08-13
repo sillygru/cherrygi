@@ -24,8 +24,14 @@ ColumnLayout {
         Layout.fillWidth: true
         implicitHeight: headerLayout.implicitHeight + Kirigami.Units.mediumSpacing * 2
         color: CherryStyle.surfaceHeader
-        border.color: CherryStyle.borderColor
-        border.width: 1
+        
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 1
+            color: CherryStyle.borderColor
+        }
 
         ColumnLayout {
             id: headerLayout
@@ -40,15 +46,15 @@ ColumnLayout {
 
                 Kirigami.Icon {
                     source: "document-save"
-                    width: 22
-                    height: 22
+                    width: 20
+                    height: 20
                     color: "#e5a50a"
                 }
 
                 QQC2.Label {
                     text: (root.stashData && root.stashData.message) ? root.stashData.message : qsTr("Stashed Changes")
                     font.bold: true
-                    font.pixelSize: CherryStyle.basePixelSize + 3
+                    font.pixelSize: CherryStyle.basePixelSize + 2
                     color: Kirigami.Theme.textColor
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
@@ -138,8 +144,6 @@ ColumnLayout {
             QQC2.SplitView.preferredHeight: 120
             QQC2.SplitView.minimumHeight: 80
             color: CherryStyle.surfaceSidebar
-            border.color: CherryStyle.borderColor
-            border.width: 1
 
             ColumnLayout {
                 anchors.fill: parent
@@ -150,8 +154,6 @@ ColumnLayout {
                     Layout.fillWidth: true
                     height: 30
                     color: CherryStyle.surfaceCardElevated
-                    border.color: CherryStyle.subtleBorderColor
-                    border.width: 1
 
                     RowLayout {
                         anchors.fill: parent
@@ -180,7 +182,7 @@ ColumnLayout {
                         delegate: QQC2.ItemDelegate {
                             id: stashFileDelegate
                             width: stashFilesListView.width
-                            height: 34
+                            height: 32
 
                             required property int index
                             required property var modelData
@@ -189,9 +191,7 @@ ColumnLayout {
 
                             background: Rectangle {
                                 color: stashFileDelegate.highlighted ? CherryStyle.activeBackground : (stashFileDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
-                                radius: CherryStyle.radiusSmall
-                                border.color: stashFileDelegate.highlighted ? Kirigami.Theme.highlightColor : (stashFileDelegate.hovered ? CherryStyle.borderColor : "transparent")
-                                border.width: 1
+                                radius: CherryStyle.radiusMedium
 
                                 Rectangle {
                                     visible: stashFileDelegate.highlighted
@@ -199,7 +199,7 @@ ColumnLayout {
                                     anchors.top: parent.top
                                     anchors.bottom: parent.bottom
                                     anchors.margins: 2
-                                    width: 3
+                                    width: 2
                                     radius: 1.5
                                     color: Kirigami.Theme.highlightColor
                                 }

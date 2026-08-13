@@ -12,10 +12,8 @@ ColumnLayout {
     // Search bar
     Rectangle {
         Layout.fillWidth: true
-        height: 44
-        color: CherryStyle.surfaceCardElevated
-        border.color: CherryStyle.borderColor
-        border.width: 1
+        height: 48
+        color: CherryStyle.surfaceHeader
 
         RowLayout {
             anchors.fill: parent
@@ -80,7 +78,7 @@ ColumnLayout {
             delegate: QQC2.ItemDelegate {
                 id: commitDelegate
                 width: commitListView.width
-                height: 66
+                height: 72
 
                 required property int index
                 required property string sha
@@ -100,9 +98,7 @@ ColumnLayout {
 
                 background: Rectangle {
                     color: commitDelegate.highlighted ? CherryStyle.activeBackground : (commitDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
-                    radius: CherryStyle.radiusSmall
-                    border.color: commitDelegate.highlighted ? Kirigami.Theme.highlightColor : (commitDelegate.hovered ? CherryStyle.borderColor : "transparent")
-                    border.width: 1
+                    radius: CherryStyle.radiusMedium
 
                     // Left accent indicator on selected commit
                     Rectangle {
@@ -111,7 +107,7 @@ ColumnLayout {
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
                         anchors.margins: 2
-                        width: 3
+                        width: 2
                         radius: 1.5
                         color: Kirigami.Theme.highlightColor
                     }
@@ -125,9 +121,9 @@ ColumnLayout {
 
                     // Avatar Circle
                     Rectangle {
-                        width: 34
-                        height: 34
-                        radius: 17
+                        width: 36
+                        height: 36
+                        radius: 18
                         color: Kirigami.Theme.highlightColor
                         Layout.alignment: Qt.AlignVCenter
 
@@ -135,7 +131,7 @@ ColumnLayout {
                             anchors.centerIn: parent
                             text: commitDelegate.authorName.length > 0 ? commitDelegate.authorName.charAt(0).toUpperCase() : "G"
                             font.bold: true
-                            font.pixelSize: 13
+                            font.pixelSize: 14
                             color: Kirigami.Theme.highlightedTextColor
                         }
                     }
@@ -161,10 +157,8 @@ ColumnLayout {
                             Rectangle {
                                 implicitWidth: shaLabel.implicitWidth + 10
                                 implicitHeight: 20
-                                radius: 4
+                                radius: CherryStyle.radiusSmall
                                 color: CherryStyle.surfaceCardElevated
-                                border.color: CherryStyle.borderColor
-                                border.width: 1
 
                                 QQC2.Label {
                                     id: shaLabel

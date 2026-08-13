@@ -9,8 +9,16 @@ Rectangle {
     id: root
     implicitHeight: layout.implicitHeight + Kirigami.Units.mediumSpacing * 2
     color: CherryStyle.surfaceHeader
-    border.color: CherryStyle.borderColor
-    border.width: 1
+
+    // Top separator
+    Rectangle {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 1
+        color: CherryStyle.borderColor
+        z: 2
+    }
 
     property var coAuthorsList: ["@sergiou87", "@tidy-dev"]
 
@@ -100,9 +108,9 @@ Rectangle {
         Rectangle {
             id: undoBanner
             Layout.fillWidth: true
-            height: 36
+            height: 34
             visible: appController.hasUndoCommit
-            radius: CherryStyle.radiusSmall
+            radius: CherryStyle.radiusMedium
             color: Qt.rgba(0.2, 0.6, 1.0, 0.18)
             border.color: Qt.rgba(0.2, 0.6, 1.0, 0.5)
             border.width: 1
@@ -152,9 +160,9 @@ Rectangle {
 
             // User avatar circle
             Rectangle {
-                width: 30
-                height: 30
-                radius: 15
+                width: 28
+                height: 28
+                radius: 14
                 color: Kirigami.Theme.highlightColor
                 Layout.alignment: Qt.AlignVCenter
 
@@ -162,7 +170,7 @@ Rectangle {
                     anchors.centerIn: parent
                     text: "U"
                     font.bold: true
-                    font.pixelSize: 13
+                    font.pixelSize: 12
                     color: Kirigami.Theme.highlightedTextColor
                 }
             }
@@ -178,7 +186,7 @@ Rectangle {
                     color: CherryStyle.inputBackground
                     border.color: summaryField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
                     border.width: summaryField.activeFocus ? 2 : 1
-                    radius: CherryStyle.radiusSmall
+                    radius: CherryStyle.radiusMedium
                 }
             }
         }
@@ -186,12 +194,12 @@ Rectangle {
         // Description Text Area with distinct contrast
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 65
-            Layout.minimumHeight: 50
+            Layout.preferredHeight: 60
+            Layout.minimumHeight: 45
             color: CherryStyle.inputBackground
             border.color: descArea.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
             border.width: descArea.activeFocus ? 2 : 1
-            radius: CherryStyle.radiusSmall
+            radius: CherryStyle.radiusMedium
             clip: true
 
             QQC2.ScrollView {
@@ -217,7 +225,7 @@ Rectangle {
             Rectangle {
                 width: 24
                 height: 24
-                radius: CherryStyle.radiusSmall
+                radius: CherryStyle.radiusMedium
                 color: coAuthorBtnMouse.containsMouse ? CherryStyle.hoverBackground : CherryStyle.surfaceCard
                 border.color: CherryStyle.borderColor
                 border.width: 1
@@ -261,9 +269,9 @@ Rectangle {
                     model: root.coAuthorsList
 
                     delegate: Rectangle {
-                        height: 22
+                        height: 24
                         implicitWidth: chipRow.implicitWidth + 12
-                        radius: 11
+                        radius: 12
                         color: CherryStyle.surfaceCardElevated
                         border.color: CherryStyle.borderColor
                         border.width: 1
@@ -305,7 +313,7 @@ Rectangle {
         QQC2.Button {
             id: commitBtn
             Layout.fillWidth: true
-            implicitHeight: 38
+            implicitHeight: 40
             highlighted: true
             enabled: summaryField.text.trim().length > 0 && appController.changedFiles.selectedCount > 0
 
@@ -317,8 +325,8 @@ Rectangle {
 
                 Kirigami.Icon {
                     source: "vcs-commit"
-                    width: 16
-                    height: 16
+                    width: 14
+                    height: 14
                     color: commitBtn.enabled ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
                 }
 

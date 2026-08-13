@@ -13,10 +13,10 @@ Kirigami.ApplicationWindow {
            qsTr("%1 - cherrygi").arg(appController.currentRepoName) :
            qsTr("cherrygi - KDE Plasma Git Client")
 
-    width: 1100
-    height: 720
-    minimumWidth: 840
-    minimumHeight: 560
+    width: 1200
+    height: 780
+    minimumWidth: 900
+    minimumHeight: 600
 
     // Main Column Layout
     ColumnLayout {
@@ -44,9 +44,9 @@ Kirigami.ApplicationWindow {
             // Left Sidebar
             SidebarPanel {
                 id: sidebar
-                QQC2.SplitView.preferredWidth: 350
-                QQC2.SplitView.minimumWidth: 280
-                QQC2.SplitView.maximumWidth: 520
+                QQC2.SplitView.preferredWidth: 380
+                QQC2.SplitView.minimumWidth: 300
+                QQC2.SplitView.maximumWidth: 550
                 QQC2.SplitView.fillHeight: true
             }
 

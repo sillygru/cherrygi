@@ -7,8 +7,7 @@ import org.kde.cherrygi
 Rectangle {
     id: root
     color: Kirigami.Theme.backgroundColor
-    border.color: CherryStyle.borderColor
-    border.width: 1
+    border.width: 0
 
     StackLayout {
         anchors.fill: parent

@@ -14,23 +14,23 @@ QtObject {
     readonly property color highlightedTextColor: Kirigami.Theme.highlightedTextColor
 
     // Surface elevation levels for hierarchy and visual weight
-    readonly property color surfaceHeader: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.05))
-    readonly property color surfaceSidebar: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.02))
-    readonly property color surfacePopup: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.09))
+    readonly property color surfaceHeader: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.04))
+    readonly property color surfaceSidebar: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.03))
+    readonly property color surfacePopup: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08))
     readonly property color surfaceCard: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06)
     readonly property color surfaceCardElevated: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.09)
 
     // Interactive states
     readonly property color cardBackground: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06)
-    readonly property color hoverBackground: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.10)
-    readonly property color activeBackground: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.22)
+    readonly property color hoverBackground: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
+    readonly property color activeBackground: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.18)
     readonly property color inputBackground: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06)
 
     // Borders with distinct physical weight & contrast
-    readonly property color borderColor: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.18)
-    readonly property color subtleBorderColor: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.10)
-    readonly property color strongBorderColor: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.28)
-    readonly property color popupBorderColor: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.24)
+    readonly property color borderColor: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.12)
+    readonly property color subtleBorderColor: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06)
+    readonly property color strongBorderColor: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.20)
+    readonly property color popupBorderColor: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.18)
     readonly property color shadowColor: Qt.rgba(0, 0, 0, 0.40)
 
     // Git specific semantic colors (vibrant & accessible)
@@ -49,12 +49,17 @@ QtObject {
     readonly property color hunkHeaderColor: Kirigami.Theme.highlightColor
     readonly property color gutterBg: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.05)
 
+    // Line height for diff lines
+    readonly property int diffLineHeight: 26
+    readonly property int diffGutterWidth: 52
+
     // Spacing & Radii
-    readonly property int radiusSmall: 4
-    readonly property int radiusMedium: 6
-    readonly property int radiusLarge: 8
-    readonly property int headerHeight: 52
-    readonly property int sidebarWidth: 360
+    readonly property int radiusSmall: 5
+    readonly property int radiusMedium: 8
+    readonly property int radiusLarge: 10
+    readonly property int radiusRound: 100
+    readonly property int headerHeight: 56
+    readonly property int sidebarWidth: 380
 
     // Dynamic font metrics with robust fallbacks
     readonly property int basePixelSize: (Kirigami.Theme.defaultFont && Kirigami.Theme.defaultFont.pixelSize > 0) ? Kirigami.Theme.defaultFont.pixelSize : 13

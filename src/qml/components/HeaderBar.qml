@@ -16,7 +16,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         height: 1
-        color: CherryStyle.strongBorderColor
+        color: CherryStyle.borderColor
         z: 2
     }
 
@@ -46,13 +46,13 @@ Rectangle {
         Item {
             id: repoSegment
             Layout.fillHeight: true
-            Layout.preferredWidth: 260
+            Layout.preferredWidth: 280
             Layout.minimumWidth: 190
 
             Rectangle {
                 anchors.fill: parent
-                anchors.margins: 4
-                radius: CherryStyle.radiusSmall
+                anchors.margins: 6
+                radius: CherryStyle.radiusMedium
                 color: repoDropdown.visible ? CherryStyle.activeBackground : (repoMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
                 border.color: repoDropdown.visible ? Kirigami.Theme.highlightColor : (repoMouse.containsMouse ? CherryStyle.borderColor : "transparent")
                 border.width: 1
@@ -62,8 +62,8 @@ Rectangle {
                 anchors.fill: parent
                 anchors.leftMargin: Kirigami.Units.mediumSpacing
                 anchors.rightMargin: Kirigami.Units.mediumSpacing
-                anchors.topMargin: 6
-                anchors.bottomMargin: 6
+                anchors.topMargin: 8
+                anchors.bottomMargin: 8
                 spacing: 1
 
                 QQC2.Label {
@@ -122,7 +122,7 @@ Rectangle {
             Layout.fillHeight: true
             Layout.topMargin: 8
             Layout.bottomMargin: 8
-            color: CherryStyle.borderColor
+            color: CherryStyle.subtleBorderColor
         }
 
         // ==========================================
@@ -131,13 +131,13 @@ Rectangle {
         Item {
             id: branchSegment
             Layout.fillHeight: true
-            Layout.preferredWidth: 290
+            Layout.preferredWidth: 310
             Layout.minimumWidth: 210
 
             Rectangle {
                 anchors.fill: parent
-                anchors.margins: 4
-                radius: CherryStyle.radiusSmall
+                anchors.margins: 6
+                radius: CherryStyle.radiusMedium
                 color: branchDropdown.visible ? CherryStyle.activeBackground : (branchMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
                 border.color: branchDropdown.visible ? Kirigami.Theme.highlightColor : (branchMouse.containsMouse ? CherryStyle.borderColor : "transparent")
                 border.width: 1
@@ -147,8 +147,8 @@ Rectangle {
                 anchors.fill: parent
                 anchors.leftMargin: Kirigami.Units.mediumSpacing
                 anchors.rightMargin: Kirigami.Units.mediumSpacing
-                anchors.topMargin: 6
-                anchors.bottomMargin: 6
+                anchors.topMargin: 8
+                anchors.bottomMargin: 8
                 spacing: 1
 
                 QQC2.Label {
@@ -240,7 +240,7 @@ Rectangle {
             Layout.fillHeight: true
             Layout.topMargin: 8
             Layout.bottomMargin: 8
-            color: CherryStyle.borderColor
+            color: CherryStyle.subtleBorderColor
         }
 
         // ==========================================
@@ -249,13 +249,13 @@ Rectangle {
         Item {
             id: remoteSegment
             Layout.fillHeight: true
-            Layout.preferredWidth: 280
+            Layout.preferredWidth: 300
             Layout.minimumWidth: 220
 
             Rectangle {
                 anchors.fill: parent
-                anchors.margins: 4
-                radius: CherryStyle.radiusSmall
+                anchors.margins: 6
+                radius: CherryStyle.radiusMedium
                 color: remotePrimaryMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
                 border.color: remotePrimaryMouse.containsMouse ? CherryStyle.borderColor : "transparent"
                 border.width: 1
@@ -265,8 +265,8 @@ Rectangle {
                 anchors.fill: parent
                 anchors.leftMargin: Kirigami.Units.mediumSpacing
                 anchors.rightMargin: 4
-                anchors.topMargin: 4
-                anchors.bottomMargin: 4
+                anchors.topMargin: 8
+                anchors.bottomMargin: 8
                 spacing: Kirigami.Units.smallSpacing
 
                 // Primary Clickable Action Area
@@ -349,8 +349,6 @@ Rectangle {
                                     implicitHeight: 18
                                     radius: 9
                                     color: CherryStyle.surfaceCardElevated
-                                    border.color: CherryStyle.strongBorderColor
-                                    border.width: 1
 
                                     RowLayout {
                                         id: syncBadgeRow
@@ -404,9 +402,9 @@ Rectangle {
 
                 // Sub-menu Trigger Button
                 Rectangle {
-                    width: 28
-                    height: 28
-                    radius: CherryStyle.radiusSmall
+                    width: 32
+                    height: 32
+                    radius: CherryStyle.radiusMedium
                     color: remoteMenuMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
                     border.color: remoteMenuMouse.containsMouse ? CherryStyle.borderColor : "transparent"
                     border.width: 1
@@ -436,7 +434,7 @@ Rectangle {
             Layout.fillHeight: true
             Layout.topMargin: 8
             Layout.bottomMargin: 8
-            color: CherryStyle.borderColor
+            color: CherryStyle.subtleBorderColor
         }
 
         // Fill remaining header space

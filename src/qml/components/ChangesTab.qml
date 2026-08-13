@@ -50,10 +50,8 @@ ColumnLayout {
     // Header bar: Select all checkbox + Changed files count
     Rectangle {
         Layout.fillWidth: true
-        height: 38
-        color: CherryStyle.surfaceCardElevated
-        border.color: CherryStyle.borderColor
-        border.width: 1
+        height: 36
+        color: CherryStyle.surfaceHeader
 
         RowLayout {
             anchors.fill: parent
@@ -142,7 +140,7 @@ ColumnLayout {
             delegate: QQC2.ItemDelegate {
                 id: fileDelegate
                 width: fileListView.width
-                height: 38
+                height: 36
 
                 required property int index
                 required property string fileId
@@ -161,9 +159,7 @@ ColumnLayout {
 
                 background: Rectangle {
                     color: fileDelegate.highlighted ? CherryStyle.activeBackground : (fileDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
-                    radius: CherryStyle.radiusSmall
-                    border.color: fileDelegate.highlighted ? Kirigami.Theme.highlightColor : (fileDelegate.hovered ? CherryStyle.borderColor : "transparent")
-                    border.width: 1
+                    radius: CherryStyle.radiusMedium
 
                     // Left accent bar when active
                     Rectangle {
@@ -172,7 +168,7 @@ ColumnLayout {
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
                         anchors.margins: 2
-                        width: 3
+                        width: 2
                         radius: 1.5
                         color: Kirigami.Theme.highlightColor
                     }
@@ -285,15 +281,22 @@ ColumnLayout {
     Rectangle {
         id: stashSection
         Layout.fillWidth: true
-        height: 44
+        height: 42
         visible: appController.stashes.count > 0
 
         property bool isSelected: appController.selectedStashId !== ""
         property bool isHovered: stashMouseArea.containsMouse
 
         color: isSelected ? CherryStyle.activeBackground : (isHovered ? CherryStyle.hoverBackground : CherryStyle.surfaceCardElevated)
-        border.color: isSelected ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
-        border.width: 1
+
+        // Top separator
+        Rectangle {
+            anchors.top: parent.top
+            anchors.left: parent.left  
+            anchors.right: parent.right
+            height: 1
+            color: CherryStyle.borderColor
+        }
 
         RowLayout {
             anchors.fill: parent
@@ -341,7 +344,6 @@ ColumnLayout {
                 text: qsTr("Restore")
                 icon.name: "edit-undo"
                 implicitHeight: 28
-                highlighted: true
                 QQC2.ToolTip.text: qsTr("Restore stashed changes to working directory")
                 QQC2.ToolTip.visible: hovered
                 onClicked: appController.popStash("")
@@ -363,7 +365,7 @@ ColumnLayout {
                 icon.width: 12
                 icon.height: 12
                 implicitHeight: 28
-                implicitWidth: 24
+                implicitWidth: 28
                 QQC2.ToolTip.text: qsTr("View stashed changes in detail")
                 QQC2.ToolTip.visible: hovered
                 onClicked: {

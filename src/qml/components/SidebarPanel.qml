@@ -8,8 +8,6 @@ import "../style"
 Rectangle {
     id: root
     color: CherryStyle.surfaceSidebar
-    border.color: CherryStyle.borderColor
-    border.width: 1
 
     ColumnLayout {
         anchors.fill: parent
@@ -20,17 +18,8 @@ Rectangle {
         // ==========================================
         Rectangle {
             Layout.fillWidth: true
-            height: 44
+            height: 48
             color: CherryStyle.surfaceHeader
-
-            // Bottom border
-            Rectangle {
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                height: 1
-                color: CherryStyle.borderColor
-            }
 
             RowLayout {
                 anchors.fill: parent
@@ -43,11 +32,9 @@ Rectangle {
 
                     Rectangle {
                         anchors.fill: parent
-                        anchors.margins: 4
-                        radius: CherryStyle.radiusSmall
+                        anchors.margins: 6
+                        radius: CherryStyle.radiusMedium
                         color: appController.activeTab === "changes" ? CherryStyle.surfaceCardElevated : (changesTabMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
-                        border.color: appController.activeTab === "changes" ? CherryStyle.strongBorderColor : "transparent"
-                        border.width: 1
                     }
 
                     // Bottom accent indicator line when active
@@ -55,10 +42,10 @@ Rectangle {
                         anchors.bottom: parent.bottom
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        height: 3
-                        radius: 1.5
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 16
+                        height: 2
+                        radius: 1.0
                         color: appController.activeTab === "changes" ? Kirigami.Theme.highlightColor : "transparent"
                     }
 
@@ -108,7 +95,7 @@ Rectangle {
                     Layout.fillHeight: true
                     Layout.topMargin: 8
                     Layout.bottomMargin: 8
-                    color: CherryStyle.subtleBorderColor
+                    color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.04)
                 }
 
                 // HISTORY TAB BUTTON
@@ -118,21 +105,19 @@ Rectangle {
 
                     Rectangle {
                         anchors.fill: parent
-                        anchors.margins: 4
-                        radius: CherryStyle.radiusSmall
+                        anchors.margins: 6
+                        radius: CherryStyle.radiusMedium
                         color: appController.activeTab === "history" ? CherryStyle.surfaceCardElevated : (historyTabMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
-                        border.color: appController.activeTab === "history" ? CherryStyle.strongBorderColor : "transparent"
-                        border.width: 1
                     }
 
                     Rectangle {
                         anchors.bottom: parent.bottom
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        height: 3
-                        radius: 1.5
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 16
+                        height: 2
+                        radius: 1.0
                         color: appController.activeTab === "history" ? Kirigami.Theme.highlightColor : "transparent"
                     }
 

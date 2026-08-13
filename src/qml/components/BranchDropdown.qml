@@ -205,7 +205,7 @@ QQC2.Popup {
                 delegate: QQC2.ItemDelegate {
                     id: branchDelegate
                     width: branchListView.width
-                    height: 44
+                    height: 42
 
                     required property int index
                     required property string name
@@ -219,9 +219,9 @@ QQC2.Popup {
                     highlighted: branchDelegate.isCurrent
 
                     background: Rectangle {
-                        color: branchDelegate.highlighted ? CherryStyle.activeBackground : (branchDelegate.hovered ? CherryStyle.hoverBackground : CherryStyle.surfaceCard)
+                        color: branchDelegate.highlighted ? CherryStyle.activeBackground : (branchDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
                         radius: CherryStyle.radiusSmall
-                        border.color: branchDelegate.highlighted ? Kirigami.Theme.highlightColor : (branchDelegate.hovered ? CherryStyle.borderColor : CherryStyle.subtleBorderColor)
+                        border.color: branchDelegate.highlighted ? Kirigami.Theme.highlightColor : (branchDelegate.hovered ? CherryStyle.borderColor : "transparent")
                         border.width: 1
                     }
 
@@ -253,8 +253,6 @@ QQC2.Popup {
                             implicitHeight: 20
                             radius: 10
                             color: Qt.rgba(0.2, 0.6, 1.0, 0.18)
-                            border.color: Qt.rgba(0.2, 0.6, 1.0, 0.6)
-                            border.width: 1
 
                             RowLayout {
                                 id: prBadgeInner

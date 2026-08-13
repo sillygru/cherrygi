@@ -7,10 +7,8 @@ import "../style"
 
 Rectangle {
     id: root
-    implicitHeight: 42
+    implicitHeight: 44
     color: CherryStyle.surfaceHeader
-    border.color: CherryStyle.borderColor
-    border.width: 1
 
     property string filePath: appController.selectedFilePath
     property int additions: appController.diffModel.additions
@@ -36,6 +34,16 @@ Rectangle {
             icon.name: "accessories-text-editor"
             onTriggered: appController.showToast(qsTr("Opening file in editor..."))
         }
+    }
+
+    // Bottom separator
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 1
+        color: CherryStyle.borderColor
+        z: 2
     }
 
     RowLayout {

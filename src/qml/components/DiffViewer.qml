@@ -35,9 +35,9 @@ ColumnLayout {
                 spacing: Kirigami.Units.smallSpacing
 
                 Kirigami.Icon {
-                    source: "document-preview"
-                    width: 48
-                    height: 48
+                    source: "view-list-text"
+                    width: 56
+                    height: 56
                     Layout.alignment: Qt.AlignHCenter
                     color: Kirigami.Theme.disabledTextColor
                 }
@@ -76,7 +76,7 @@ ColumnLayout {
                 delegate: Rectangle {
                     id: unifiedLineDelegate
                     width: unifiedListView.width
-                    height: 22
+                    height: CherryStyle.diffLineHeight
 
                     required property int index
                     required property int lineType
@@ -99,7 +99,7 @@ ColumnLayout {
 
                         // Old Line Number Gutter
                         Rectangle {
-                            Layout.preferredWidth: 48
+                            Layout.preferredWidth: CherryStyle.diffGutterWidth
                             Layout.fillHeight: true
                             color: {
                                 if (unifiedLineDelegate.lineType === 1) return CherryStyle.additionGutterBg;
@@ -118,7 +118,7 @@ ColumnLayout {
 
                         // New Line Number Gutter
                         Rectangle {
-                            Layout.preferredWidth: 48
+                            Layout.preferredWidth: CherryStyle.diffGutterWidth
                             Layout.fillHeight: true
                             color: {
                                 if (unifiedLineDelegate.lineType === 1) return CherryStyle.additionGutterBg;
@@ -144,7 +144,7 @@ ColumnLayout {
 
                         // Marker Column (+, -, @@, space)
                         Rectangle {
-                            Layout.preferredWidth: 24
+                            Layout.preferredWidth: 28
                             Layout.fillHeight: true
                             color: "transparent"
 
@@ -168,7 +168,7 @@ ColumnLayout {
 
                             QQC2.Label {
                                 anchors.left: parent.left
-                                anchors.leftMargin: Kirigami.Units.smallSpacing
+                                anchors.leftMargin: Kirigami.Units.mediumSpacing
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: unifiedLineDelegate.content
                                 font: CherryStyle.codeFont
@@ -212,7 +212,7 @@ ColumnLayout {
                     delegate: Rectangle {
                         id: splitLeftDelegate
                         width: splitLeftListView.width
-                        height: 22
+                        height: CherryStyle.diffLineHeight
 
                         required property int index
                         required property int lineType
@@ -226,7 +226,7 @@ ColumnLayout {
                             spacing: 0
 
                             Rectangle {
-                                Layout.preferredWidth: 46
+                                Layout.preferredWidth: CherryStyle.diffGutterWidth
                                 Layout.fillHeight: true
                                 color: (splitLeftDelegate.lineType === 2) ? CherryStyle.deletionGutterBg : CherryStyle.gutterBg
 
@@ -247,7 +247,7 @@ ColumnLayout {
                             QQC2.Label {
                                 Layout.fillWidth: true
                                 Layout.alignment: Qt.AlignVCenter
-                                Layout.leftMargin: Kirigami.Units.smallSpacing
+                                Layout.leftMargin: Kirigami.Units.mediumSpacing
                                 text: (splitLeftDelegate.lineType !== 1) ? splitLeftDelegate.content : ""
                                 font: CherryStyle.codeFont
                                 color: (splitLeftDelegate.lineType === 2) ? CherryStyle.deletionColor : Kirigami.Theme.textColor
@@ -274,7 +274,7 @@ ColumnLayout {
                     delegate: Rectangle {
                         id: splitRightDelegate
                         width: splitRightListView.width
-                        height: 22
+                        height: CherryStyle.diffLineHeight
 
                         required property int index
                         required property int lineType
@@ -288,7 +288,7 @@ ColumnLayout {
                             spacing: 0
 
                             Rectangle {
-                                Layout.preferredWidth: 46
+                                Layout.preferredWidth: CherryStyle.diffGutterWidth
                                 Layout.fillHeight: true
                                 color: (splitRightDelegate.lineType === 1) ? CherryStyle.additionGutterBg : CherryStyle.gutterBg
 
@@ -309,7 +309,7 @@ ColumnLayout {
                             QQC2.Label {
                                 Layout.fillWidth: true
                                 Layout.alignment: Qt.AlignVCenter
-                                Layout.leftMargin: Kirigami.Units.smallSpacing
+                                Layout.leftMargin: Kirigami.Units.mediumSpacing
                                 text: (splitRightDelegate.lineType !== 2) ? splitRightDelegate.content : ""
                                 font: CherryStyle.codeFont
                                 color: (splitRightDelegate.lineType === 1) ? CherryStyle.additionColor : Kirigami.Theme.textColor
