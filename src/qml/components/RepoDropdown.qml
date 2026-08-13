@@ -5,7 +5,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
 
 QQC2.Popup {
-    id: popup
+    id: repoDropdownPopup
     width: 360
     height: 420
     padding: Kirigami.Units.smallSpacing
@@ -86,6 +86,9 @@ QQC2.Popup {
                 id: repoListView
                 model: appController.repositories
                 spacing: 2
+
+                signal requestClose()
+                onRequestClose: repoDropdownPopup.close()
 
                 delegate: QQC2.ItemDelegate {
                     id: repoDelegate
@@ -169,7 +172,7 @@ QQC2.Popup {
 
                     onClicked: {
                         appController.switchRepository(repoDelegate.repoId);
-                        popup.close();
+                        ListView.view.requestClose();
                     }
                 }
             }
@@ -190,7 +193,7 @@ QQC2.Popup {
                 icon.name: "list-add"
                 onClicked: {
                     appController.showToast(qsTr("Add repository dialog opened"));
-                    popup.close();
+                    repoDropdownPopup.close();
                 }
             }
 
@@ -200,7 +203,7 @@ QQC2.Popup {
                 icon.name: "vcs-clone"
                 onClicked: {
                     appController.showToast(qsTr("Clone repository dialog opened"));
-                    popup.close();
+                    repoDropdownPopup.close();
                 }
             }
         }

@@ -5,7 +5,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
 
 QQC2.Popup {
-    id: popup
+    id: branchDropdownPopup
     width: 360
     height: 440
     padding: Kirigami.Units.smallSpacing
@@ -36,7 +36,7 @@ QQC2.Popup {
         // Search Box & New Branch toggle
         RowLayout {
             Layout.fillWidth: true
-            visible: !popup.isCreatingBranch
+            visible: !branchDropdownPopup.isCreatingBranch
             spacing: Kirigami.Units.smallSpacing
 
             QQC2.TextField {
@@ -64,7 +64,7 @@ QQC2.Popup {
                 text: qsTr("New Branch")
                 icon.name: "list-add"
                 onClicked: {
-                    popup.isCreatingBranch = true;
+                    branchDropdownPopup.isCreatingBranch = true;
                     newBranchField.forceActiveFocus();
                 }
             }
@@ -74,7 +74,7 @@ QQC2.Popup {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: newBranchLayout.implicitHeight + Kirigami.Units.smallSpacing * 2
-            visible: popup.isCreatingBranch
+            visible: branchDropdownPopup.isCreatingBranch
             color: CherryStyle.cardBackground
             border.color: CherryStyle.borderColor
             radius: CherryStyle.radiusSmall
@@ -104,7 +104,7 @@ QQC2.Popup {
                     QQC2.Button {
                         text: qsTr("Cancel")
                         onClicked: {
-                            popup.isCreatingBranch = false;
+                            branchDropdownPopup.isCreatingBranch = false;
                         }
                     }
 
@@ -115,8 +115,8 @@ QQC2.Popup {
                         enabled: newBranchField.text.trim().length > 0
                         onClicked: {
                             appController.createBranch(newBranchField.text.trim());
-                            popup.isCreatingBranch = false;
-                            popup.close();
+                            branchDropdownPopup.isCreatingBranch = false;
+                            branchDropdownPopup.close();
                         }
                     }
                 }
@@ -148,6 +148,9 @@ QQC2.Popup {
                 id: branchListView
                 model: appController.branches
                 spacing: 2
+
+                signal requestClose()
+                onRequestClose: branchDropdownPopup.close()
 
                 delegate: QQC2.ItemDelegate {
                     id: branchDelegate
@@ -244,7 +247,7 @@ QQC2.Popup {
 
                     onClicked: {
                         appController.switchBranch(branchDelegate.name);
-                        popup.close();
+                        ListView.view.requestClose();
                     }
                 }
             }

@@ -26,14 +26,19 @@ int main(int argc, char *argv[])
     // Register translation domain
     KLocalizedString::setApplicationDomain("cherrygi");
 
-    // Support auto-quit for validation / testing
-    int autoQuitSecs = qEnvironmentVariableIntValue("CHERRYGI_AUTO_QUIT");
+    // Support auto-quit for validation / testing (defaults to 10 seconds)
+    int autoQuitSecs = 10;
+    if (qEnvironmentVariableIsSet("CHERRYGI_AUTO_QUIT")) {
+        autoQuitSecs = qEnvironmentVariableIntValue("CHERRYGI_AUTO_QUIT");
+    }
     for (int i = 1; i < argc; ++i) {
         const QString arg = QString::fromLatin1(argv[i]);
         if (arg == "--auto-quit" && i + 1 < argc) {
             autoQuitSecs = QString::fromLatin1(argv[++i]).toInt();
         } else if (arg == "--auto-quit") {
-            autoQuitSecs = 5;
+            autoQuitSecs = 10;
+        } else if (arg == "--no-auto-quit") {
+            autoQuitSecs = 0;
         }
     }
     if (autoQuitSecs > 0) {
