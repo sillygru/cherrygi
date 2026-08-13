@@ -34,7 +34,7 @@ ColumnLayout {
                 anchors.centerIn: parent
                 spacing: Kirigami.Units.mediumSpacing
 
-                Kirigami.BusyIndicator {
+                QQC2.BusyIndicator {
                     width: 32
                     height: 32
                     Layout.alignment: Qt.AlignHCenter

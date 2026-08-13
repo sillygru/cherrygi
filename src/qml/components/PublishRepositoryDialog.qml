@@ -113,7 +113,7 @@ QQC2.Popup {
                     Layout.fillWidth: true
                     spacing: 8
 
-                    Kirigami.BusyIndicator {
+                    QQC2.BusyIndicator {
                         width: 18
                         height: 18
                         running: appController.isPublishing

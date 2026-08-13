@@ -320,7 +320,7 @@ Rectangle {
 
                 Item { Layout.fillWidth: true }
 
-                Kirigami.BusyIndicator {
+                QQC2.BusyIndicator {
                     width: 14
                     height: 14
                     visible: appController.isCommitting
