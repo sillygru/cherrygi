@@ -1,0 +1,23 @@
+# Build directories
+build/
+bin/
+lib/
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Qt / QML cache
+.qt/
+.rcc/
+.qmlls.ini
+*.qmlc
+*.jsc
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*~
+.directory
