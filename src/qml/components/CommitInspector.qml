@@ -63,7 +63,7 @@ ColumnLayout {
             // Description
             QQC2.Label {
                 text: (root.commitData && root.commitData.description) ? root.commitData.description : ""
-                visible: root.commitData && root.commitData.description && root.commitData.description.length > 0
+                visible: Boolean(root.commitData && root.commitData.description && root.commitData.description.length > 0)
                 font.pixelSize: CherryStyle.smallFont.pixelSize
                 color: Kirigami.Theme.textColor
                 Layout.fillWidth: true

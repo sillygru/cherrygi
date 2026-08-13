@@ -69,4 +69,15 @@ Kirigami.ApplicationWindow {
         anchors.bottomMargin: Kirigami.Units.largeSpacing
         z: 99
     }
+
+    // ==========================================
+    // STARTUP BACKEND SELECTION MODAL
+    // ==========================================
+    BackendSelectionDialog {
+        id: backendDialog
+        visible: appController.isBackendDialogVisible
+        onClosed: {
+            appController.isBackendDialogVisible = false;
+        }
+    }
 }

@@ -40,6 +40,7 @@ public:
 
     Q_INVOKABLE QString getSha(int index) const;
     Q_INVOKABLE void reload();
+    void setService(IGitService *service);
 
 signals:
     void countChanged();

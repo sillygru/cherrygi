@@ -32,18 +32,24 @@ QQC2.Menu {
     QQC2.MenuItem {
         text: qsTr("Create Pull Request")
         icon.name: "vcs-merge-request"
-        onTriggered: appController.showToast(qsTr("Opening pull request in browser..."))
+        onTriggered: appController.createPullRequest()
     }
 
     QQC2.MenuItem {
         text: qsTr("View on GitHub")
         icon.name: "globe"
-        onTriggered: appController.showToast(qsTr("Opening repository on GitHub..."))
+        onTriggered: appController.openOnGitHub()
     }
 
     QQC2.MenuItem {
         text: qsTr("Open in Terminal")
         icon.name: "utilities-terminal"
-        onTriggered: appController.showToast(qsTr("Opened terminal in repository directory"))
+        onTriggered: appController.openInTerminal()
+    }
+
+    QQC2.MenuItem {
+        text: qsTr("Open in File Manager")
+        icon.name: "folder"
+        onTriggered: appController.openInFileManager()
     }
 }

@@ -321,6 +321,29 @@ bool MockGitService::addRepository(const QString &name, const QString &path)
     return true;
 }
 
+bool MockGitService::removeRepository(const QString &repoIdOrPath)
+{
+    for (auto it = m_repositories.begin(); it != m_repositories.end(); ++it) {
+        if (it.key() == repoIdOrPath || it.value().info.path == repoIdOrPath || it.value().info.id == repoIdOrPath) {
+            QString id = it.key();
+            m_repositories.remove(id);
+            if (m_currentRepoId == id) {
+                if (!m_repositories.isEmpty()) {
+                    openRepository(m_repositories.firstKey());
+                } else {
+                    m_currentRepoId.clear();
+                    emit repositoryChanged({});
+                }
+            } else {
+                emit repositoryChanged(activeState() ? activeState()->info : RepositoryInfo{});
+            }
+            emit operationSucceeded("Repository removed from list");
+            return true;
+        }
+    }
+    return false;
+}
+
 QList<BranchInfo> MockGitService::getBranches()
 {
     auto *state = activeState();

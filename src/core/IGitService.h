@@ -18,6 +18,7 @@ public:
     virtual std::optional<RepositoryInfo> getCurrentRepository() = 0;
     virtual bool openRepository(const QString &pathOrId) = 0;
     virtual bool addRepository(const QString &name, const QString &path) = 0;
+    virtual bool removeRepository(const QString &repoIdOrPath) = 0;
 
     // Branches
     virtual QList<BranchInfo> getBranches() = 0;
@@ -44,6 +45,9 @@ public:
     virtual bool createCommit(const QString &summary, const QString &description, const QStringList &coAuthors) = 0;
     virtual bool undoLastCommit() = 0;
     virtual bool revertCommit(const QString &sha) = 0;
+    virtual bool hasUndoCommit() const = 0;
+    virtual QString getLastUndoCommitSummary() const = 0;
+    virtual QString getLastUndoCommitDescription() const = 0;
 
     // Remote Operations
     virtual RemoteStatus getRemoteStatus() = 0;
@@ -57,6 +61,10 @@ public:
     virtual bool stashChanges(const QString &message = QString()) = 0;
     virtual bool popStash(const QString &stashId = QString()) = 0;
     virtual bool dropStash(const QString &stashId) = 0;
+
+    // User / Author Info
+    virtual QString getAuthorName() const = 0;
+    virtual QString getAuthorEmail() const = 0;
 
 signals:
     void repositoryChanged(const RepositoryInfo &repo);

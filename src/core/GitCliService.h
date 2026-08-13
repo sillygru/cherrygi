@@ -1,27 +1,25 @@
 #pragma once
 
 #include "IGitService.h"
+#include <QSettings>
 #include <QMap>
-#include <QStack>
-#include <QTimer>
+#include <QDateTime>
+#include <functional>
 
 namespace Cherry {
 
-struct RepoState {
-    RepositoryInfo info;
-    QList<BranchInfo> branches;
-    QString currentBranch;
-    QList<FileChange> changedFiles;
-    QList<CommitItem> commitHistory;
-    QList<StashItem> stashes;
-    RemoteStatus remoteStatus;
+struct GitResult {
+    int exitCode{-1};
+    QString stdOut;
+    QString stdErr;
+    bool success{false};
 };
 
-class MockGitService : public IGitService {
+class GitCliService : public IGitService {
     Q_OBJECT
 public:
-    explicit MockGitService(QObject *parent = nullptr);
-    ~MockGitService() override = default;
+    explicit GitCliService(QObject *parent = nullptr);
+    ~GitCliService() override = default;
 
     // Repositories
     QList<RepositoryInfo> getRepositories() override;
@@ -55,9 +53,9 @@ public:
     bool createCommit(const QString &summary, const QString &description, const QStringList &coAuthors) override;
     bool undoLastCommit() override;
     bool revertCommit(const QString &sha) override;
-    bool hasUndoCommit() const override { return !m_undoStack.isEmpty(); }
-    QString getLastUndoCommitSummary() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.summary; }
-    QString getLastUndoCommitDescription() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.description; }
+    bool hasUndoCommit() const override { return m_lastUndoCommitSha.length() > 0; }
+    QString getLastUndoCommitSummary() const override { return m_lastUndoCommitSummary; }
+    QString getLastUndoCommitDescription() const override { return m_lastUndoCommitDescription; }
 
     // Remote Operations
     RemoteStatus getRemoteStatus() override;
@@ -73,23 +71,34 @@ public:
     bool dropStash(const QString &stashId) override;
 
     // User / Author Info
-    QString getAuthorName() const override { return "Desktop Contributor"; }
-    QString getAuthorEmail() const override { return "contributor@desktop.local"; }
+    QString getAuthorName() const override;
+    QString getAuthorEmail() const override;
 
-    // Undo commit snapshot
-    struct UndoSnapshot {
-        CommitItem commit;
-        QList<FileChange> restoredFiles;
-    };
-    UndoSnapshot getLastUndoSnapshot() const { return m_undoStack.isEmpty() ? UndoSnapshot{} : m_undoStack.top(); }
+    // Helper utilities
+    GitResult runGit(const QStringList &args, const QString &workingDir = QString(), int timeoutMs = 30000);
+    void runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback);
+
+    QString activeRepoPath() const { return m_repoPath; }
+    QString getRemoteUrl() const;
 
 private:
-    void initializeMockData();
-    RepoState* activeState();
+    void loadSavedRepositories();
+    void saveRepositories();
+    void discoverInitialRepository();
+    QList<DiffLine> parseDiffOutput(const QString &diffText);
+    QString formatRelativeTime(const QDateTime &dt) const;
 
-    QMap<QString, RepoState> m_repositories;
-    QString m_currentRepoId;
-    QStack<UndoSnapshot> m_undoStack;
+    QString m_repoPath;
+    QString m_repoName;
+    QMap<QString, QString> m_knownRepos; // path -> name
+    QMap<QString, bool> m_fileSelection; // filePath -> isSelected
+
+    RemoteStatus m_remoteStatus;
+    QDateTime m_lastFetchTime;
+
+    QString m_lastUndoCommitSha;
+    QString m_lastUndoCommitSummary;
+    QString m_lastUndoCommitDescription;
 };
 
 } // namespace Cherry

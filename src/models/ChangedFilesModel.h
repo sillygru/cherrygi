@@ -42,6 +42,7 @@ public:
     Q_INVOKABLE void selectAll(bool select);
     Q_INVOKABLE QString getFilePath(int index) const;
     Q_INVOKABLE void reload();
+    void setService(IGitService *service);
 
 signals:
     void countChanged();

@@ -67,7 +67,14 @@ QHash<int, QByteArray> RepositoryListModel::roleNames() const
 
 void RepositoryListModel::reload()
 {
-    if (!m_service) return;
+    if (!m_service) {
+        beginResetModel();
+        m_repos.clear();
+        m_currentRepoId.clear();
+        endResetModel();
+        emit countChanged();
+        return;
+    }
 
     beginResetModel();
     m_repos = m_service->getRepositories();
@@ -76,6 +83,18 @@ void RepositoryListModel::reload()
     endResetModel();
 
     emit countChanged();
+}
+
+void RepositoryListModel::setService(IGitService *service)
+{
+    if (m_service) {
+        disconnect(m_service, nullptr, this, nullptr);
+    }
+    m_service = service;
+    if (m_service) {
+        connect(m_service, &IGitService::repositoryChanged, this, &RepositoryListModel::reload);
+    }
+    reload();
 }
 
 } // namespace Cherry

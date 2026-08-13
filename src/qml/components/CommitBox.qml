@@ -31,7 +31,7 @@ Rectangle {
         z: 2
     }
 
-    property var coAuthorsList: ["@sergiou87", "@tidy-dev"]
+    property var coAuthorsList: []
 
     // Popup for adding co-author
     QQC2.Popup {
@@ -174,12 +174,21 @@ Rectangle {
                 width: 28
                 height: 28
                 radius: 14
-                color: avatarColor("You")
+                color: avatarColor(appController.currentAuthorName)
                 Layout.alignment: Qt.AlignVCenter
+
+                QQC2.ToolTip.text: appController.currentAuthorName
+                QQC2.ToolTip.visible: avatarMouse.containsMouse
+
+                MouseArea {
+                    id: avatarMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                }
 
                 QQC2.Label {
                     anchors.centerIn: parent
-                    text: "U"
+                    text: appController.currentAuthorInitial
                     font.bold: true
                     font.pixelSize: 12
                     color: Kirigami.Theme.highlightedTextColor
@@ -190,7 +199,7 @@ Rectangle {
                 id: summaryField
                 Layout.fillWidth: true
                 placeholderText: qsTr("Summary (required)")
-                text: "Bring `onRowKeyboardFocus` to `SectionList`"
+                text: ""
                 font.bold: true
 
                 background: Rectangle {

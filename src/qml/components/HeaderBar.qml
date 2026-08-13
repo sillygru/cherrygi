@@ -432,6 +432,58 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
         }
+
+        // ==========================================
+        // BACKEND MODE SWITCHER PILL
+        // ==========================================
+        Rectangle {
+            Layout.alignment: Qt.AlignVCenter
+            Layout.rightMargin: Kirigami.Units.largeSpacing
+            implicitHeight: 28
+            implicitWidth: modeRow.implicitWidth + 14
+            radius: 14
+            color: appController.backendMode === "mock" ? Qt.rgba(0.9, 0.65, 0.04, 0.18) : Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.15)
+            border.color: appController.backendMode === "mock" ? "#e5a50a" : Kirigami.Theme.highlightColor
+            border.width: 1
+
+            RowLayout {
+                id: modeRow
+                anchors.centerIn: parent
+                spacing: 4
+
+                Kirigami.Icon {
+                    source: appController.backendMode === "mock" ? "system-run" : "folder-git"
+                    width: 12
+                    height: 12
+                    color: appController.backendMode === "mock" ? "#e5a50a" : Kirigami.Theme.highlightColor
+                }
+
+                QQC2.Label {
+                    text: appController.backendMode === "mock" ? qsTr("Mock Demo") : qsTr("Real Git")
+                    font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                    font.bold: true
+                    color: appController.backendMode === "mock" ? "#e5a50a" : Kirigami.Theme.highlightColor
+                }
+
+                Kirigami.Icon {
+                    source: "view-refresh"
+                    width: 10
+                    height: 10
+                    color: Kirigami.Theme.disabledTextColor
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                QQC2.ToolTip.text: qsTr("Click to switch between Real Git and Mock Demo mode")
+                QQC2.ToolTip.visible: containsMouse
+                onClicked: {
+                    appController.showBackendSelectionDialog();
+                }
+            }
+        }
     }
 }
 

@@ -103,9 +103,25 @@ QString CommitHistoryModel::getSha(int index) const
 
 void CommitHistoryModel::reload()
 {
-    if (!m_service) return;
+    if (!m_service) {
+        m_allCommits.clear();
+        applyFilter();
+        return;
+    }
     m_allCommits = m_service->getCommitHistory();
     applyFilter();
+}
+
+void CommitHistoryModel::setService(IGitService *service)
+{
+    if (m_service) {
+        disconnect(m_service, nullptr, this, nullptr);
+    }
+    m_service = service;
+    if (m_service) {
+        connect(m_service, &IGitService::commitHistoryUpdated, this, &CommitHistoryModel::reload);
+    }
+    reload();
 }
 
 void CommitHistoryModel::applyFilter()

@@ -29,6 +29,7 @@ cherrygi/
     ├── core/
     │   ├── Types.h                # Data structures: FileChange, CommitItem, DiffLine, StashItem, etc.
     │   ├── IGitService.h          # Abstract interface defining Git backend operations
+    │   ├── GitCliService.h/.cpp   # Native Git CLI backend with QProcess & QSettings
     │   ├── MockGitService.h/.cpp  # Stateful in-memory mock implementation
     │   └── AppController.h/.cpp   # Central QObject coordinating state, models, and actions
     ├── models/
@@ -43,10 +44,11 @@ cherrygi/
         ├── style/
         │   └── CherryStyle.qml    # Theme metrics, Breeze colors, typography singleton
         └── components/
-            ├── HeaderBar.qml      # 3-segmented header (Repo, Branch, Remote)
-            ├── RepoDropdown.qml   # Repository switcher popup
+            ├── HeaderBar.qml      # 3-segmented header (Repo, Branch, Remote, Backend Switcher)
+            ├── BackendSelectionDialog.qml # Startup mode chooser (Real Git vs Mock Demo)
+            ├── RepoDropdown.qml   # Repository switcher popup with folder picker & context menu
             ├── BranchDropdown.qml # Branch switcher and inline creator
-            ├── RemoteDropdown.qml # Fetch, Pull, Push, PR actions
+            ├── RemoteDropdown.qml # Fetch, Pull, Push, PR, Terminal, File Manager actions
             ├── SidebarPanel.qml   # Changes / History tab switcher
             ├── ChangesTab.qml     # Changed files list with checkboxes, status badges, stash row
             ├── HistoryTab.qml     # Searchable commit history list

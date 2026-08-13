@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "IGitService.h"
+#include "GitCliService.h"
 #include "MockGitService.h"
 #include "../models/RepositoryListModel.h"
 #include "../models/BranchListModel.h"
@@ -18,6 +19,10 @@ namespace Cherry {
 
 class AppController : public QObject {
     Q_OBJECT
+
+    // Backend Mode & Startup Dialog
+    Q_PROPERTY(QString backendMode READ backendMode WRITE setBackendMode NOTIFY backendModeChanged)
+    Q_PROPERTY(bool isBackendDialogVisible READ isBackendDialogVisible WRITE setBackendDialogVisible NOTIFY backendDialogVisibleChanged)
 
     // Models
     Q_PROPERTY(Cherry::RepositoryListModel* repositories READ repositories CONSTANT)
@@ -33,6 +38,8 @@ class AppController : public QObject {
     Q_PROPERTY(QString currentBranchName READ currentBranchName NOTIFY currentBranchChanged)
     Q_PROPERTY(QString currentBranchPr READ currentBranchPr NOTIFY currentBranchChanged)
     Q_PROPERTY(bool currentBranchPrActive READ currentBranchPrActive NOTIFY currentBranchChanged)
+    Q_PROPERTY(QString currentAuthorName READ currentAuthorName NOTIFY currentRepoChanged)
+    Q_PROPERTY(QString currentAuthorInitial READ currentAuthorInitial NOTIFY currentRepoChanged)
 
     // Remote Sync State
     Q_PROPERTY(int aheadCount READ aheadCount NOTIFY remoteStatusChanged)
@@ -68,6 +75,13 @@ public:
     explicit AppController(QObject *parent = nullptr);
     ~AppController() override;
 
+    // Backend Mode
+    QString backendMode() const { return m_backendMode; }
+    void setBackendMode(const QString &mode);
+
+    bool isBackendDialogVisible() const { return m_isBackendDialogVisible; }
+    void setBackendDialogVisible(bool visible);
+
     // Getters
     RepositoryListModel* repositories() const { return m_repoModel; }
     BranchListModel* branches() const { return m_branchModel; }
@@ -81,6 +95,8 @@ public:
     QString currentBranchName() const;
     QString currentBranchPr() const;
     bool currentBranchPrActive() const;
+    QString currentAuthorName() const;
+    QString currentAuthorInitial() const;
 
     int aheadCount() const { return m_remoteStatus.ahead; }
     int behindCount() const { return m_remoteStatus.behind; }
@@ -118,8 +134,14 @@ public:
     bool toastVisible() const { return m_toastVisible; }
 
     // Invocable Actions for QML
+    Q_INVOKABLE void showBackendSelectionDialog();
+    Q_INVOKABLE void hideBackendSelectionDialog();
+    Q_INVOKABLE void selectBackend(const QString &mode); // "real" | "mock"
+
+    Q_INVOKABLE void openLocalRepositoryDialog();
     Q_INVOKABLE void switchRepository(const QString &repoIdOrPath);
     Q_INVOKABLE void addRepository(const QString &name, const QString &path);
+    Q_INVOKABLE void removeRepository(const QString &repoIdOrPath);
 
     Q_INVOKABLE void switchBranch(const QString &branchName);
     Q_INVOKABLE void createBranch(const QString &branchName);
@@ -145,10 +167,17 @@ public:
     Q_INVOKABLE void clearStashSelection();
     Q_INVOKABLE void revertCommit(const QString &sha);
 
+    Q_INVOKABLE void openInTerminal(const QString &path = QString());
+    Q_INVOKABLE void openInFileManager(const QString &path = QString());
+    Q_INVOKABLE void openOnGitHub();
+    Q_INVOKABLE void createPullRequest();
+
     Q_INVOKABLE void hideToast();
     Q_INVOKABLE void showToast(const QString &message, bool isError = false);
 
 signals:
+    void backendModeChanged();
+    void backendDialogVisibleChanged();
     void currentRepoChanged();
     void currentBranchChanged();
     void remoteStatusChanged();
@@ -165,7 +194,13 @@ private:
     void updateCurrentState();
     void connectServiceSignals();
 
-    std::unique_ptr<MockGitService> m_service;
+    std::unique_ptr<GitCliService> m_gitCliService;
+    std::unique_ptr<MockGitService> m_mockService;
+    IGitService *m_activeService{nullptr};
+
+    QString m_backendMode{"real"};
+    bool m_isBackendDialogVisible{true}; // Always show startup choice
+
     RepositoryListModel *m_repoModel{nullptr};
     BranchListModel *m_branchModel{nullptr};
     ChangedFilesModel *m_changedFilesModel{nullptr};

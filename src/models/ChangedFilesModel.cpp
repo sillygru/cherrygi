@@ -167,7 +167,14 @@ QString ChangedFilesModel::getFilePath(int index) const
 
 void ChangedFilesModel::reload()
 {
-    if (!m_service) return;
+    if (!m_service) {
+        beginResetModel();
+        m_files.clear();
+        endResetModel();
+        emit countChanged();
+        emit selectionChanged();
+        return;
+    }
 
     beginResetModel();
     m_files = m_service->getChangedFiles();
@@ -175,6 +182,18 @@ void ChangedFilesModel::reload()
 
     emit countChanged();
     emit selectionChanged();
+}
+
+void ChangedFilesModel::setService(IGitService *service)
+{
+    if (m_service) {
+        disconnect(m_service, nullptr, this, nullptr);
+    }
+    m_service = service;
+    if (m_service) {
+        connect(m_service, &IGitService::changedFilesUpdated, this, &ChangedFilesModel::reload);
+    }
+    reload();
 }
 
 } // namespace Cherry

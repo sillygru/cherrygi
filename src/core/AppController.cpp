@@ -1,30 +1,43 @@
 #include "AppController.h"
 #include <QVariantMap>
+#include <QFileDialog>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QProcess>
+#include <QDir>
+#include <QFileInfo>
+#include <QRegularExpression>
 
 namespace Cherry {
 
 AppController::AppController(QObject *parent)
     : QObject(parent)
-    , m_service(std::make_unique<MockGitService>())
+    , m_gitCliService(std::make_unique<GitCliService>())
+    , m_mockService(std::make_unique<MockGitService>())
 {
-    m_repoModel = new RepositoryListModel(m_service.get(), this);
-    m_branchModel = new BranchListModel(m_service.get(), this);
-    m_changedFilesModel = new ChangedFilesModel(m_service.get(), this);
-    m_commitHistoryModel = new CommitHistoryModel(m_service.get(), this);
-    m_diffModel = new DiffModel(m_service.get(), this);
-    m_stashModel = new StashModel(m_service.get(), this);
+    // Default to real git, but isBackendDialogVisible is true on startup
+    m_activeService = m_gitCliService.get();
+    m_backendMode = "real";
+    m_isBackendDialogVisible = true;
+
+    m_repoModel = new RepositoryListModel(m_activeService, this);
+    m_branchModel = new BranchListModel(m_activeService, this);
+    m_changedFilesModel = new ChangedFilesModel(m_activeService, this);
+    m_commitHistoryModel = new CommitHistoryModel(m_activeService, this);
+    m_diffModel = new DiffModel(m_activeService, this);
+    m_stashModel = new StashModel(m_activeService, this);
 
     connectServiceSignals();
     updateCurrentState();
 
     // Select initial file
-    auto files = m_service->getChangedFiles();
+    auto files = m_activeService->getChangedFiles();
     if (!files.isEmpty()) {
         setSelectedFilePath(files.first().filePath);
     }
 
     // Select initial commit
-    auto commits = m_service->getCommitHistory(1);
+    auto commits = m_activeService->getCommitHistory(1);
     if (!commits.isEmpty()) {
         m_selectedCommitSha = commits.first().sha;
     }
@@ -32,36 +45,109 @@ AppController::AppController(QObject *parent)
 
 AppController::~AppController() = default;
 
+void AppController::setBackendMode(const QString &mode)
+{
+    QString normalized = (mode.toLower() == "mock") ? "mock" : "real";
+    if (m_backendMode == normalized && m_activeService) return;
+
+    m_backendMode = normalized;
+    if (m_backendMode == "mock") {
+        m_activeService = m_mockService.get();
+    } else {
+        m_activeService = m_gitCliService.get();
+    }
+
+    // Rebind all models to the newly active service
+    m_repoModel->setService(m_activeService);
+    m_branchModel->setService(m_activeService);
+    m_changedFilesModel->setService(m_activeService);
+    m_commitHistoryModel->setService(m_activeService);
+    m_diffModel->setService(m_activeService);
+    m_stashModel->setService(m_activeService);
+
+    m_selectedFilePath.clear();
+    m_selectedCommitSha.clear();
+    m_selectedStashId.clear();
+    emit selectedFilePathChanged();
+    emit selectedCommitShaChanged();
+    emit selectedStashIdChanged();
+
+    connectServiceSignals();
+    updateCurrentState();
+
+    auto files = m_activeService->getChangedFiles();
+    if (!files.isEmpty()) {
+        setSelectedFilePath(files.first().filePath);
+    } else {
+        m_diffModel->clear();
+    }
+
+    auto commits = m_activeService->getCommitHistory(1);
+    if (!commits.isEmpty()) {
+        setSelectedCommitSha(commits.first().sha);
+    }
+
+    emit backendModeChanged();
+}
+
+void AppController::setBackendDialogVisible(bool visible)
+{
+    if (m_isBackendDialogVisible == visible) return;
+    m_isBackendDialogVisible = visible;
+    emit backendDialogVisibleChanged();
+}
+
+void AppController::showBackendSelectionDialog()
+{
+    setBackendDialogVisible(true);
+}
+
+void AppController::hideBackendSelectionDialog()
+{
+    setBackendDialogVisible(false);
+}
+
+void AppController::selectBackend(const QString &mode)
+{
+    setBackendMode(mode);
+    hideBackendSelectionDialog();
+    showToast(QString("Active Mode: %1").arg(m_backendMode == "mock" ? "Mock Demo" : "Real Git Backend"));
+}
+
 void AppController::connectServiceSignals()
 {
-    connect(m_service.get(), &IGitService::repositoryChanged, this, [this]() {
+    if (!m_activeService) return;
+
+    disconnect(m_activeService, nullptr, this, nullptr);
+
+    connect(m_activeService, &IGitService::repositoryChanged, this, [this]() {
         updateCurrentState();
         emit currentRepoChanged();
     });
 
-    connect(m_service.get(), &IGitService::currentBranchChanged, this, [this]() {
+    connect(m_activeService, &IGitService::currentBranchChanged, this, [this]() {
         emit currentBranchChanged();
     });
 
-    connect(m_service.get(), &IGitService::remoteStatusUpdated, this, [this](const RemoteStatus &status) {
+    connect(m_activeService, &IGitService::remoteStatusUpdated, this, [this](const RemoteStatus &status) {
         m_remoteStatus = status;
         m_commitHistoryModel->setAheadCount(m_remoteStatus.ahead);
         emit remoteStatusChanged();
     });
 
-    connect(m_service.get(), &IGitService::operationSucceeded, this, [this](const QString &msg) {
+    connect(m_activeService, &IGitService::operationSucceeded, this, [this](const QString &msg) {
         showToast(msg, false);
     });
 
-    connect(m_service.get(), &IGitService::operationFailed, this, [this](const QString &msg) {
+    connect(m_activeService, &IGitService::operationFailed, this, [this](const QString &msg) {
         showToast(msg, true);
     });
 
-    connect(m_service.get(), &IGitService::changedFilesUpdated, this, [this]() {
+    connect(m_activeService, &IGitService::changedFilesUpdated, this, [this]() {
         if (!m_selectedFilePath.isEmpty()) {
             m_diffModel->loadDiffForFile(m_selectedFilePath);
         } else {
-            auto files = m_service->getChangedFiles();
+            auto files = m_activeService->getChangedFiles();
             if (!files.isEmpty()) {
                 setSelectedFilePath(files.first().filePath);
             } else {
@@ -73,7 +159,9 @@ void AppController::connectServiceSignals()
 
 void AppController::updateCurrentState()
 {
-    m_remoteStatus = m_service->getRemoteStatus();
+    if (!m_activeService) return;
+
+    m_remoteStatus = m_activeService->getRemoteStatus();
     m_commitHistoryModel->setAheadCount(m_remoteStatus.ahead);
     emit remoteStatusChanged();
     emit currentRepoChanged();
@@ -83,32 +171,50 @@ void AppController::updateCurrentState()
 
 QString AppController::currentRepoName() const
 {
-    auto repo = m_service->getCurrentRepository();
+    if (!m_activeService) return "No repository";
+    auto repo = m_activeService->getCurrentRepository();
     return repo ? repo->name : "No repository";
 }
 
 QString AppController::currentRepoPath() const
 {
-    auto repo = m_service->getCurrentRepository();
+    if (!m_activeService) return "";
+    auto repo = m_activeService->getCurrentRepository();
     return repo ? repo->path : "";
 }
 
 QString AppController::currentBranchName() const
 {
-    auto b = m_service->getCurrentBranch();
+    if (!m_activeService) return "main";
+    auto b = m_activeService->getCurrentBranch();
     return b ? b->name : "main";
 }
 
 QString AppController::currentBranchPr() const
 {
-    auto b = m_service->getCurrentBranch();
+    if (!m_activeService) return "";
+    auto b = m_activeService->getCurrentBranch();
     return b ? b->prNumber : "";
 }
 
 bool AppController::currentBranchPrActive() const
 {
-    auto b = m_service->getCurrentBranch();
+    if (!m_activeService) return false;
+    auto b = m_activeService->getCurrentBranch();
     return b ? b->prMergedOrActive : false;
+}
+
+QString AppController::currentAuthorName() const
+{
+    if (!m_activeService) return "User";
+    return m_activeService->getAuthorName();
+}
+
+QString AppController::currentAuthorInitial() const
+{
+    QString name = currentAuthorName().trimmed();
+    if (name.isEmpty()) return "U";
+    return name.left(1).toUpper();
 }
 
 void AppController::setActiveTab(const QString &tab)
@@ -145,7 +251,9 @@ void AppController::setSelectedCommitSha(const QString &sha)
 
 QVariant AppController::selectedCommitData() const
 {
-    auto c = m_service->getCommitDetails(m_selectedCommitSha);
+    if (!m_activeService) return QVariantMap();
+
+    auto c = m_activeService->getCommitDetails(m_selectedCommitSha);
     if (!c) return QVariantMap();
 
     QVariantMap map;
@@ -183,9 +291,11 @@ void AppController::setSelectedStashId(const QString &id)
 
 QVariant AppController::selectedStashData() const
 {
-    auto s = m_service->getStashDetails(m_selectedStashId);
+    if (!m_activeService) return QVariantMap();
+
+    auto s = m_activeService->getStashDetails(m_selectedStashId);
     if (!s) {
-        auto stashes = m_service->getStashes();
+        auto stashes = m_activeService->getStashes();
         if (!stashes.isEmpty()) {
             s = stashes.first();
         } else {
@@ -229,32 +339,45 @@ void AppController::setShowWhitespace(bool show)
 
 bool AppController::hasUndoCommit() const
 {
-    return m_service->hasUndoCommit();
+    return m_activeService ? m_activeService->hasUndoCommit() : false;
 }
 
 QString AppController::lastUndoCommitSummary() const
 {
-    if (!m_service->hasUndoCommit()) return QString();
-    return m_service->getLastUndoSnapshot().commit.summary;
+    return m_activeService ? m_activeService->getLastUndoCommitSummary() : QString();
 }
 
 QString AppController::lastUndoCommitDescription() const
 {
-    if (!m_service->hasUndoCommit()) return QString();
-    return m_service->getLastUndoSnapshot().commit.description;
+    return m_activeService ? m_activeService->getLastUndoCommitDescription() : QString();
+}
+
+void AppController::openLocalRepositoryDialog()
+{
+    QString dir = QFileDialog::getExistingDirectory(
+        nullptr,
+        tr("Select Git Repository Directory"),
+        QDir::homePath(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
+    );
+
+    if (!dir.isEmpty()) {
+        addRepository(QFileInfo(dir).fileName(), dir);
+    }
 }
 
 void AppController::switchRepository(const QString &repoIdOrPath)
 {
-    m_service->openRepository(repoIdOrPath);
+    if (!m_activeService) return;
+    m_activeService->openRepository(repoIdOrPath);
     updateCurrentState();
-    auto files = m_service->getChangedFiles();
+    auto files = m_activeService->getChangedFiles();
     if (!files.isEmpty()) {
         setSelectedFilePath(files.first().filePath);
     } else {
         m_diffModel->clear();
     }
-    auto commits = m_service->getCommitHistory(1);
+    auto commits = m_activeService->getCommitHistory(1);
     if (!commits.isEmpty()) {
         setSelectedCommitSha(commits.first().sha);
     }
@@ -262,35 +385,47 @@ void AppController::switchRepository(const QString &repoIdOrPath)
 
 void AppController::addRepository(const QString &name, const QString &path)
 {
-    m_service->addRepository(name, path);
+    if (!m_activeService) return;
+    m_activeService->addRepository(name, path);
+    updateCurrentState();
+}
+
+void AppController::removeRepository(const QString &repoIdOrPath)
+{
+    if (!m_activeService) return;
+    m_activeService->removeRepository(repoIdOrPath);
     updateCurrentState();
 }
 
 void AppController::switchBranch(const QString &branchName)
 {
-    m_service->switchBranch(branchName);
+    if (!m_activeService) return;
+    m_activeService->switchBranch(branchName);
     updateCurrentState();
 }
 
 void AppController::createBranch(const QString &branchName)
 {
-    m_service->createBranch(branchName);
+    if (!m_activeService) return;
+    m_activeService->createBranch(branchName);
     updateCurrentState();
 }
 
 void AppController::deleteBranch(const QString &branchName)
 {
-    m_service->deleteBranch(branchName);
+    if (!m_activeService) return;
+    m_activeService->deleteBranch(branchName);
     updateCurrentState();
 }
 
 bool AppController::commit(const QString &summary, const QString &description, const QStringList &coAuthors)
 {
-    bool res = m_service->createCommit(summary, description, coAuthors);
+    if (!m_activeService) return false;
+    bool res = m_activeService->createCommit(summary, description, coAuthors);
     if (res) {
         emit undoStateChanged();
         emit remoteStatusChanged();
-        auto files = m_service->getChangedFiles();
+        auto files = m_activeService->getChangedFiles();
         if (!files.isEmpty()) {
             setSelectedFilePath(files.first().filePath);
         } else {
@@ -304,11 +439,12 @@ bool AppController::commit(const QString &summary, const QString &description, c
 
 bool AppController::undoLastCommit()
 {
-    bool res = m_service->undoLastCommit();
+    if (!m_activeService) return false;
+    bool res = m_activeService->undoLastCommit();
     if (res) {
         emit undoStateChanged();
         emit remoteStatusChanged();
-        auto files = m_service->getChangedFiles();
+        auto files = m_activeService->getChangedFiles();
         if (!files.isEmpty()) {
             setSelectedFilePath(files.first().filePath);
         }
@@ -318,45 +454,47 @@ bool AppController::undoLastCommit()
 
 void AppController::fetchOrigin()
 {
-    m_service->fetchOrigin();
+    if (m_activeService) m_activeService->fetchOrigin();
 }
 
 void AppController::pullOrigin()
 {
-    m_service->pullOrigin();
+    if (m_activeService) m_activeService->pullOrigin();
 }
 
 void AppController::pushOrigin()
 {
-    m_service->pushOrigin();
+    if (m_activeService) m_activeService->pushOrigin();
 }
 
 void AppController::discardFileChanges(const QString &filePath)
 {
-    m_service->discardFileChanges(filePath);
+    if (m_activeService) m_activeService->discardFileChanges(filePath);
 }
 
 void AppController::discardAllChanges()
 {
-    m_service->discardAllChanges();
+    if (m_activeService) m_activeService->discardAllChanges();
 }
 
 void AppController::stashChanges(const QString &message)
 {
-    m_service->stashChanges(message);
+    if (m_activeService) m_activeService->stashChanges(message);
 }
 
 void AppController::popStash(const QString &stashId)
 {
+    if (!m_activeService) return;
     QString id = stashId.isEmpty() ? m_selectedStashId : stashId;
-    m_service->popStash(id);
+    m_activeService->popStash(id);
     clearStashSelection();
 }
 
 void AppController::dropStash(const QString &stashId)
 {
+    if (!m_activeService) return;
     QString id = stashId.isEmpty() ? m_selectedStashId : stashId;
-    m_service->dropStash(id);
+    m_activeService->dropStash(id);
     clearStashSelection();
 }
 
@@ -372,13 +510,14 @@ void AppController::selectFileForDiff(const QString &filePath)
 
 void AppController::selectStash(const QString &stashId)
 {
+    if (!m_activeService) return;
     QString id = stashId;
     if (id.isEmpty()) {
-        auto stashes = m_service->getStashes();
+        auto stashes = m_activeService->getStashes();
         if (!stashes.isEmpty()) id = stashes.first().id;
     }
     setSelectedStashId(id);
-    auto s = m_service->getStashDetails(id);
+    auto s = m_activeService->getStashDetails(id);
     if (s && !s->files.isEmpty()) {
         m_diffModel->loadDiffForStash(id, s->files.first().filePath);
     }
@@ -396,12 +535,13 @@ void AppController::clearStashSelection()
 
 void AppController::selectCommit(const QString &sha)
 {
+    if (!m_activeService) return;
     if (!m_selectedStashId.isEmpty()) {
         m_selectedStashId.clear();
         emit selectedStashIdChanged();
     }
     setSelectedCommitSha(sha);
-    auto details = m_service->getCommitDetails(sha);
+    auto details = m_activeService->getCommitDetails(sha);
     if (details && !details->changedFiles.isEmpty()) {
         m_diffModel->loadDiffForCommit(sha, details->changedFiles.first().filePath);
     }
@@ -409,7 +549,97 @@ void AppController::selectCommit(const QString &sha)
 
 void AppController::revertCommit(const QString &sha)
 {
-    m_service->revertCommit(sha);
+    if (m_activeService) m_activeService->revertCommit(sha);
+}
+
+void AppController::openInTerminal(const QString &path)
+{
+    QString targetDir = path.isEmpty() ? currentRepoPath() : path;
+    if (targetDir.isEmpty() || !QDir(targetDir).exists()) {
+        showToast("No active repository directory to open", true);
+        return;
+    }
+
+    // Try konsole first, then default terminal fallback
+    bool started = QProcess::startDetached("konsole", {"--workdir", targetDir});
+    if (!started) {
+        started = QProcess::startDetached("x-terminal-emulator", {"--working-directory", targetDir});
+    }
+    if (!started) {
+        started = QProcess::startDetached("ptyxis", {"--working-directory", targetDir});
+    }
+
+    if (started) {
+        showToast(QString("Opened terminal in %1").arg(QFileInfo(targetDir).fileName()));
+    } else {
+        showToast("Could not launch terminal emulator", true);
+    }
+}
+
+void AppController::openInFileManager(const QString &path)
+{
+    QString targetDir = path.isEmpty() ? currentRepoPath() : path;
+    if (targetDir.isEmpty() || !QDir(targetDir).exists()) {
+        showToast("No active repository directory to open", true);
+        return;
+    }
+
+    QDesktopServices::openUrl(QUrl::fromLocalFile(targetDir));
+    showToast(QString("Opened file manager in %1").arg(QFileInfo(targetDir).fileName()));
+}
+
+void AppController::openOnGitHub()
+{
+    QString url;
+    if (m_backendMode == "real" && m_gitCliService) {
+        url = m_gitCliService->getRemoteUrl();
+    }
+
+    if (url.isEmpty()) {
+        showToast("No remote repository URL found", true);
+        return;
+    }
+
+    // Convert SSH URL to HTTPS URL: git@github.com:user/repo.git -> https://github.com/user/repo
+    if (url.startsWith("git@")) {
+        url.remove(0, 4);
+        url.replace(':', '/');
+        url = "https://" + url;
+    }
+    if (url.endsWith(".git")) {
+        url.chop(4);
+    }
+
+    QDesktopServices::openUrl(QUrl(url));
+    showToast(QString("Opening %1 in browser...").arg(url));
+}
+
+void AppController::createPullRequest()
+{
+    QString url;
+    if (m_backendMode == "real" && m_gitCliService) {
+        url = m_gitCliService->getRemoteUrl();
+    }
+
+    if (url.isEmpty()) {
+        showToast("No remote repository URL found", true);
+        return;
+    }
+
+    if (url.startsWith("git@")) {
+        url.remove(0, 4);
+        url.replace(':', '/');
+        url = "https://" + url;
+    }
+    if (url.endsWith(".git")) {
+        url.chop(4);
+    }
+
+    QString branch = currentBranchName();
+    QString prUrl = QString("%1/pull/new/%2").arg(url, branch);
+
+    QDesktopServices::openUrl(QUrl(prUrl));
+    showToast(QString("Opening Pull Request in browser..."));
 }
 
 void AppController::hideToast()

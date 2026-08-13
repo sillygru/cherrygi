@@ -69,9 +69,25 @@ void BranchListModel::setFilterText(const QString &text)
 
 void BranchListModel::reload()
 {
-    if (!m_service) return;
+    if (!m_service) {
+        m_allBranches.clear();
+        applyFilter();
+        return;
+    }
     m_allBranches = m_service->getBranches();
     applyFilter();
+}
+
+void BranchListModel::setService(IGitService *service)
+{
+    if (m_service) {
+        disconnect(m_service, nullptr, this, nullptr);
+    }
+    m_service = service;
+    if (m_service) {
+        connect(m_service, &IGitService::branchListChanged, this, &BranchListModel::reload);
+    }
+    reload();
 }
 
 void BranchListModel::applyFilter()

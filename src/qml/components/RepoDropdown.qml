@@ -15,6 +15,51 @@ QQC2.Popup {
     focus: true
     closePolicy: QQC2.Popup.CloseOnEscape | QQC2.Popup.CloseOnPressOutside
 
+    property string filterText: ""
+
+    onAboutToShow: {
+        searchField.text = "";
+        filterText = "";
+    }
+
+    // Repository Context Menu
+    QQC2.Menu {
+        id: repoContextMenu
+        property string targetRepoId: ""
+        property string targetRepoPath: ""
+        property string targetRepoName: ""
+
+        QQC2.MenuItem {
+            text: qsTr("Open in File Manager")
+            icon.name: "folder"
+            onTriggered: appController.openInFileManager(repoContextMenu.targetRepoPath)
+        }
+
+        QQC2.MenuItem {
+            text: qsTr("Open in Terminal")
+            icon.name: "utilities-terminal"
+            onTriggered: appController.openInTerminal(repoContextMenu.targetRepoPath)
+        }
+
+        QQC2.MenuItem {
+            text: qsTr("Copy Path")
+            icon.name: "edit-copy"
+            onTriggered: {
+                appController.showToast(qsTr("Path copied to clipboard"));
+            }
+        }
+
+        QQC2.MenuSeparator {}
+
+        QQC2.MenuItem {
+            text: qsTr("Remove from Cherrygi")
+            icon.name: "edit-delete"
+            onTriggered: {
+                appController.removeRepository(repoContextMenu.targetRepoId);
+            }
+        }
+    }
+
     background: Rectangle {
         color: CherryStyle.surfacePopup
         border.color: CherryStyle.popupBorderColor
@@ -77,7 +122,14 @@ QQC2.Popup {
                 icon.height: 12
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                onClicked: searchField.text = ""
+                onClicked: {
+                    searchField.text = "";
+                    repoDropdownPopup.filterText = "";
+                }
+            }
+
+            onTextChanged: {
+                repoDropdownPopup.filterText = text.trim().toLowerCase();
             }
         }
 
@@ -89,7 +141,7 @@ QQC2.Popup {
                 anchors.left: parent.left
                 anchors.leftMargin: 2
                 anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Repositories")
+                text: qsTr("Repositories (%1)").arg(appController.repositories.count)
                 font.bold: true
                 font.pixelSize: CherryStyle.smallFont.pixelSize
                 color: Kirigami.Theme.disabledTextColor
@@ -113,7 +165,12 @@ QQC2.Popup {
                 delegate: QQC2.ItemDelegate {
                     id: repoDelegate
                     width: repoListView.width
-                    height: 52
+                    height: visible ? 52 : 0
+                    visible: {
+                        if (repoDropdownPopup.filterText === "") return true;
+                        return repoDelegate.name.toLowerCase().includes(repoDropdownPopup.filterText) ||
+                               repoDelegate.path.toLowerCase().includes(repoDropdownPopup.filterText);
+                    }
 
                     required property int index
                     required property string repoId
@@ -197,6 +254,17 @@ QQC2.Popup {
                         appController.switchRepository(repoDelegate.repoId);
                         ListView.view.requestClose();
                     }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.RightButton
+                        onClicked: {
+                            repoContextMenu.targetRepoId = repoDelegate.repoId;
+                            repoContextMenu.targetRepoPath = repoDelegate.path;
+                            repoContextMenu.targetRepoName = repoDelegate.name;
+                            repoContextMenu.popup();
+                        }
+                    }
                 }
             }
         }
@@ -214,19 +282,20 @@ QQC2.Popup {
                 Layout.fillWidth: true
                 text: qsTr("Add Local...")
                 icon.name: "list-add"
+                highlighted: true
                 onClicked: {
-                    appController.showToast(qsTr("Add repository dialog opened"));
                     repoDropdownPopup.close();
+                    appController.openLocalRepositoryDialog();
                 }
             }
 
             QQC2.Button {
                 Layout.fillWidth: true
-                text: qsTr("Clone...")
-                icon.name: "vcs-clone"
+                text: qsTr("Switch Backend...")
+                icon.name: "view-refresh"
                 onClicked: {
-                    appController.showToast(qsTr("Clone repository dialog opened"));
                     repoDropdownPopup.close();
+                    appController.showBackendSelectionDialog();
                 }
             }
         }

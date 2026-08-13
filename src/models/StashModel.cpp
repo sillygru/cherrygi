@@ -55,13 +55,31 @@ QHash<int, QByteArray> StashModel::roleNames() const
 
 void StashModel::reload()
 {
-    if (!m_service) return;
+    if (!m_service) {
+        beginResetModel();
+        m_stashes.clear();
+        endResetModel();
+        emit countChanged();
+        return;
+    }
 
     beginResetModel();
     m_stashes = m_service->getStashes();
     endResetModel();
 
     emit countChanged();
+}
+
+void StashModel::setService(IGitService *service)
+{
+    if (m_service) {
+        disconnect(m_service, nullptr, this, nullptr);
+    }
+    m_service = service;
+    if (m_service) {
+        connect(m_service, &IGitService::stashesUpdated, this, &StashModel::reload);
+    }
+    reload();
 }
 
 } // namespace Cherry

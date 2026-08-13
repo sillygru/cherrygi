@@ -25,6 +25,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     Q_INVOKABLE void reload();
+    void setService(IGitService *service);
 
 signals:
     void countChanged();

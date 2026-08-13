@@ -35,10 +35,12 @@
   - Whitespace change visibility toggle.
   - **Commit Inspector**: View full commit metadata, copy commit SHA, list changed files in that commit, and view historical diffs.
   - **Stash Inspector**: Click on any stash to view stashed files, browse line-by-line diffs, and restore or discard the stash with 1 click.
-- **Modular & Maintainable Architecture**:
-  - Fully decoupled `IGitService` abstract interface.
-  - Stateful `MockGitService` with rich sample data mirroring GitHub Desktop's UI.
-  - Ready for drop-in transition to `libgit2` or Git CLI backends.
+- **Dual Backend Support (Real Git & Mock Demo)**:
+  - **Real Git Backend (`GitCliService`)**: Direct integration with your machine's `git` command. Work on actual local repositories, stage/unstage files, view unified and split diffs, create commits, soft-reset undo, branch, stash, and sync with remotes.
+  - **Mock Demo Mode (`MockGitService`)**: Explore `cherrygi` with pre-loaded mock repositories (`desktop`, `cherrygi-core`, `plasma-workspace`) without modifying real files.
+  - **On-Startup Mode Selection Modal**: Dialog on launch to choose your working mode, with runtime switching via the header bar.
+  - **Persistent & Non-Intrusive Storage**: User repository bookmarks and preferences are stored cleanly in XDG user config (`~/.config/KDE/cherrygi.conf`).
+  - **Native Local Repository Picker**: Add local repositories with native Qt folder selection dialogs and manage repositories with contextual actions (Open in Terminal, Open in File Manager, Remove from list).
 
 ---
 

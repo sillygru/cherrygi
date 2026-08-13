@@ -44,6 +44,8 @@ set(CHERRYGI_SOURCES
     src/main.cpp
     src/core/Types.h
     src/core/IGitService.h
+    src/core/GitCliService.h
+    src/core/GitCliService.cpp
     src/core/MockGitService.h
     src/core/MockGitService.cpp
     src/core/AppController.h
@@ -79,6 +81,7 @@ qt_add_qml_module(cherrygi
         src/qml/Main.qml
         src/qml/style/CherryStyle.qml
         src/qml/components/HeaderBar.qml
+        src/qml/components/BackendSelectionDialog.qml
         src/qml/components/RepoDropdown.qml
         src/qml/components/BranchDropdown.qml
         src/qml/components/RemoteDropdown.qml

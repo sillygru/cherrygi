@@ -31,6 +31,7 @@ public:
     void setFilterText(const QString &text);
 
     Q_INVOKABLE void reload();
+    void setService(IGitService *service);
 
 signals:
     void countChanged();

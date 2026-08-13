@@ -151,4 +151,14 @@ void DiffModel::setDiffLines(const QList<DiffLine> &lines)
     emit statsChanged();
 }
 
+void DiffModel::setService(IGitService *service)
+{
+    m_service = service;
+    if (!m_filePath.isEmpty()) {
+        loadDiffForFile(m_filePath);
+    } else {
+        clear();
+    }
+}
+
 } // namespace Cherry
