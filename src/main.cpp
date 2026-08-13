@@ -2,7 +2,6 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QIcon>
-#include <QTimer>
 #include <KLocalizedString>
 #include <KIconTheme>
 
@@ -25,25 +24,6 @@ int main(int argc, char *argv[])
 
     // Register translation domain
     KLocalizedString::setApplicationDomain("cherrygi");
-
-    // Support auto-quit for validation / testing (defaults to 10 seconds)
-    int autoQuitSecs = 10;
-    if (qEnvironmentVariableIsSet("CHERRYGI_AUTO_QUIT")) {
-        autoQuitSecs = qEnvironmentVariableIntValue("CHERRYGI_AUTO_QUIT");
-    }
-    for (int i = 1; i < argc; ++i) {
-        const QString arg = QString::fromLatin1(argv[i]);
-        if (arg == "--auto-quit" && i + 1 < argc) {
-            autoQuitSecs = QString::fromLatin1(argv[++i]).toInt();
-        } else if (arg == "--auto-quit") {
-            autoQuitSecs = 10;
-        } else if (arg == "--no-auto-quit") {
-            autoQuitSecs = 0;
-        }
-    }
-    if (autoQuitSecs > 0) {
-        QTimer::singleShot(autoQuitSecs * 1000, &app, &QCoreApplication::quit);
-    }
 
     // Load Main QML from module resources
     const QUrl url(QStringLiteral("qrc:/qt/qml/org/kde/cherrygi/src/qml/Main.qml"));
