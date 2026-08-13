@@ -54,6 +54,9 @@ class AppController : public QObject {
     Q_PROPERTY(bool isPublishing READ isPublishing NOTIFY isPublishingChanged)
     Q_PROPERTY(QString publishErrorMessage READ publishErrorMessage NOTIFY publishErrorMessageChanged)
     Q_PROPERTY(bool isCommitting READ isCommitting NOTIFY isCommittingChanged)
+    Q_PROPERTY(bool isLoadingRepository READ isLoadingRepository NOTIFY isLoadingRepositoryChanged)
+    Q_PROPERTY(QString loadingRepositoryMessage READ loadingRepositoryMessage NOTIFY loadingRepositoryMessageChanged)
+    Q_PROPERTY(QString loadingRepositoryName READ loadingRepositoryName NOTIFY loadingRepositoryNameChanged)
     Q_PROPERTY(bool isOperating READ isOperating NOTIFY operatingStateChanged)
     Q_PROPERTY(QString operationMessage READ operationMessage NOTIFY operatingStateChanged)
     Q_PROPERTY(bool isGhAvailable READ isGhAvailable CONSTANT)
@@ -69,6 +72,10 @@ class AppController : public QObject {
     // Diff Options
     Q_PROPERTY(QString diffViewMode READ diffViewMode WRITE setDiffViewMode NOTIFY diffViewModeChanged)
     Q_PROPERTY(bool showWhitespace READ showWhitespace WRITE setShowWhitespace NOTIFY showWhitespaceChanged)
+
+    // Git Configuration
+    Q_PROPERTY(bool ignoreFileModeChanges READ ignoreFileModeChanges NOTIFY gitConfigChanged)
+    Q_PROPERTY(bool globalIgnoreFileModeChanges READ globalIgnoreFileModeChanges NOTIFY gitConfigChanged)
 
     // Undo State
     Q_PROPERTY(bool canUndoCommit READ canUndoCommit NOTIFY undoStateChanged)
@@ -139,7 +146,10 @@ public:
     bool isPublishing() const { return m_isPublishing; }
     QString publishErrorMessage() const { return m_publishErrorMessage; }
     bool isCommitting() const { return m_isCommitting; }
-    bool isOperating() const { return m_isPublishing || m_isCommitting || m_isDiscarding || m_isStashing || m_isReverting || isFetching() || isPulling() || isPushing(); }
+    bool isLoadingRepository() const { return m_isLoadingRepository; }
+    QString loadingRepositoryMessage() const { return m_loadingRepositoryMessage; }
+    QString loadingRepositoryName() const { return m_loadingRepositoryName; }
+    bool isOperating() const { return m_isLoadingRepository || m_isPublishing || m_isCommitting || m_isDiscarding || m_isStashing || m_isReverting || isFetching() || isPulling() || isPushing(); }
     QString operationMessage() const;
     bool isGhAvailable() const;
 
@@ -162,6 +172,9 @@ public:
 
     bool showWhitespace() const { return m_showWhitespace; }
     void setShowWhitespace(bool show);
+
+    bool ignoreFileModeChanges() const { return m_activeService ? m_activeService->ignoreFileModeChanges(false) : false; }
+    bool globalIgnoreFileModeChanges() const { return m_activeService ? m_activeService->ignoreFileModeChanges(true) : false; }
 
     bool canUndoCommit() const;
     QString lastUndoCommitSummary() const;
@@ -209,6 +222,7 @@ public:
 
     Q_INVOKABLE bool saveRemoteUrl(const QString &url, const QString &remoteName = "origin");
     Q_INVOKABLE bool removeRemoteUrl(const QString &remoteName = "origin");
+    Q_INVOKABLE bool setIgnoreFileModeChanges(bool ignored, bool global = false);
     Q_INVOKABLE bool saveAuthorInfo(const QString &name, const QString &email, bool global = false);
     Q_INVOKABLE void saveEditorSettings(const QString &editor, const QString &customCmd);
     Q_INVOKABLE void saveTerminalSettings(const QString &terminal, const QString &customCmd);
@@ -217,6 +231,8 @@ public:
     Q_INVOKABLE void switchRepository(const QString &repoIdOrPath);
     Q_INVOKABLE void addRepository(const QString &name, const QString &path);
     Q_INVOKABLE void removeRepository(const QString &repoIdOrPath);
+    Q_INVOKABLE void refresh();
+    Q_INVOKABLE void refreshRepository();
 
     Q_INVOKABLE void switchBranch(const QString &branchName);
     Q_INVOKABLE void createBranch(const QString &branchName);
@@ -260,6 +276,9 @@ signals:
     void isPublishingChanged();
     void publishErrorMessageChanged();
     void isCommittingChanged();
+    void isLoadingRepositoryChanged();
+    void loadingRepositoryMessageChanged();
+    void loadingRepositoryNameChanged();
     void operatingStateChanged();
     void activeTabChanged();
     void selectedFilePathChanged();
@@ -267,6 +286,7 @@ signals:
     void selectedStashIdChanged();
     void diffViewModeChanged();
     void showWhitespaceChanged();
+    void gitConfigChanged();
     void undoStateChanged();
     void settingsDialogVisibleChanged();
     void publishDialogVisibleChanged();
@@ -292,6 +312,9 @@ private:
     bool m_isPublishing{false};
     QString m_publishErrorMessage;
     bool m_isCommitting{false};
+    bool m_isLoadingRepository{false};
+    QString m_loadingRepositoryMessage;
+    QString m_loadingRepositoryName;
     bool m_isDiscarding{false};
     bool m_isStashing{false};
     bool m_isReverting{false};

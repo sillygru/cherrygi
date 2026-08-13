@@ -58,10 +58,58 @@ ColumnLayout {
             }
         }
 
+        // Metadata-only state: Git detected a file permission/mode change,
+        // but there are no line-level contents to render.
+        Item {
+            anchors.centerIn: parent
+            visible: !appController.diffModel.isLoading && appController.diffModel.metadataOnly
+            width: parent.width - 60
+            height: 190
+
+            ColumnLayout {
+                anchors.centerIn: parent
+                spacing: Kirigami.Units.smallSpacing
+
+                Kirigami.Icon {
+                    source: "emblem-important"
+                    width: 48
+                    height: 48
+                    Layout.alignment: Qt.AlignHCenter
+                    color: Kirigami.Theme.highlightColor
+                }
+
+                QQC2.Label {
+                    text: qsTr("File metadata changed")
+                    font.bold: true
+                    font.pixelSize: CherryStyle.basePixelSize + 2
+                    Layout.alignment: Qt.AlignHCenter
+                    color: Kirigami.Theme.textColor
+                }
+
+                QQC2.Label {
+                    text: qsTr("Only file permissions changed; there is no content diff to display.")
+                    font.pixelSize: CherryStyle.smallFont.pixelSize
+                    Layout.alignment: Qt.AlignHCenter
+                    color: Kirigami.Theme.disabledTextColor
+                    wrapMode: Text.Wrap
+                    horizontalAlignment: Text.AlignHCenter
+                    Layout.maximumWidth: 420
+                }
+
+                QQC2.Button {
+                    text: qsTr("Ignore metadata changes in this repository")
+                    icon.name: "document-save"
+                    Layout.alignment: Qt.AlignHCenter
+                    highlighted: true
+                    onClicked: appController.setIgnoreFileModeChanges(true, false)
+                }
+            }
+        }
+
         // Empty state when no file or empty diff
         Item {
             anchors.centerIn: parent
-            visible: !appController.diffModel.isLoading && appController.diffModel.count === 0
+            visible: !appController.diffModel.isLoading && !appController.diffModel.metadataOnly && appController.diffModel.count === 0
             width: parent.width - 60
             height: 140
 
@@ -107,6 +155,7 @@ ColumnLayout {
                 width: parent.width
                 model: appController.diffModel
                 spacing: 0
+                reuseItems: false
 
                 delegate: Rectangle {
                     id: unifiedLineDelegate
@@ -243,6 +292,7 @@ ColumnLayout {
                     Layout.fillHeight: true
                     model: appController.diffModel
                     spacing: 0
+                    reuseItems: false
 
                     delegate: Rectangle {
                         id: splitLeftDelegate
@@ -305,6 +355,7 @@ ColumnLayout {
                     Layout.fillHeight: true
                     model: appController.diffModel
                     spacing: 0
+                    reuseItems: false
 
                     delegate: Rectangle {
                         id: splitRightDelegate

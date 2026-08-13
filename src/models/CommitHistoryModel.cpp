@@ -82,7 +82,7 @@ void CommitHistoryModel::setAheadCount(int count)
     if (m_aheadCount == count) return;
     m_aheadCount = count;
     if (!m_filteredCommits.isEmpty()) {
-        emit dataChanged(index(0, 0), index(qMin(m_aheadCount, (int)m_filteredCommits.size() - 1), 0), {IsLocalRole});
+        emit dataChanged(index(0, 0), index(m_filteredCommits.size() - 1, 0), {IsLocalRole});
     }
     emit aheadCountChanged();
 }

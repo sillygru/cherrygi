@@ -7,8 +7,8 @@ import "../style"
 
 QQC2.Popup {
     id: root
-    width: 720
-    height: 520
+    width: 760
+    height: 600
     anchors.centerIn: parent
     padding: 0
     modal: true
@@ -165,7 +165,45 @@ QQC2.Popup {
                     }
                 }
 
-                // Tab 2: Git Identity
+                // Tab 2: Git Settings
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 38
+                    radius: CherryStyle.radiusMedium
+                    color: root.currentTab === "git" ? CherryStyle.activeBackground : (gitTabMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+                        anchors.rightMargin: Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Kirigami.Icon {
+                            source: "vcs-branch"
+                            width: 16
+                            height: 16
+                            color: root.currentTab === "git" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                        }
+
+                        QQC2.Label {
+                            text: qsTr("Git Settings")
+                            font.bold: root.currentTab === "git"
+                            color: root.currentTab === "git" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    MouseArea {
+                        id: gitTabMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.currentTab = "git"
+                    }
+                }
+
+                // Tab 3: Git Identity
                 Rectangle {
                     Layout.fillWidth: true
                     height: 38
@@ -241,7 +279,7 @@ QQC2.Popup {
                     }
                 }
 
-                // Tab 4: Appearance & Diff
+                // Tab 5: Appearance & Diff
                 Rectangle {
                     Layout.fillWidth: true
                     height: 38
@@ -300,6 +338,7 @@ QQC2.Popup {
                 QQC2.Label {
                     text: {
                         if (root.currentTab === "repository") return qsTr("Repository & Remote Origin");
+                        if (root.currentTab === "git") return qsTr("Git Settings");
                         if (root.currentTab === "identity") return qsTr("Git Identity");
                         if (root.currentTab === "editor") return qsTr("External Editor & Terminal");
                         return qsTr("Appearance & Diff Settings");
@@ -538,7 +577,98 @@ QQC2.Popup {
                 }
 
                 // ==========================================
-                // 2. GIT IDENTITY TAB
+                // 2. GIT SETTINGS TAB
+                // ==========================================
+                ColumnLayout {
+                    width: parent.width
+                    visible: root.currentTab === "git"
+                    spacing: Kirigami.Units.mediumSpacing
+
+                    QQC2.Label {
+                        text: qsTr("File Metadata Changes")
+                        font.bold: true
+                        color: Kirigami.Theme.textColor
+                    }
+
+                    QQC2.Label {
+                        text: qsTr("Control whether Git reports executable-bit and file permission changes as repository changes.")
+                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                        color: Kirigami.Theme.disabledTextColor
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: localFileModeCol.implicitHeight + 24
+                        radius: CherryStyle.radiusMedium
+                        color: CherryStyle.surfaceCard
+                        border.color: CherryStyle.borderColor
+                        border.width: 1
+
+                        ColumnLayout {
+                            id: localFileModeCol
+                            anchors.fill: parent
+                            anchors.margins: Kirigami.Units.mediumSpacing
+                            spacing: Kirigami.Units.smallSpacing
+
+                            QQC2.CheckBox {
+                                text: qsTr("Ignore file metadata changes in this repository")
+                                checked: appController.ignoreFileModeChanges
+                                onClicked: appController.setIgnoreFileModeChanges(checked, false)
+                            }
+
+                            QQC2.Label {
+                                text: qsTr("Writes core.filemode=false to this repository's .git/config.")
+                                font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                color: Kirigami.Theme.disabledTextColor
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: globalFileModeCol.implicitHeight + 24
+                        radius: CherryStyle.radiusMedium
+                        color: CherryStyle.surfaceCard
+                        border.color: CherryStyle.borderColor
+                        border.width: 1
+
+                        ColumnLayout {
+                            id: globalFileModeCol
+                            anchors.fill: parent
+                            anchors.margins: Kirigami.Units.mediumSpacing
+                            spacing: Kirigami.Units.smallSpacing
+
+                            QQC2.CheckBox {
+                                text: qsTr("Ignore file metadata changes globally")
+                                checked: appController.globalIgnoreFileModeChanges
+                                onClicked: appController.setIgnoreFileModeChanges(checked, true)
+                            }
+
+                            QQC2.Label {
+                                text: qsTr("Writes core.filemode=false to your global Git configuration and applies to repositories without a local override.")
+                                font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                color: Kirigami.Theme.disabledTextColor
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+                        }
+                    }
+
+                    QQC2.Label {
+                        text: qsTr("The repository setting takes precedence over the global setting.")
+                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                        color: Kirigami.Theme.disabledTextColor
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                    }
+                }
+
+                // ==========================================
+                // 3. GIT IDENTITY TAB
                 // ==========================================
                 ColumnLayout {
                     width: parent.width

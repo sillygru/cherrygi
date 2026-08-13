@@ -172,6 +172,7 @@ QQC2.Popup {
                 id: repoListView
                 model: appController.repositories
                 spacing: 3
+                reuseItems: false
 
                 signal requestClose()
                 onRequestClose: repoDropdownPopup.close()

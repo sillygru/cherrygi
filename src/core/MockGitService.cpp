@@ -305,6 +305,7 @@ bool MockGitService::openRepository(const QString &repoIdOrPath)
 {
     if (m_repositories.contains(repoIdOrPath)) {
         m_currentRepoId = repoIdOrPath;
+        m_undoStack.clear();
         const auto &repo = m_repositories[repoIdOrPath];
         emit repositoryChanged(repo.info);
         emit branchListChanged();
@@ -321,6 +322,7 @@ bool MockGitService::openRepository(const QString &repoIdOrPath)
     for (auto it = m_repositories.begin(); it != m_repositories.end(); ++it) {
         if (it.value().info.path == repoIdOrPath || it.value().info.name == repoIdOrPath) {
             m_currentRepoId = it.key();
+            m_undoStack.clear();
             emit repositoryChanged(it.value().info);
             emit branchListChanged();
             if (auto b = getCurrentBranch()) {
@@ -413,6 +415,7 @@ bool MockGitService::switchBranch(const QString &branchName)
     }
 
     if (found) {
+        m_undoStack.clear();
         state->currentBranch = branchName;
         state->info.currentBranch = branchName;
         emit branchListChanged();
@@ -543,6 +546,12 @@ QList<DiffLine> MockGitService::getDiffForFile(const QString &filePath)
         }
     }
     return {};
+}
+
+bool MockGitService::isFileMetadataOnly(const QString &filePath)
+{
+    Q_UNUSED(filePath);
+    return false;
 }
 
 QList<DiffLine> MockGitService::getDiffForCommitFile(const QString &commitSha, const QString &filePath)
@@ -698,6 +707,24 @@ bool MockGitService::undoLastCommit()
     return true;
 }
 
+bool MockGitService::canUndoCommit() const
+{
+    if (m_undoStack.isEmpty()) return false;
+    auto *state = const_cast<MockGitService*>(this)->activeState();
+    return state ? (state->remoteStatus.ahead > 0) : false;
+}
+
+void MockGitService::refreshRepository()
+{
+    auto *state = activeState();
+    if (!state) return;
+    emit changedFilesUpdated();
+    emit commitHistoryUpdated();
+    emit remoteStatusUpdated(state->remoteStatus);
+    emit stashesUpdated();
+    emit repositoryChanged(state->info);
+}
+
 bool MockGitService::revertCommit(const QString &sha)
 {
     auto *state = activeState();
@@ -752,6 +779,7 @@ void MockGitService::pullOrigin()
         state->remoteStatus.behind = 0;
         state->info.behindCount = 0;
         state->remoteStatus.lastFetchedText = "Last fetched just now";
+        m_undoStack.clear();
         emit remoteStatusUpdated(state->remoteStatus);
         emit commitHistoryUpdated();
         emit operationSucceeded(QString("Successfully pulled %1 commits from origin").arg(pulledCount));
@@ -771,6 +799,7 @@ void MockGitService::pushOrigin()
         int pushedCount = state->remoteStatus.ahead;
         state->remoteStatus.ahead = 0;
         state->info.aheadCount = 0;
+        m_undoStack.clear();
         emit remoteStatusUpdated(state->remoteStatus);
         emit operationSucceeded(QString("Successfully pushed %1 commits to origin").arg(pushedCount));
     });
@@ -919,6 +948,28 @@ bool MockGitService::publishRepository(const QString &name, const QString &descr
     state->info.aheadCount = 0;
     emit remoteStatusUpdated(state->remoteStatus);
     emit operationSucceeded(QString("Successfully published '%1' to GitHub!").arg(repoName));
+    return true;
+}
+
+bool MockGitService::ignoreFileModeChanges(bool global)
+{
+    if (global) return m_globalIgnoreFileModeChanges;
+    auto *state = activeState();
+    return state ? state->ignoreFileModeChanges : false;
+}
+
+bool MockGitService::setIgnoreFileModeChanges(bool ignored, bool global)
+{
+    if (global) {
+        m_globalIgnoreFileModeChanges = ignored;
+    } else {
+        auto *state = activeState();
+        if (!state) return false;
+        state->ignoreFileModeChanges = ignored;
+    }
+    emit changedFilesUpdated();
+    emit operationSucceeded(QString("File metadata changes are now %1 (%2)")
+                                .arg(ignored ? "ignored" : "tracked", global ? "global" : "this repository"));
     return true;
 }
 

@@ -4,6 +4,8 @@
 #include <QSettings>
 #include <QMap>
 #include <QDateTime>
+#include <QFileSystemWatcher>
+#include <QTimer>
 #include <functional>
 
 namespace Cherry {
@@ -27,6 +29,7 @@ public:
     bool openRepository(const QString &pathOrId) override;
     bool addRepository(const QString &name, const QString &path) override;
     bool removeRepository(const QString &repoIdOrPath) override;
+    void refreshRepository() override;
 
     // Branches
     QList<BranchInfo> getBranches() override;
@@ -44,6 +47,7 @@ public:
 
     // Diff
     QList<DiffLine> getDiffForFile(const QString &filePath) override;
+    bool isFileMetadataOnly(const QString &filePath) override;
     QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath) override;
     QList<DiffLine> getDiffForStashFile(const QString &stashId, const QString &filePath) override;
 
@@ -77,6 +81,10 @@ public:
     bool popStash(const QString &stashId = QString()) override;
     bool dropStash(const QString &stashId) override;
 
+    // Git configuration
+    bool ignoreFileModeChanges(bool global) override;
+    bool setIgnoreFileModeChanges(bool ignored, bool global) override;
+
     // User / Author Info
     QString getAuthorName() const override;
     QString getAuthorEmail() const override;
@@ -89,13 +97,38 @@ public:
     void runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback);
 
     QString activeRepoPath() const { return m_repoPath; }
+    void clearUndoState();
 
 private:
     void loadSavedRepositories();
     void saveRepositories();
     void discoverInitialRepository();
+    void setupFileSystemWatcher();
+    void invalidateRepositoryCaches();
     QList<DiffLine> parseDiffOutput(const QString &diffText);
     QString formatRelativeTime(const QDateTime &dt) const;
+    QString formatGitError(const QString &rawError, const QString &fallbackContext) const;
+
+    bool m_suppressRefreshSignals{false};
+    bool m_refreshInProgress{false};
+    bool m_changedFilesCacheValid{false};
+    bool m_branchesCacheValid{false};
+    bool m_currentBranchCacheValid{false};
+    bool m_commitHistoryCacheValid{false};
+    bool m_stashesCacheValid{false};
+    bool m_remoteStatusCacheValid{false};
+    QList<FileChange> m_changedFilesCache;
+    QList<BranchInfo> m_branchesCache;
+    std::optional<BranchInfo> m_currentBranchCache;
+    QList<CommitItem> m_commitHistoryCache;
+    QList<StashItem> m_stashesCache;
+
+    bool m_fileDiffCacheValid{false};
+    QString m_fileDiffCachePath;
+    QList<DiffLine> m_fileDiffCache;
+
+    void preloadRepositoryCaches();
+    void emitRepositoryRefreshSignals(bool changedFilesChanged = true);
 
     QString m_repoPath;
     QString m_repoName;
@@ -109,6 +142,9 @@ private:
     QString m_lastUndoCommitSummary;
     QString m_lastUndoCommitDescription;
     QStringList m_lastUndoCommitCoAuthors;
+
+    QFileSystemWatcher *m_fsWatcher{nullptr};
+    QTimer *m_fsDebounceTimer{nullptr};
 };
 
 } // namespace Cherry

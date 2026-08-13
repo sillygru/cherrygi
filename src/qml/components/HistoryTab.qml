@@ -135,6 +135,7 @@ ColumnLayout {
             id: commitListView
             model: appController.commitHistory
             spacing: 1
+            reuseItems: false
 
             delegate: QQC2.ItemDelegate {
                 id: commitDelegate

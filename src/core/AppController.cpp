@@ -7,6 +7,9 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QGuiApplication>
+#include <QPointer>
+#include <QThread>
 
 namespace Cherry {
 
@@ -36,6 +39,13 @@ AppController::AppController(QObject *parent)
 
     connectServiceSignals();
     updateCurrentState();
+
+    // Auto-refresh when app enters foreground / becomes active
+    connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+        if (state == Qt::ApplicationActive) {
+            refresh();
+        }
+    });
 
     // Select initial file
     auto files = m_activeService->getChangedFiles();
@@ -151,6 +161,7 @@ void AppController::connectServiceSignals()
             emit operatingStateChanged();
             hidePublishDialog();
         }
+        qInfo().noquote() << QString("[Operation Succeeded] %1").arg(msg);
         showToast(msg, false);
     });
 
@@ -162,20 +173,31 @@ void AppController::connectServiceSignals()
             emit publishErrorMessageChanged();
             emit operatingStateChanged();
         }
+        qWarning().noquote() << QString("[Operation Failed] %1").arg(msg);
         showToast(msg, true);
     });
 
     connect(m_activeService, &IGitService::changedFilesUpdated, this, [this]() {
-        if (!m_selectedFilePath.isEmpty()) {
-            m_diffModel->loadDiffForFile(m_selectedFilePath);
+        auto files = m_activeService->getChangedFiles();
+        if (files.isEmpty()) {
+            m_selectedFilePath.clear();
+            emit selectedFilePathChanged();
+            m_diffModel->clear();
         } else {
-            auto files = m_activeService->getChangedFiles();
-            if (!files.isEmpty()) {
-                setSelectedFilePath(files.first().filePath);
+            bool found = false;
+            for (const auto &f : files) {
+                if (f.filePath == m_selectedFilePath) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                m_diffModel->loadDiffForFile(m_selectedFilePath);
             } else {
-                m_diffModel->clear();
+                setSelectedFilePath(files.first().filePath);
             }
         }
+        emit undoStateChanged();
     });
 
     connect(m_activeService, &IGitService::commitHistoryUpdated, this, [this]() {
@@ -255,6 +277,9 @@ bool AppController::isGhAvailable() const
 
 QString AppController::operationMessage() const
 {
+    if (m_isLoadingRepository) {
+        return m_loadingRepositoryMessage.isEmpty() ? tr("Loading repository...") : m_loadingRepositoryMessage;
+    }
     if (m_isPublishing) return tr("Publishing repository to GitHub...");
     if (isPushing()) {
         return aheadCount() > 0 ? (aheadCount() == 1 ? tr("Pushing 1 commit to origin...") : tr("Pushing %1 commits to origin...").arg(aheadCount())) : tr("Pushing to origin...");
@@ -549,6 +574,16 @@ bool AppController::removeRemoteUrl(const QString &remoteName)
     return res;
 }
 
+bool AppController::setIgnoreFileModeChanges(bool ignored, bool global)
+{
+    if (!m_activeService) return false;
+    const bool result = m_activeService->setIgnoreFileModeChanges(ignored, global);
+    if (result) {
+        emit gitConfigChanged();
+    }
+    return result;
+}
+
 bool AppController::saveAuthorInfo(const QString &name, const QString &email, bool global)
 {
     if (!m_activeService) return false;
@@ -595,25 +630,95 @@ void AppController::openLocalRepositoryDialog()
 void AppController::switchRepository(const QString &repoIdOrPath)
 {
     if (!m_activeService) return;
-    m_activeService->openRepository(repoIdOrPath);
-    updateCurrentState();
-    auto files = m_activeService->getChangedFiles();
-    if (!files.isEmpty()) {
-        setSelectedFilePath(files.first().filePath);
-    } else {
-        m_diffModel->clear();
-    }
-    auto commits = m_activeService->getCommitHistory(1);
-    if (!commits.isEmpty()) {
-        setSelectedCommitSha(commits.first().sha);
-    }
+    if (m_isLoadingRepository) return;
+
+    QString cleanName = QFileInfo(repoIdOrPath).fileName();
+    if (cleanName.isEmpty()) cleanName = repoIdOrPath;
+
+    m_isLoadingRepository = true;
+    m_loadingRepositoryName = cleanName;
+    m_loadingRepositoryMessage = tr("Opening repository...");
+    emit isLoadingRepositoryChanged();
+    emit loadingRepositoryNameChanged();
+    emit loadingRepositoryMessageChanged();
+    emit operatingStateChanged();
+
+    QPointer<AppController> self(this);
+    QString target = repoIdOrPath;
+    IGitService *service = m_activeService;
+
+    QThread *thread = QThread::create([self, service, target]() {
+        bool ok = service->openRepository(target);
+        QMetaObject::invokeMethod(self, [self, ok]() {
+            if (!self) return;
+            self->m_isLoadingRepository = false;
+            emit self->isLoadingRepositoryChanged();
+            emit self->operatingStateChanged();
+
+            if (ok) {
+                self->updateCurrentState();
+                auto files = self->m_activeService->getChangedFiles();
+                if (!files.isEmpty()) {
+                    self->setSelectedFilePath(files.first().filePath);
+                } else {
+                    self->m_diffModel->clear();
+                }
+                auto commits = self->m_activeService->getCommitHistory(1);
+                if (!commits.isEmpty()) {
+                    self->setSelectedCommitSha(commits.first().sha);
+                }
+            }
+        }, Qt::QueuedConnection);
+    });
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
 }
 
 void AppController::addRepository(const QString &name, const QString &path)
 {
     if (!m_activeService) return;
-    m_activeService->addRepository(name, path);
-    updateCurrentState();
+    if (m_isLoadingRepository) return;
+
+    QString cleanName = name.trimmed().isEmpty() ? QFileInfo(path).fileName() : name.trimmed();
+
+    m_isLoadingRepository = true;
+    m_loadingRepositoryName = cleanName;
+    m_loadingRepositoryMessage = tr("Scanning repository files...");
+    emit isLoadingRepositoryChanged();
+    emit loadingRepositoryNameChanged();
+    emit loadingRepositoryMessageChanged();
+    emit operatingStateChanged();
+
+    QPointer<AppController> self(this);
+    QString targetName = name;
+    QString targetPath = path;
+    IGitService *service = m_activeService;
+
+    QThread *thread = QThread::create([self, service, targetName, targetPath]() {
+        bool ok = service->addRepository(targetName, targetPath);
+        QMetaObject::invokeMethod(self, [self, ok]() {
+            if (!self) return;
+            self->m_isLoadingRepository = false;
+            emit self->isLoadingRepositoryChanged();
+            emit self->operatingStateChanged();
+
+            if (ok) {
+                self->updateCurrentState();
+                auto files = self->m_activeService->getChangedFiles();
+                if (!files.isEmpty()) {
+                    self->setSelectedFilePath(files.first().filePath);
+                } else {
+                    self->m_diffModel->clear();
+                }
+                auto commits = self->m_activeService->getCommitHistory(1);
+                if (!commits.isEmpty()) {
+                    self->setSelectedCommitSha(commits.first().sha);
+                }
+            }
+        }, Qt::QueuedConnection);
+    });
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
 }
 
 void AppController::removeRepository(const QString &repoIdOrPath)
@@ -621,6 +726,20 @@ void AppController::removeRepository(const QString &repoIdOrPath)
     if (!m_activeService) return;
     m_activeService->removeRepository(repoIdOrPath);
     updateCurrentState();
+}
+
+void AppController::refresh()
+{
+    // GitCliService performs the repository scan in its worker thread and only
+    // emits model updates after the complete snapshot is ready.
+    if (m_activeService) {
+        m_activeService->refreshRepository();
+    }
+}
+
+void AppController::refreshRepository()
+{
+    refresh();
 }
 
 void AppController::switchBranch(const QString &branchName)

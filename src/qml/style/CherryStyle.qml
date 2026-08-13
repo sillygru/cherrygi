@@ -81,6 +81,18 @@ QtObject {
         bold: true
     })
 
+    readonly property font largeFont: Qt.font({
+        family: Kirigami.Theme.defaultFont ? Kirigami.Theme.defaultFont.family : "sans-serif",
+        pixelSize: basePixelSize + 3,
+        bold: true
+    })
+
+    readonly property font titleFont: Qt.font({
+        family: Kirigami.Theme.defaultFont ? Kirigami.Theme.defaultFont.family : "sans-serif",
+        pixelSize: basePixelSize + 5,
+        bold: true
+    })
+
     readonly property font smallFont: Qt.font({
         family: Kirigami.Theme.defaultFont ? Kirigami.Theme.defaultFont.family : "sans-serif",
         pixelSize: Math.max(9, basePixelSize - 2)

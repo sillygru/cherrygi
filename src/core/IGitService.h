@@ -19,6 +19,7 @@ public:
     virtual bool openRepository(const QString &pathOrId) = 0;
     virtual bool addRepository(const QString &name, const QString &path) = 0;
     virtual bool removeRepository(const QString &repoIdOrPath) = 0;
+    virtual void refreshRepository() = 0;
 
     // Branches
     virtual QList<BranchInfo> getBranches() = 0;
@@ -36,6 +37,7 @@ public:
 
     // Diff
     virtual QList<DiffLine> getDiffForFile(const QString &filePath) = 0;
+    virtual bool isFileMetadataOnly(const QString &filePath) = 0;
     virtual QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath) = 0;
     virtual QList<DiffLine> getDiffForStashFile(const QString &stashId, const QString &filePath) = 0;
 
@@ -68,6 +70,10 @@ public:
     virtual bool stashChanges(const QString &message = QString()) = 0;
     virtual bool popStash(const QString &stashId = QString()) = 0;
     virtual bool dropStash(const QString &stashId) = 0;
+
+    // Git configuration
+    virtual bool ignoreFileModeChanges(bool global) = 0;
+    virtual bool setIgnoreFileModeChanges(bool ignored, bool global) = 0;
 
     // User / Author Info
     virtual QString getAuthorName() const = 0;

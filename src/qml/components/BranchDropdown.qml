@@ -198,6 +198,7 @@ QQC2.Popup {
                 id: branchListView
                 model: appController.branches
                 spacing: 2
+                reuseItems: false
 
                 signal requestClose()
                 onRequestClose: branchDropdownPopup.close()

@@ -15,6 +15,7 @@ struct RepoState {
     QList<CommitItem> commitHistory;
     QList<StashItem> stashes;
     RemoteStatus remoteStatus;
+    bool ignoreFileModeChanges{false};
 };
 
 class MockGitService : public IGitService {
@@ -29,6 +30,7 @@ public:
     bool openRepository(const QString &pathOrId) override;
     bool addRepository(const QString &name, const QString &path) override;
     bool removeRepository(const QString &repoIdOrPath) override;
+    void refreshRepository() override;
 
     // Branches
     QList<BranchInfo> getBranches() override;
@@ -46,6 +48,7 @@ public:
 
     // Diff
     QList<DiffLine> getDiffForFile(const QString &filePath) override;
+    bool isFileMetadataOnly(const QString &filePath) override;
     QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath) override;
     QList<DiffLine> getDiffForStashFile(const QString &stashId, const QString &filePath) override;
 
@@ -55,7 +58,7 @@ public:
     bool createCommit(const QString &summary, const QString &description, const QStringList &coAuthors) override;
     bool undoLastCommit() override;
     bool revertCommit(const QString &sha) override;
-    bool canUndoCommit() const override { return !m_undoStack.isEmpty(); }
+    bool canUndoCommit() const override;
     QString getLastUndoCommitSha() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.sha; }
     QString getLastUndoCommitSummary() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.summary; }
     QString getLastUndoCommitDescription() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.description; }
@@ -79,6 +82,10 @@ public:
     bool popStash(const QString &stashId = QString()) override;
     bool dropStash(const QString &stashId) override;
 
+    // Git configuration
+    bool ignoreFileModeChanges(bool global) override;
+    bool setIgnoreFileModeChanges(bool ignored, bool global) override;
+
     // User / Author Info
     QString getAuthorName() const override;
     QString getAuthorEmail() const override;
@@ -100,6 +107,7 @@ private:
     QMap<QString, RepoState> m_repositories;
     QString m_currentRepoId;
     QStack<UndoSnapshot> m_undoStack;
+    bool m_globalIgnoreFileModeChanges{false};
 };
 
 } // namespace Cherry

@@ -18,6 +18,22 @@ Kirigami.ApplicationWindow {
     minimumWidth: 900
     minimumHeight: 600
 
+    // Refresh shortcuts (F5, Ctrl+R, StandardKey.Refresh)
+    QQC2.Action {
+        shortcut: "F5"
+        onTriggered: appController.refresh()
+    }
+
+    QQC2.Action {
+        shortcut: "Ctrl+R"
+        onTriggered: appController.refresh()
+    }
+
+    QQC2.Action {
+        shortcut: StandardKey.Refresh
+        onTriggered: appController.refresh()
+    }
+
     // Main Column Layout
     ColumnLayout {
         anchors.fill: parent
@@ -130,6 +146,121 @@ Kirigami.ApplicationWindow {
                     to: globalProgressStrip.width
                     duration: 1100
                     easing.type: Easing.InOutCubic
+                }
+            }
+        }
+    }
+
+    // ==========================================
+    // REPOSITORY LOADING OVERLAY (Breeze / Kirigami)
+    // ==========================================
+    Rectangle {
+        id: repoLoadingOverlay
+        anchors.fill: parent
+        z: 1000
+        visible: opacity > 0
+        opacity: appController.isLoadingRepository ? 1.0 : 0.0
+        color: Qt.rgba(0, 0, 0, 0.5)
+
+        Behavior on opacity {
+            NumberAnimation { duration: 180; easing.type: Easing.InOutQuad }
+        }
+
+        // Intercept clicks while loading
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            preventStealing: true
+            onClicked: {}
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 360
+            height: 205
+            radius: CherryStyle.radiusLarge
+            color: CherryStyle.surfacePopup
+            border.color: CherryStyle.popupBorderColor
+            border.width: 1
+
+            // Floating elevation shadow
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: -2
+                z: -1
+                radius: CherryStyle.radiusLarge + 2
+                color: "transparent"
+                border.color: Qt.rgba(0, 0, 0, 0.3)
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: Kirigami.Units.largeSpacing
+                spacing: Kirigami.Units.mediumSpacing
+
+                QQC2.BusyIndicator {
+                    Layout.alignment: Qt.AlignHCenter
+                    running: appController.isLoadingRepository
+                    implicitWidth: 42
+                    implicitHeight: 42
+                }
+
+                ColumnLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    QQC2.Label {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: (appController.loadingRepositoryName && appController.loadingRepositoryName !== "") ?
+                              appController.loadingRepositoryName : qsTr("Opening Repository")
+                        font.bold: true
+                        font.pixelSize: CherryStyle.largeFont.pixelSize
+                        color: Kirigami.Theme.textColor
+                        elide: Text.ElideMiddle
+                        Layout.maximumWidth: 300
+                    }
+
+                    QQC2.Label {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: (appController.loadingRepositoryMessage && appController.loadingRepositoryMessage !== "") ?
+                              appController.loadingRepositoryMessage : qsTr("Scanning repository files...")
+                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                        color: Kirigami.Theme.disabledTextColor
+                    }
+
+                    // Indeterminate progress bar: repository size is unknown, but
+                    // progress remains visibly active for very large worktrees.
+                    Rectangle {
+                        id: progressTrack
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.smallSpacing
+                        height: 4
+                        radius: 2
+                        color: Qt.rgba(Kirigami.Theme.highlightColor.r,
+                                       Kirigami.Theme.highlightColor.g,
+                                       Kirigami.Theme.highlightColor.b, 0.18)
+                        clip: true
+
+                        Rectangle {
+                            id: progressThumb
+                            width: progressTrack.width * 0.32
+                            height: parent.height
+                            radius: parent.radius
+                            color: Kirigami.Theme.highlightColor
+
+                            SequentialAnimation on x {
+                                running: appController.isLoadingRepository
+                                loops: Animation.Infinite
+                                NumberAnimation {
+                                    from: -progressThumb.width
+                                    to: progressTrack.width
+                                    duration: 900
+                                    easing.type: Easing.InOutQuad
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

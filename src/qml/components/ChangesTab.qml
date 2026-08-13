@@ -89,6 +89,16 @@ ColumnLayout {
             }
 
             QQC2.ToolButton {
+                icon.name: "view-refresh"
+                icon.width: 14
+                icon.height: 14
+                enabled: !appController.isOperating
+                QQC2.ToolTip.text: qsTr("Refresh repository (F5)")
+                QQC2.ToolTip.visible: hovered
+                onClicked: appController.refresh()
+            }
+
+            QQC2.ToolButton {
                 icon.name: "edit-delete"
                 icon.width: 14
                 icon.height: 14
@@ -111,6 +121,7 @@ ColumnLayout {
             id: fileListView
             model: appController.changedFiles
             spacing: 2
+            reuseItems: false
 
             // Empty state placeholder
             Item {

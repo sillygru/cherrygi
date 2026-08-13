@@ -1,4 +1,6 @@
 #include "DiffModel.h"
+#include <QPointer>
+#include <QThread>
 
 namespace Cherry {
 
@@ -91,14 +93,13 @@ void DiffModel::loadDiffForFile(const QString &filePath)
         return;
     }
 
-    m_isLoading = true;
-    emit isLoadingChanged();
-
-    auto lines = m_service->getDiffForFile(filePath);
-    setDiffLines(lines);
-
-    m_isLoading = false;
-    emit isLoadingChanged();
+    IGitService *service = m_service;
+    loadDiffAsync([service, filePath]() {
+        DiffLoadResult result;
+        result.lines = service->getDiffForFile(filePath);
+        result.metadataOnly = service->isFileMetadataOnly(filePath);
+        return result;
+    });
 }
 
 void DiffModel::loadDiffForCommit(const QString &commitSha, const QString &filePath)
@@ -112,14 +113,12 @@ void DiffModel::loadDiffForCommit(const QString &commitSha, const QString &fileP
         return;
     }
 
-    m_isLoading = true;
-    emit isLoadingChanged();
-
-    auto lines = m_service->getDiffForCommitFile(commitSha, filePath);
-    setDiffLines(lines);
-
-    m_isLoading = false;
-    emit isLoadingChanged();
+    IGitService *service = m_service;
+    loadDiffAsync([service, commitSha, filePath]() {
+        DiffLoadResult result;
+        result.lines = service->getDiffForCommitFile(commitSha, filePath);
+        return result;
+    });
 }
 
 void DiffModel::loadDiffForStash(const QString &stashId, const QString &filePath)
@@ -133,18 +132,47 @@ void DiffModel::loadDiffForStash(const QString &stashId, const QString &filePath
         return;
     }
 
+    IGitService *service = m_service;
+    loadDiffAsync([service, stashId, filePath]() {
+        DiffLoadResult result;
+        result.lines = service->getDiffForStashFile(stashId, filePath);
+        return result;
+    });
+}
+
+void DiffModel::loadDiffAsync(std::function<DiffLoadResult()> loader)
+{
+    const quint64 generation = ++m_loadGeneration;
+    if (m_metadataOnly) {
+        m_metadataOnly = false;
+        emit metadataOnlyChanged();
+    }
     m_isLoading = true;
     emit isLoadingChanged();
 
-    auto lines = m_service->getDiffForStashFile(stashId, filePath);
-    setDiffLines(lines);
-
-    m_isLoading = false;
-    emit isLoadingChanged();
+    QPointer<DiffModel> self(this);
+    QThread *thread = QThread::create([self, generation, loader = std::move(loader)]() mutable {
+        const DiffLoadResult result = loader();
+        QMetaObject::invokeMethod(self, [self, generation, result]() {
+            if (!self || self->m_loadGeneration != generation) return;
+            self->m_metadataOnly = result.metadataOnly;
+            emit self->metadataOnlyChanged();
+            self->setDiffLines(result.metadataOnly ? QList<DiffLine>() : result.lines);
+            self->m_isLoading = false;
+            emit self->isLoadingChanged();
+        }, Qt::QueuedConnection);
+    });
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
 }
 
 void DiffModel::clear()
 {
+    ++m_loadGeneration;
+    if (m_metadataOnly) {
+        m_metadataOnly = false;
+        emit metadataOnlyChanged();
+    }
     beginResetModel();
     m_lines.clear();
     m_additions = 0;

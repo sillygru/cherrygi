@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <functional>
 #include "../core/IGitService.h"
 
 namespace Cherry {
@@ -12,6 +13,7 @@ class DiffModel : public QAbstractListModel {
     Q_PROPERTY(int additions READ additions NOTIFY statsChanged)
     Q_PROPERTY(int deletions READ deletions NOTIFY statsChanged)
     Q_PROPERTY(bool isLoading READ isLoading NOTIFY isLoadingChanged)
+    Q_PROPERTY(bool metadataOnly READ metadataOnly NOTIFY metadataOnlyChanged)
 
 public:
     enum DiffRoles {
@@ -37,6 +39,7 @@ public:
     int additions() const { return m_additions; }
     int deletions() const { return m_deletions; }
     bool isLoading() const { return m_isLoading; }
+    bool metadataOnly() const { return m_metadataOnly; }
 
     Q_INVOKABLE void loadDiffForFile(const QString &filePath);
     Q_INVOKABLE void loadDiffForCommit(const QString &commitSha, const QString &filePath);
@@ -49,9 +52,16 @@ signals:
     void filePathChanged();
     void statsChanged();
     void isLoadingChanged();
+    void metadataOnlyChanged();
 
 private:
+    struct DiffLoadResult {
+        QList<DiffLine> lines;
+        bool metadataOnly{false};
+    };
+
     void setDiffLines(const QList<DiffLine> &lines);
+    void loadDiffAsync(std::function<DiffLoadResult()> loader);
 
     IGitService *m_service;
     QString m_filePath;
@@ -60,6 +70,8 @@ private:
     int m_additions{0};
     int m_deletions{0};
     bool m_isLoading{false};
+    bool m_metadataOnly{false};
+    quint64 m_loadGeneration{0};
 };
 
 } // namespace Cherry
