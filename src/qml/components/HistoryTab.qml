@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 ColumnLayout {
     id: root
@@ -12,8 +13,8 @@ ColumnLayout {
     Rectangle {
         Layout.fillWidth: true
         height: 44
-        color: CherryStyle.cardBackground
-        border.color: CherryStyle.subtleBorderColor
+        color: CherryStyle.surfaceCardElevated
+        border.color: CherryStyle.borderColor
         border.width: 1
 
         RowLayout {
@@ -25,16 +26,37 @@ ColumnLayout {
                 id: searchInput
                 Layout.fillWidth: true
                 placeholderText: qsTr("Search commits by message, author, or SHA...")
-                leftPadding: Kirigami.Units.largeSpacing + 10
+                leftPadding: Kirigami.Units.largeSpacing + 12
+                rightPadding: text.length > 0 ? Kirigami.Units.largeSpacing + 10 : Kirigami.Units.smallSpacing
+
+                background: Rectangle {
+                    color: CherryStyle.inputBackground
+                    border.color: searchInput.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                    border.width: searchInput.activeFocus ? 2 : 1
+                    radius: CherryStyle.radiusSmall
+                }
 
                 Kirigami.Icon {
                     source: "search"
-                    width: Kirigami.Units.iconSizes.small
-                    height: width
+                    width: 14
+                    height: 14
                     anchors.left: parent.left
-                    anchors.leftMargin: Kirigami.Units.smallSpacing
+                    anchors.leftMargin: Kirigami.Units.smallSpacing + 2
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Kirigami.Theme.disabledTextColor
+                    color: searchInput.activeFocus ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                }
+
+                QQC2.ToolButton {
+                    visible: searchInput.text.length > 0
+                    icon.name: "edit-clear"
+                    icon.width: 12
+                    icon.height: 12
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    onClicked: {
+                        searchInput.text = "";
+                        appController.commitHistory.filterText = "";
+                    }
                 }
 
                 onTextChanged: {
@@ -53,12 +75,12 @@ ColumnLayout {
         ListView {
             id: commitListView
             model: appController.commitHistory
-            spacing: 1
+            spacing: 2
 
             delegate: QQC2.ItemDelegate {
                 id: commitDelegate
                 width: commitListView.width
-                height: 64
+                height: 66
 
                 required property int index
                 required property string sha
@@ -79,24 +101,41 @@ ColumnLayout {
                 background: Rectangle {
                     color: commitDelegate.highlighted ? CherryStyle.activeBackground : (commitDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
                     radius: CherryStyle.radiusSmall
-                    border.color: commitDelegate.highlighted ? Kirigami.Theme.highlightColor : "transparent"
-                    border.width: commitDelegate.highlighted ? 1 : 0
+                    border.color: commitDelegate.highlighted ? Kirigami.Theme.highlightColor : (commitDelegate.hovered ? CherryStyle.borderColor : "transparent")
+                    border.width: 1
+
+                    // Left accent indicator on selected commit
+                    Rectangle {
+                        visible: commitDelegate.highlighted
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 2
+                        width: 3
+                        radius: 1.5
+                        color: Kirigami.Theme.highlightColor
+                    }
                 }
 
                 contentItem: RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+                    anchors.rightMargin: Kirigami.Units.smallSpacing + 2
                     spacing: Kirigami.Units.smallSpacing
 
                     // Avatar Circle
                     Rectangle {
-                        width: 32
-                        height: 32
-                        radius: 16
+                        width: 34
+                        height: 34
+                        radius: 17
                         color: Kirigami.Theme.highlightColor
+                        Layout.alignment: Qt.AlignVCenter
 
                         QQC2.Label {
                             anchors.centerIn: parent
                             text: commitDelegate.authorName.length > 0 ? commitDelegate.authorName.charAt(0).toUpperCase() : "G"
                             font.bold: true
+                            font.pixelSize: 13
                             color: Kirigami.Theme.highlightedTextColor
                         }
                     }
@@ -120,10 +159,10 @@ ColumnLayout {
 
                             // Short SHA Badge
                             Rectangle {
-                                width: shaLabel.width + 8
-                                height: 18
+                                implicitWidth: shaLabel.implicitWidth + 10
+                                implicitHeight: 20
                                 radius: 4
-                                color: CherryStyle.cardBackground
+                                color: CherryStyle.surfaceCardElevated
                                 border.color: CherryStyle.borderColor
                                 border.width: 1
 
@@ -133,7 +172,8 @@ ColumnLayout {
                                     text: commitDelegate.shortSha
                                     font.family: CherryStyle.codeFont.family
                                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                    color: Kirigami.Theme.disabledTextColor
+                                    font.bold: true
+                                    color: commitDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
                                 }
                             }
                         }
@@ -173,3 +213,4 @@ ColumnLayout {
         }
     }
 }
+

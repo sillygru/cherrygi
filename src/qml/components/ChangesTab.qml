@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 ColumnLayout {
     id: root
@@ -49,15 +50,15 @@ ColumnLayout {
     // Header bar: Select all checkbox + Changed files count
     Rectangle {
         Layout.fillWidth: true
-        height: 36
-        color: CherryStyle.cardBackground
-        border.color: CherryStyle.subtleBorderColor
+        height: 38
+        color: CherryStyle.surfaceCardElevated
+        border.color: CherryStyle.borderColor
         border.width: 1
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: Kirigami.Units.smallSpacing
-            anchors.rightMargin: Kirigami.Units.smallSpacing
+            anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+            anchors.rightMargin: Kirigami.Units.smallSpacing + 2
             spacing: Kirigami.Units.smallSpacing
 
             QQC2.CheckBox {
@@ -100,14 +101,14 @@ ColumnLayout {
         ListView {
             id: fileListView
             model: appController.changedFiles
-            spacing: 1
+            spacing: 2
 
             // Empty state placeholder
             Item {
                 anchors.centerIn: parent
                 visible: appController.changedFiles.count === 0
                 width: parent.width - 40
-                height: 120
+                height: 140
 
                 ColumnLayout {
                     anchors.centerIn: parent
@@ -115,8 +116,8 @@ ColumnLayout {
 
                     Kirigami.Icon {
                         source: "dialog-ok"
-                        width: 36
-                        height: 36
+                        width: 40
+                        height: 40
                         Layout.alignment: Qt.AlignHCenter
                         color: Kirigami.Theme.positiveTextColor
                     }
@@ -124,6 +125,7 @@ ColumnLayout {
                     QQC2.Label {
                         text: qsTr("No uncommitted changes")
                         font.bold: true
+                        font.pixelSize: CherryStyle.basePixelSize
                         Layout.alignment: Qt.AlignHCenter
                         color: Kirigami.Theme.textColor
                     }
@@ -140,7 +142,7 @@ ColumnLayout {
             delegate: QQC2.ItemDelegate {
                 id: fileDelegate
                 width: fileListView.width
-                height: 36
+                height: 38
 
                 required property int index
                 required property string fileId
@@ -160,11 +162,26 @@ ColumnLayout {
                 background: Rectangle {
                     color: fileDelegate.highlighted ? CherryStyle.activeBackground : (fileDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
                     radius: CherryStyle.radiusSmall
-                    border.color: fileDelegate.highlighted ? Kirigami.Theme.highlightColor : "transparent"
-                    border.width: fileDelegate.highlighted ? 1 : 0
+                    border.color: fileDelegate.highlighted ? Kirigami.Theme.highlightColor : (fileDelegate.hovered ? CherryStyle.borderColor : "transparent")
+                    border.width: 1
+
+                    // Left accent bar when active
+                    Rectangle {
+                        visible: fileDelegate.highlighted
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 2
+                        width: 3
+                        radius: 1.5
+                        color: Kirigami.Theme.highlightColor
+                    }
                 }
 
                 contentItem: RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Kirigami.Units.smallSpacing
+                    anchors.rightMargin: Kirigami.Units.smallSpacing
                     spacing: Kirigami.Units.smallSpacing
 
                     // Inclusion Checkbox
@@ -177,11 +194,11 @@ ColumnLayout {
 
                     // File status badge icon
                     Rectangle {
-                        width: 18
-                        height: 18
-                        radius: 3
-                        color: Qt.rgba(0, 0, 0, 0.05)
-                        border.color: fileDelegate.statusColor
+                        width: 20
+                        height: 20
+                        radius: 4
+                        color: Qt.rgba(fileDelegate.statusColor.r, fileDelegate.statusColor.g, fileDelegate.statusColor.b, 0.15)
+                        border.color: Qt.rgba(fileDelegate.statusColor.r, fileDelegate.statusColor.g, fileDelegate.statusColor.b, 0.5)
                         border.width: 1
 
                         Kirigami.Icon {
@@ -196,7 +213,8 @@ ColumnLayout {
                     // File path
                     QQC2.Label {
                         text: fileDelegate.filePath
-                        font.pixelSize: CherryStyle.basePixelSize - 1
+                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                        font.bold: fileDelegate.highlighted
                         color: fileDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                         elide: Text.ElideMiddle
                         Layout.fillWidth: true
@@ -204,23 +222,45 @@ ColumnLayout {
 
                     // Additions / Deletions count tag
                     RowLayout {
-                        spacing: 2
+                        spacing: 3
                         visible: fileDelegate.additions > 0 || fileDelegate.deletions > 0
 
-                        QQC2.Label {
-                            text: "+" + fileDelegate.additions
-                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                            font.bold: true
-                            color: CherryStyle.additionColor
+                        Rectangle {
                             visible: fileDelegate.additions > 0
+                            implicitWidth: addTag.implicitWidth + 8
+                            implicitHeight: 18
+                            radius: 4
+                            color: CherryStyle.additionBg
+                            border.color: Qt.rgba(CherryStyle.additionColor.r, CherryStyle.additionColor.g, CherryStyle.additionColor.b, 0.4)
+                            border.width: 1
+
+                            QQC2.Label {
+                                id: addTag
+                                anchors.centerIn: parent
+                                text: "+" + fileDelegate.additions
+                                font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                font.bold: true
+                                color: CherryStyle.additionColor
+                            }
                         }
 
-                        QQC2.Label {
-                            text: "-" + fileDelegate.deletions
-                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                            font.bold: true
-                            color: CherryStyle.deletionColor
+                        Rectangle {
                             visible: fileDelegate.deletions > 0
+                            implicitWidth: delTag.implicitWidth + 8
+                            implicitHeight: 18
+                            radius: 4
+                            color: CherryStyle.deletionBg
+                            border.color: Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.4)
+                            border.width: 1
+
+                            QQC2.Label {
+                                id: delTag
+                                anchors.centerIn: parent
+                                text: "-" + fileDelegate.deletions
+                                font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                font.bold: true
+                                color: CherryStyle.deletionColor
+                            }
                         }
                     }
                 }
@@ -241,52 +281,66 @@ ColumnLayout {
         }
     }
 
-    // Stashed Changes Section (Clickable row to view, with restore and discard buttons)
+    // Stashed Changes Section (Clean non-overlapping row with quick actions)
     Rectangle {
         id: stashSection
         Layout.fillWidth: true
-        height: 42
+        height: 44
         visible: appController.stashes.count > 0
 
         property bool isSelected: appController.selectedStashId !== ""
         property bool isHovered: stashMouseArea.containsMouse
 
-        color: isSelected ? CherryStyle.activeBackground : (isHovered ? CherryStyle.hoverBackground : CherryStyle.cardBackground)
+        color: isSelected ? CherryStyle.activeBackground : (isHovered ? CherryStyle.hoverBackground : CherryStyle.surfaceCardElevated)
         border.color: isSelected ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
         border.width: 1
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: Kirigami.Units.smallSpacing
-            anchors.rightMargin: Kirigami.Units.smallSpacing
+            anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+            anchors.rightMargin: Kirigami.Units.smallSpacing + 2
             spacing: Kirigami.Units.smallSpacing
 
             Kirigami.Icon {
                 source: "document-save"
-                width: Kirigami.Units.iconSizes.small
-                height: width
+                width: 16
+                height: 16
                 color: "#e5a50a"
             }
 
             QQC2.Label {
-                text: qsTr("Stashed Changes (%1)").arg(appController.stashes.count)
+                text: qsTr("Stashed Changes")
                 font.bold: true
                 font.pixelSize: CherryStyle.smallFont.pixelSize
                 color: stashSection.isSelected ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                elide: Text.ElideRight
                 Layout.fillWidth: true
             }
 
-            QQC2.Button {
-                text: qsTr("Discard")
-                icon.name: "edit-delete"
-                QQC2.ToolTip.text: qsTr("Discard and clear this stash")
-                QQC2.ToolTip.visible: hovered
-                onClicked: appController.dropStash("")
+            // Stash count pill
+            Rectangle {
+                implicitWidth: stashCountLabel.implicitWidth + 10
+                implicitHeight: 18
+                radius: 9
+                color: CherryStyle.modifiedBg
+                border.color: CherryStyle.modifiedColor
+                border.width: 1
+
+                QQC2.Label {
+                    id: stashCountLabel
+                    anchors.centerIn: parent
+                    text: "" + appController.stashes.count
+                    font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                    font.bold: true
+                    color: CherryStyle.modifiedColor
+                }
             }
 
+            // Compact Action Buttons with no text collision
             QQC2.Button {
                 text: qsTr("Restore")
                 icon.name: "edit-undo"
+                implicitHeight: 28
                 highlighted: true
                 QQC2.ToolTip.text: qsTr("Restore stashed changes to working directory")
                 QQC2.ToolTip.visible: hovered
@@ -294,12 +348,30 @@ ColumnLayout {
             }
 
             QQC2.ToolButton {
-                icon.name: "arrow-right"
+                icon.name: "edit-delete"
                 icon.width: 14
                 icon.height: 14
+                implicitHeight: 28
+                implicitWidth: 28
+                QQC2.ToolTip.text: qsTr("Discard stash")
+                QQC2.ToolTip.visible: hovered
+                onClicked: appController.dropStash("")
+            }
+
+            QQC2.ToolButton {
+                icon.name: "go-next-symbolic"
+                icon.width: 12
+                icon.height: 12
+                implicitHeight: 28
+                implicitWidth: 24
+                QQC2.ToolTip.text: qsTr("View stashed changes in detail")
+                QQC2.ToolTip.visible: hovered
                 onClicked: {
-                    stashContextMenu.targetStashId = "";
-                    stashContextMenu.popup();
+                    if (appController.selectedStashId !== "") {
+                        appController.clearStashSelection();
+                    } else {
+                        appController.selectStash("");
+                    }
                 }
             }
         }
@@ -307,7 +379,7 @@ ColumnLayout {
         MouseArea {
             id: stashMouseArea
             anchors.fill: parent
-            anchors.rightMargin: 170 // leave room for buttons
+            anchors.rightMargin: 150 // leave room for buttons
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: {
@@ -320,3 +392,4 @@ ColumnLayout {
         }
     }
 }
+

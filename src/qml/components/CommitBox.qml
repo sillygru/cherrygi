@@ -3,11 +3,12 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 Rectangle {
     id: root
-    implicitHeight: layout.implicitHeight + Kirigami.Units.smallSpacing * 2
-    color: CherryStyle.cardBackground
+    implicitHeight: layout.implicitHeight + Kirigami.Units.mediumSpacing * 2
+    color: CherryStyle.surfaceHeader
     border.color: CherryStyle.borderColor
     border.width: 1
 
@@ -16,16 +17,28 @@ Rectangle {
     // Popup for adding co-author
     QQC2.Popup {
         id: addCoAuthorPopup
-        width: 260
-        height: 120
-        padding: Kirigami.Units.smallSpacing
+        width: 280
+        height: 130
+        padding: Kirigami.Units.mediumSpacing
         modal: true
+        dim: false
         focus: true
+        closePolicy: QQC2.Popup.CloseOnEscape | QQC2.Popup.CloseOnPressOutside
 
         background: Rectangle {
-            color: Kirigami.Theme.backgroundColor
-            border.color: CherryStyle.borderColor
-            radius: CherryStyle.radiusSmall
+            color: CherryStyle.surfacePopup
+            border.color: CherryStyle.popupBorderColor
+            border.width: 1
+            radius: CherryStyle.radiusMedium
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: -2
+                z: -1
+                color: "transparent"
+                border.color: Qt.rgba(0, 0, 0, 0.3)
+                radius: CherryStyle.radiusMedium + 2
+            }
         }
 
         ColumnLayout {
@@ -35,12 +48,19 @@ Rectangle {
             QQC2.Label {
                 text: qsTr("Add Co-Author")
                 font.bold: true
+                color: Kirigami.Theme.textColor
             }
 
             QQC2.TextField {
                 id: coAuthorInput
                 Layout.fillWidth: true
                 placeholderText: "@username or Name <email>"
+                background: Rectangle {
+                    color: CherryStyle.inputBackground
+                    border.color: coAuthorInput.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                    border.width: coAuthorInput.activeFocus ? 2 : 1
+                    radius: CherryStyle.radiusSmall
+                }
                 onAccepted: addBtn.clicked()
             }
 
@@ -73,7 +93,7 @@ Rectangle {
     ColumnLayout {
         id: layout
         anchors.fill: parent
-        anchors.margins: Kirigami.Units.smallSpacing
+        anchors.margins: Kirigami.Units.mediumSpacing
         spacing: Kirigami.Units.smallSpacing
 
         // Undo Banner if available
@@ -83,21 +103,21 @@ Rectangle {
             height: 36
             visible: appController.hasUndoCommit
             radius: CherryStyle.radiusSmall
-            color: Qt.rgba(0.2, 0.6, 1.0, 0.15)
-            border.color: Qt.rgba(0.2, 0.6, 1.0, 0.4)
+            color: Qt.rgba(0.2, 0.6, 1.0, 0.18)
+            border.color: Qt.rgba(0.2, 0.6, 1.0, 0.5)
             border.width: 1
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: Kirigami.Units.smallSpacing
-                anchors.rightMargin: Kirigami.Units.smallSpacing
+                anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+                anchors.rightMargin: Kirigami.Units.smallSpacing + 2
                 spacing: Kirigami.Units.smallSpacing
 
                 Kirigami.Icon {
                     source: "edit-undo"
-                    width: Kirigami.Units.iconSizes.small
-                    height: width
-                    color: "#3584e4"
+                    width: 16
+                    height: 16
+                    color: "#4595f6"
                 }
 
                 QQC2.Label {
@@ -112,6 +132,7 @@ Rectangle {
                 QQC2.Button {
                     text: qsTr("Undo")
                     font.bold: true
+                    implicitHeight: 26
                     onClicked: {
                         var restoredSummary = appController.lastUndoCommitSummary;
                         var restoredDesc = appController.lastUndoCommitDescription;
@@ -129,19 +150,19 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Kirigami.Units.smallSpacing
 
-            // Avatar circle
+            // User avatar circle
             Rectangle {
-                width: 28
-                height: 28
-                radius: 14
+                width: 30
+                height: 30
+                radius: 15
                 color: Kirigami.Theme.highlightColor
-                Layout.alignment: Qt.AlignTop
+                Layout.alignment: Qt.AlignVCenter
 
                 QQC2.Label {
                     anchors.centerIn: parent
                     text: "U"
                     font.bold: true
-                    font.pixelSize: 12
+                    font.pixelSize: 13
                     color: Kirigami.Theme.highlightedTextColor
                 }
             }
@@ -151,106 +172,155 @@ Rectangle {
                 Layout.fillWidth: true
                 placeholderText: qsTr("Summary (required)")
                 text: "Bring `onRowKeyboardFocus` to `SectionList`"
+                font.bold: true
+
+                background: Rectangle {
+                    color: CherryStyle.inputBackground
+                    border.color: summaryField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                    border.width: summaryField.activeFocus ? 2 : 1
+                    radius: CherryStyle.radiusSmall
+                }
             }
         }
 
-        // Description Text Area
-        QQC2.ScrollView {
+        // Description Text Area with distinct contrast
+        Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 65
             Layout.minimumHeight: 50
+            color: CherryStyle.inputBackground
+            border.color: descArea.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+            border.width: descArea.activeFocus ? 2 : 1
+            radius: CherryStyle.radiusSmall
             clip: true
 
-            QQC2.TextArea {
-                id: descArea
-                placeholderText: qsTr("Description")
-                wrapMode: TextEdit.Wrap
+            QQC2.ScrollView {
+                anchors.fill: parent
+                anchors.margins: 4
+
+                QQC2.TextArea {
+                    id: descArea
+                    placeholderText: qsTr("Description")
+                    wrapMode: TextEdit.Wrap
+                    font.pixelSize: CherryStyle.smallFont.pixelSize
+                    background: null
+                }
             }
         }
 
         // Co-Authors Row
         RowLayout {
             Layout.fillWidth: true
-            spacing: 4
+            spacing: 6
 
-            // Co-author icon trigger
-            QQC2.ToolButton {
-                icon.name: "user-identity"
-                icon.width: 14
-                icon.height: 14
-                QQC2.ToolTip.text: qsTr("Add Co-Author")
-                QQC2.ToolTip.visible: hovered
-                onClicked: {
-                    addCoAuthorPopup.x = parent.x;
-                    addCoAuthorPopup.y = parent.y - addCoAuthorPopup.height - 4;
-                    addCoAuthorPopup.open();
+            // Co-author icon trigger button
+            Rectangle {
+                width: 24
+                height: 24
+                radius: CherryStyle.radiusSmall
+                color: coAuthorBtnMouse.containsMouse ? CherryStyle.hoverBackground : CherryStyle.surfaceCard
+                border.color: CherryStyle.borderColor
+                border.width: 1
+
+                Kirigami.Icon {
+                    anchors.centerIn: parent
+                    source: "user-identity"
+                    width: 14
+                    height: 14
+                    color: Kirigami.Theme.disabledTextColor
+                }
+
+                MouseArea {
+                    id: coAuthorBtnMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    QQC2.ToolTip.text: qsTr("Add Co-Author")
+                    QQC2.ToolTip.visible: containsMouse
+                    onClicked: {
+                        addCoAuthorPopup.x = parent.x;
+                        addCoAuthorPopup.y = parent.y - addCoAuthorPopup.height - 4;
+                        addCoAuthorPopup.open();
+                    }
                 }
             }
 
             QQC2.Label {
-                text: qsTr("Co-Authors")
+                text: qsTr("Co-Authors:")
                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                 color: Kirigami.Theme.disabledTextColor
                 visible: root.coAuthorsList.length > 0
             }
 
-            // Co-author chips flow
-            Repeater {
-                model: root.coAuthorsList
+            // Co-author chips (Flow layout so it wraps gracefully)
+            Flow {
+                Layout.fillWidth: true
+                spacing: 4
 
-                delegate: Rectangle {
-                    height: 22
-                    width: chipRow.width + 12
-                    radius: 11
-                    color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
-                    border.color: CherryStyle.borderColor
-                    border.width: 1
+                Repeater {
+                    model: root.coAuthorsList
 
-                    RowLayout {
-                        id: chipRow
-                        anchors.centerIn: parent
-                        spacing: 3
+                    delegate: Rectangle {
+                        height: 22
+                        implicitWidth: chipRow.implicitWidth + 12
+                        radius: 11
+                        color: CherryStyle.surfaceCardElevated
+                        border.color: CherryStyle.borderColor
+                        border.width: 1
 
-                        QQC2.Label {
-                            text: modelData
-                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                            color: Kirigami.Theme.textColor
-                        }
+                        RowLayout {
+                            id: chipRow
+                            anchors.centerIn: parent
+                            spacing: 4
 
-                        Kirigami.Icon {
-                            source: "window-close"
-                            width: 10
-                            height: 10
-                            color: Kirigami.Theme.disabledTextColor
+                            QQC2.Label {
+                                text: modelData
+                                font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                color: Kirigami.Theme.textColor
+                            }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    var list = root.coAuthorsList.slice();
-                                    list.splice(index, 1);
-                                    root.coAuthorsList = list;
+                            Kirigami.Icon {
+                                source: "window-close"
+                                width: 10
+                                height: 10
+                                color: Kirigami.Theme.disabledTextColor
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        var list = root.coAuthorsList.slice();
+                                        list.splice(index, 1);
+                                        root.coAuthorsList = list;
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-
-            Item { Layout.fillWidth: true }
         }
 
-        // Commit Button
+        // Commit Button (Solid high-contrast styling)
         QQC2.Button {
             id: commitBtn
             Layout.fillWidth: true
-            implicitHeight: 36
+            implicitHeight: 38
             highlighted: true
             enabled: summaryField.text.trim().length > 0 && appController.changedFiles.selectedCount > 0
 
             contentItem: RowLayout {
-                anchors.centerIn: parent
                 spacing: 4
+                Layout.alignment: Qt.AlignCenter
+
+                Item { Layout.fillWidth: true }
+
+                Kirigami.Icon {
+                    source: "vcs-commit"
+                    width: 16
+                    height: 16
+                    color: commitBtn.enabled ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
+                }
 
                 QQC2.Label {
                     text: qsTr("Commit to")
@@ -265,6 +335,8 @@ Rectangle {
                     elide: Text.ElideRight
                     Layout.maximumWidth: 160
                 }
+
+                Item { Layout.fillWidth: true }
             }
 
             onClicked: {
@@ -278,3 +350,4 @@ Rectangle {
         }
     }
 }
+

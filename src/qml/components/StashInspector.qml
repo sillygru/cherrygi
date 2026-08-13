@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 ColumnLayout {
     id: root
@@ -21,8 +22,8 @@ ColumnLayout {
     // Top Stash Summary & Actions Card
     Rectangle {
         Layout.fillWidth: true
-        implicitHeight: headerLayout.implicitHeight + Kirigami.Units.smallSpacing * 2
-        color: CherryStyle.cardBackground
+        implicitHeight: headerLayout.implicitHeight + Kirigami.Units.mediumSpacing * 2
+        color: CherryStyle.surfaceHeader
         border.color: CherryStyle.borderColor
         border.width: 1
 
@@ -45,7 +46,7 @@ ColumnLayout {
                 }
 
                 QQC2.Label {
-                    text: root.stashData.message ? root.stashData.message : qsTr("Stashed Changes")
+                    text: (root.stashData && root.stashData.message) ? root.stashData.message : qsTr("Stashed Changes")
                     font.bold: true
                     font.pixelSize: CherryStyle.basePixelSize + 3
                     color: Kirigami.Theme.textColor
@@ -75,7 +76,7 @@ ColumnLayout {
                         color: Kirigami.Theme.disabledTextColor
                     }
                     QQC2.Label {
-                        text: qsTr("On %1").arg(root.stashData.branchName ? root.stashData.branchName : appController.currentBranchName)
+                        text: qsTr("On %1").arg((root.stashData && root.stashData.branchName) ? root.stashData.branchName : appController.currentBranchName)
                         font.pixelSize: CherryStyle.smallFont.pixelSize
                         color: Kirigami.Theme.disabledTextColor
                     }
@@ -88,7 +89,7 @@ ColumnLayout {
                 }
 
                 QQC2.Label {
-                    text: qsTr("Created %1").arg(root.stashData.timestamp ? root.stashData.timestamp : "")
+                    text: qsTr("Created %1").arg((root.stashData && root.stashData.timestamp) ? root.stashData.timestamp : "")
                     font.pixelSize: CherryStyle.smallFont.pixelSize
                     color: Kirigami.Theme.disabledTextColor
                 }
@@ -102,8 +103,9 @@ ColumnLayout {
                     QQC2.Button {
                         text: qsTr("Discard...")
                         icon.name: "edit-delete"
+                        implicitHeight: 28
                         onClicked: {
-                            if (root.stashData.stashId) {
+                            if (root.stashData && root.stashData.stashId) {
                                 appController.dropStash(root.stashData.stashId);
                             }
                         }
@@ -113,8 +115,9 @@ ColumnLayout {
                         text: qsTr("Restore Stash")
                         icon.name: "edit-undo"
                         highlighted: true
+                        implicitHeight: 28
                         onClicked: {
-                            if (root.stashData.stashId) {
+                            if (root.stashData && root.stashData.stashId) {
                                 appController.popStash(root.stashData.stashId);
                             }
                         }
@@ -134,7 +137,7 @@ ColumnLayout {
         Rectangle {
             QQC2.SplitView.preferredHeight: 120
             QQC2.SplitView.minimumHeight: 80
-            color: Kirigami.Theme.backgroundColor
+            color: CherryStyle.surfaceSidebar
             border.color: CherryStyle.borderColor
             border.width: 1
 
@@ -145,18 +148,18 @@ ColumnLayout {
                 // Header
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 28
-                    color: CherryStyle.cardBackground
+                    height: 30
+                    color: CherryStyle.surfaceCardElevated
                     border.color: CherryStyle.subtleBorderColor
                     border.width: 1
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: Kirigami.Units.smallSpacing
-                        anchors.rightMargin: Kirigami.Units.smallSpacing
+                        anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+                        anchors.rightMargin: Kirigami.Units.smallSpacing + 2
 
                         QQC2.Label {
-                            text: qsTr("Stashed Files (%1)").arg(root.stashData.files ? root.stashData.files.length : 0)
+                            text: qsTr("Stashed Files (%1)").arg(root.stashData && root.stashData.files ? root.stashData.files.length : 0)
                             font.bold: true
                             font.pixelSize: CherryStyle.smallFont.pixelSize
                             color: Kirigami.Theme.disabledTextColor
@@ -171,13 +174,13 @@ ColumnLayout {
 
                     ListView {
                         id: stashFilesListView
-                        model: root.stashData.files ? root.stashData.files : []
-                        spacing: 1
+                        model: (root.stashData && root.stashData.files) ? root.stashData.files : []
+                        spacing: 2
 
                         delegate: QQC2.ItemDelegate {
                             id: stashFileDelegate
                             width: stashFilesListView.width
-                            height: 32
+                            height: 34
 
                             required property int index
                             required property var modelData
@@ -187,23 +190,48 @@ ColumnLayout {
                             background: Rectangle {
                                 color: stashFileDelegate.highlighted ? CherryStyle.activeBackground : (stashFileDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
                                 radius: CherryStyle.radiusSmall
-                                border.color: stashFileDelegate.highlighted ? Kirigami.Theme.highlightColor : "transparent"
-                                border.width: stashFileDelegate.highlighted ? 1 : 0
+                                border.color: stashFileDelegate.highlighted ? Kirigami.Theme.highlightColor : (stashFileDelegate.hovered ? CherryStyle.borderColor : "transparent")
+                                border.width: 1
+
+                                Rectangle {
+                                    visible: stashFileDelegate.highlighted
+                                    anchors.left: parent.left
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                    anchors.margins: 2
+                                    width: 3
+                                    radius: 1.5
+                                    color: Kirigami.Theme.highlightColor
+                                }
                             }
 
                             contentItem: RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: Kirigami.Units.smallSpacing
+                                anchors.rightMargin: Kirigami.Units.smallSpacing
                                 spacing: Kirigami.Units.smallSpacing
 
-                                Kirigami.Icon {
-                                    source: "document-edit"
-                                    width: 14
-                                    height: 14
-                                    color: "#e5a50a"
+                                Rectangle {
+                                    width: 18
+                                    height: 18
+                                    radius: 3
+                                    color: Qt.rgba(0.9, 0.65, 0.04, 0.15)
+                                    border.color: Qt.rgba(0.9, 0.65, 0.04, 0.5)
+                                    border.width: 1
+
+                                    Kirigami.Icon {
+                                        anchors.centerIn: parent
+                                        source: "document-edit"
+                                        width: 11
+                                        height: 11
+                                        color: "#e5a50a"
+                                    }
                                 }
 
                                 QQC2.Label {
                                     text: stashFileDelegate.modelData.filePath
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
+                                    font.bold: stashFileDelegate.highlighted
                                     color: stashFileDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                                     Layout.fillWidth: true
                                     elide: Text.ElideMiddle
@@ -211,26 +239,52 @@ ColumnLayout {
 
                                 RowLayout {
                                     spacing: 3
-                                    QQC2.Label {
-                                        text: "+" + stashFileDelegate.modelData.additions
-                                        font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                        font.bold: true
-                                        color: CherryStyle.additionColor
+
+                                    Rectangle {
                                         visible: stashFileDelegate.modelData.additions > 0
+                                        implicitWidth: sAddTag.implicitWidth + 8
+                                        implicitHeight: 18
+                                        radius: 4
+                                        color: CherryStyle.additionBg
+                                        border.color: Qt.rgba(CherryStyle.additionColor.r, CherryStyle.additionColor.g, CherryStyle.additionColor.b, 0.4)
+                                        border.width: 1
+
+                                        QQC2.Label {
+                                            id: sAddTag
+                                            anchors.centerIn: parent
+                                            text: "+" + stashFileDelegate.modelData.additions
+                                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                            font.bold: true
+                                            color: CherryStyle.additionColor
+                                        }
                                     }
-                                    QQC2.Label {
-                                        text: "-" + stashFileDelegate.modelData.deletions
-                                        font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                        font.bold: true
-                                        color: CherryStyle.deletionColor
+
+                                    Rectangle {
                                         visible: stashFileDelegate.modelData.deletions > 0
+                                        implicitWidth: sDelTag.implicitWidth + 8
+                                        implicitHeight: 18
+                                        radius: 4
+                                        color: CherryStyle.deletionBg
+                                        border.color: Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.4)
+                                        border.width: 1
+
+                                        QQC2.Label {
+                                            id: sDelTag
+                                            anchors.centerIn: parent
+                                            text: "-" + stashFileDelegate.modelData.deletions
+                                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                            font.bold: true
+                                            color: CherryStyle.deletionColor
+                                        }
                                     }
                                 }
                             }
 
                             onClicked: {
                                 root.activeFilePath = stashFileDelegate.modelData.filePath;
-                                appController.diffModel.loadDiffForStash(root.stashData.stashId, stashFileDelegate.modelData.filePath);
+                                if (root.stashData && root.stashData.stashId) {
+                                    appController.diffModel.loadDiffForStash(root.stashData.stashId, stashFileDelegate.modelData.filePath);
+                                }
                             }
                         }
                     }
@@ -246,3 +300,4 @@ ColumnLayout {
         }
     }
 }
+

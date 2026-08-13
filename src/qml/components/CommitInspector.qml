@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 ColumnLayout {
     id: root
@@ -21,8 +22,8 @@ ColumnLayout {
     // Top Commit Info Card
     Rectangle {
         Layout.fillWidth: true
-        implicitHeight: headerLayout.implicitHeight + Kirigami.Units.smallSpacing * 2
-        color: CherryStyle.cardBackground
+        implicitHeight: headerLayout.implicitHeight + Kirigami.Units.mediumSpacing * 2
+        color: CherryStyle.surfaceHeader
         border.color: CherryStyle.borderColor
         border.width: 1
 
@@ -34,7 +35,7 @@ ColumnLayout {
 
             // Commit Title / Summary
             QQC2.Label {
-                text: root.commitData.summary ? root.commitData.summary : qsTr("No commit selected")
+                text: (root.commitData && root.commitData.summary) ? root.commitData.summary : qsTr("No commit selected")
                 font.bold: true
                 font.pixelSize: CherryStyle.basePixelSize + 3
                 color: Kirigami.Theme.textColor
@@ -44,8 +45,8 @@ ColumnLayout {
 
             // Description
             QQC2.Label {
-                text: root.commitData.description ? root.commitData.description : ""
-                visible: root.commitData.description && root.commitData.description.length > 0
+                text: (root.commitData && root.commitData.description) ? root.commitData.description : ""
+                visible: root.commitData && root.commitData.description && root.commitData.description.length > 0
                 font.pixelSize: CherryStyle.smallFont.pixelSize
                 color: Kirigami.Theme.textColor
                 Layout.fillWidth: true
@@ -70,8 +71,9 @@ ColumnLayout {
 
                     QQC2.Label {
                         anchors.centerIn: parent
-                        text: (root.commitData.authorName && root.commitData.authorName.length > 0) ? root.commitData.authorName.charAt(0).toUpperCase() : "G"
+                        text: (root.commitData && root.commitData.authorName && root.commitData.authorName.length > 0) ? root.commitData.authorName.charAt(0).toUpperCase() : "G"
                         font.bold: true
+                        font.pixelSize: 14
                         color: Kirigami.Theme.highlightedTextColor
                     }
                 }
@@ -81,23 +83,23 @@ ColumnLayout {
                     spacing: 1
 
                     RowLayout {
-                        spacing: 4
+                        spacing: 6
 
                         QQC2.Label {
-                            text: root.commitData.authorName ? root.commitData.authorName : ""
+                            text: (root.commitData && root.commitData.authorName) ? root.commitData.authorName : ""
                             font.bold: true
                             color: Kirigami.Theme.textColor
                         }
 
                         QQC2.Label {
-                            text: "<" + (root.commitData.authorEmail ? root.commitData.authorEmail : "") + ">"
+                            text: "<" + ((root.commitData && root.commitData.authorEmail) ? root.commitData.authorEmail : "") + ">"
                             font.pixelSize: CherryStyle.smallFont.pixelSize
                             color: Kirigami.Theme.disabledTextColor
                         }
                     }
 
                     QQC2.Label {
-                        text: qsTr("Committed %1 (%2)").arg(root.commitData.relativeTime ? root.commitData.relativeTime : "").arg(root.commitData.timestamp ? root.commitData.timestamp : "")
+                        text: qsTr("Committed %1 (%2)").arg((root.commitData && root.commitData.relativeTime) ? root.commitData.relativeTime : "").arg((root.commitData && root.commitData.timestamp) ? root.commitData.timestamp : "")
                         font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                         color: Kirigami.Theme.disabledTextColor
                     }
@@ -107,10 +109,10 @@ ColumnLayout {
 
                 // Full SHA Badge with Copy button
                 Rectangle {
-                    height: 28
-                    width: shaRow.width + 12
+                    implicitHeight: 28
+                    implicitWidth: shaRow.implicitWidth + 12
                     radius: 4
-                    color: CherryStyle.hoverBackground
+                    color: CherryStyle.surfaceCardElevated
                     border.color: CherryStyle.borderColor
                     border.width: 1
 
@@ -120,7 +122,7 @@ ColumnLayout {
                         spacing: Kirigami.Units.smallSpacing
 
                         QQC2.Label {
-                            text: root.commitData.shortSha ? root.commitData.shortSha : ""
+                            text: (root.commitData && root.commitData.shortSha) ? root.commitData.shortSha : ""
                             font: CherryStyle.codeFontBold
                             color: Kirigami.Theme.textColor
                         }
@@ -146,8 +148,9 @@ ColumnLayout {
                 QQC2.Button {
                     text: qsTr("Revert Commit")
                     icon.name: "edit-undo"
+                    implicitHeight: 28
                     onClicked: {
-                        if (root.commitData.sha) {
+                        if (root.commitData && root.commitData.sha) {
                             appController.revertCommit(root.commitData.sha);
                         }
                     }
@@ -166,7 +169,7 @@ ColumnLayout {
         Rectangle {
             QQC2.SplitView.preferredHeight: 120
             QQC2.SplitView.minimumHeight: 80
-            color: Kirigami.Theme.backgroundColor
+            color: CherryStyle.surfaceSidebar
             border.color: CherryStyle.borderColor
             border.width: 1
 
@@ -177,18 +180,18 @@ ColumnLayout {
                 // Header
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 28
-                    color: CherryStyle.cardBackground
+                    height: 30
+                    color: CherryStyle.surfaceCardElevated
                     border.color: CherryStyle.subtleBorderColor
                     border.width: 1
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: Kirigami.Units.smallSpacing
-                        anchors.rightMargin: Kirigami.Units.smallSpacing
+                        anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+                        anchors.rightMargin: Kirigami.Units.smallSpacing + 2
 
                         QQC2.Label {
-                            text: qsTr("Changed Files (%1)").arg(root.commitData.files ? root.commitData.files.length : 0)
+                            text: qsTr("Changed Files (%1)").arg(root.commitData && root.commitData.files ? root.commitData.files.length : 0)
                             font.bold: true
                             font.pixelSize: CherryStyle.smallFont.pixelSize
                             color: Kirigami.Theme.disabledTextColor
@@ -203,13 +206,13 @@ ColumnLayout {
 
                     ListView {
                         id: commitFilesListView
-                        model: root.commitData.files ? root.commitData.files : []
-                        spacing: 1
+                        model: (root.commitData && root.commitData.files) ? root.commitData.files : []
+                        spacing: 2
 
                         delegate: QQC2.ItemDelegate {
                             id: commitFileDelegate
                             width: commitFilesListView.width
-                            height: 32
+                            height: 34
 
                             required property int index
                             required property var modelData
@@ -219,23 +222,48 @@ ColumnLayout {
                             background: Rectangle {
                                 color: commitFileDelegate.highlighted ? CherryStyle.activeBackground : (commitFileDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
                                 radius: CherryStyle.radiusSmall
-                                border.color: commitFileDelegate.highlighted ? Kirigami.Theme.highlightColor : "transparent"
-                                border.width: commitFileDelegate.highlighted ? 1 : 0
+                                border.color: commitFileDelegate.highlighted ? Kirigami.Theme.highlightColor : (commitFileDelegate.hovered ? CherryStyle.borderColor : "transparent")
+                                border.width: 1
+
+                                Rectangle {
+                                    visible: commitFileDelegate.highlighted
+                                    anchors.left: parent.left
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                    anchors.margins: 2
+                                    width: 3
+                                    radius: 1.5
+                                    color: Kirigami.Theme.highlightColor
+                                }
                             }
 
                             contentItem: RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: Kirigami.Units.smallSpacing
+                                anchors.rightMargin: Kirigami.Units.smallSpacing
                                 spacing: Kirigami.Units.smallSpacing
 
-                                Kirigami.Icon {
-                                    source: "document-edit"
-                                    width: 14
-                                    height: 14
-                                    color: "#e5a50a"
+                                Rectangle {
+                                    width: 18
+                                    height: 18
+                                    radius: 3
+                                    color: Qt.rgba(0.9, 0.65, 0.04, 0.15)
+                                    border.color: Qt.rgba(0.9, 0.65, 0.04, 0.5)
+                                    border.width: 1
+
+                                    Kirigami.Icon {
+                                        anchors.centerIn: parent
+                                        source: "document-edit"
+                                        width: 11
+                                        height: 11
+                                        color: "#e5a50a"
+                                    }
                                 }
 
                                 QQC2.Label {
                                     text: commitFileDelegate.modelData.filePath
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
+                                    font.bold: commitFileDelegate.highlighted
                                     color: commitFileDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                                     Layout.fillWidth: true
                                     elide: Text.ElideMiddle
@@ -243,26 +271,52 @@ ColumnLayout {
 
                                 RowLayout {
                                     spacing: 3
-                                    QQC2.Label {
-                                        text: "+" + commitFileDelegate.modelData.additions
-                                        font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                        font.bold: true
-                                        color: CherryStyle.additionColor
+
+                                    Rectangle {
                                         visible: commitFileDelegate.modelData.additions > 0
+                                        implicitWidth: cAddTag.implicitWidth + 8
+                                        implicitHeight: 18
+                                        radius: 4
+                                        color: CherryStyle.additionBg
+                                        border.color: Qt.rgba(CherryStyle.additionColor.r, CherryStyle.additionColor.g, CherryStyle.additionColor.b, 0.4)
+                                        border.width: 1
+
+                                        QQC2.Label {
+                                            id: cAddTag
+                                            anchors.centerIn: parent
+                                            text: "+" + commitFileDelegate.modelData.additions
+                                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                            font.bold: true
+                                            color: CherryStyle.additionColor
+                                        }
                                     }
-                                    QQC2.Label {
-                                        text: "-" + commitFileDelegate.modelData.deletions
-                                        font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                        font.bold: true
-                                        color: CherryStyle.deletionColor
+
+                                    Rectangle {
                                         visible: commitFileDelegate.modelData.deletions > 0
+                                        implicitWidth: cDelTag.implicitWidth + 8
+                                        implicitHeight: 18
+                                        radius: 4
+                                        color: CherryStyle.deletionBg
+                                        border.color: Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.4)
+                                        border.width: 1
+
+                                        QQC2.Label {
+                                            id: cDelTag
+                                            anchors.centerIn: parent
+                                            text: "-" + commitFileDelegate.modelData.deletions
+                                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                            font.bold: true
+                                            color: CherryStyle.deletionColor
+                                        }
                                     }
                                 }
                             }
 
                             onClicked: {
                                 root.activeFilePath = commitFileDelegate.modelData.filePath;
-                                appController.diffModel.loadDiffForCommit(root.commitData.sha, commitFileDelegate.modelData.filePath);
+                                if (root.commitData && root.commitData.sha) {
+                                    appController.diffModel.loadDiffForCommit(root.commitData.sha, commitFileDelegate.modelData.filePath);
+                                }
                             }
                         }
                     }
@@ -278,3 +332,4 @@ ColumnLayout {
         }
     }
 }
+

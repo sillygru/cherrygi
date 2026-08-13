@@ -3,10 +3,11 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 Rectangle {
     id: root
-    color: Kirigami.Theme.backgroundColor
+    color: CherryStyle.surfaceSidebar
     border.color: CherryStyle.borderColor
     border.width: 1
 
@@ -19,33 +20,51 @@ Rectangle {
         // ==========================================
         Rectangle {
             Layout.fillWidth: true
-            height: 42
-            color: CherryStyle.cardBackground
-            border.color: CherryStyle.borderColor
-            border.width: 1
+            height: 44
+            color: CherryStyle.surfaceHeader
+
+            // Bottom border
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 1
+                color: CherryStyle.borderColor
+            }
 
             RowLayout {
                 anchors.fill: parent
                 spacing: 0
 
                 // CHANGES TAB BUTTON
-                Rectangle {
+                Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    color: appController.activeTab === "changes" ? Kirigami.Theme.backgroundColor : "transparent"
 
-                    // Bottom indicator line when active
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: 4
+                        radius: CherryStyle.radiusSmall
+                        color: appController.activeTab === "changes" ? CherryStyle.surfaceCardElevated : (changesTabMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
+                        border.color: appController.activeTab === "changes" ? CherryStyle.strongBorderColor : "transparent"
+                        border.width: 1
+                    }
+
+                    // Bottom accent indicator line when active
                     Rectangle {
                         anchors.bottom: parent.bottom
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        height: 2
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        height: 3
+                        radius: 1.5
                         color: appController.activeTab === "changes" ? Kirigami.Theme.highlightColor : "transparent"
                     }
 
                     RowLayout {
                         anchors.centerIn: parent
-                        spacing: Kirigami.Units.smallSpacing
+                        spacing: 6
 
                         QQC2.Label {
                             text: qsTr("Changes")
@@ -56,24 +75,28 @@ Rectangle {
                         // Badge count
                         Rectangle {
                             visible: appController.changedFiles.count > 0
-                            width: countBadge.width + 10
-                            height: 18
+                            implicitWidth: countBadge.implicitWidth + 10
+                            implicitHeight: 18
                             radius: 9
-                            color: appController.activeTab === "changes" ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.12) : "transparent"
+                            color: appController.activeTab === "changes" ? CherryStyle.activeBackground : CherryStyle.surfaceCard
+                            border.color: appController.activeTab === "changes" ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                            border.width: 1
 
                             QQC2.Label {
                                 id: countBadge
                                 anchors.centerIn: parent
                                 text: "" + appController.changedFiles.count
-                                font.pixelSize: CherryStyle.smallFont.pixelSize
+                                font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                 font.bold: true
-                                color: appController.activeTab === "changes" ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
+                                color: appController.activeTab === "changes" ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
                             }
                         }
                     }
 
                     MouseArea {
+                        id: changesTabMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: appController.activeTab = "changes"
                     }
@@ -83,20 +106,33 @@ Rectangle {
                 Rectangle {
                     width: 1
                     Layout.fillHeight: true
-                    color: CherryStyle.borderColor
+                    Layout.topMargin: 8
+                    Layout.bottomMargin: 8
+                    color: CherryStyle.subtleBorderColor
                 }
 
                 // HISTORY TAB BUTTON
-                Rectangle {
+                Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    color: appController.activeTab === "history" ? Kirigami.Theme.backgroundColor : "transparent"
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: 4
+                        radius: CherryStyle.radiusSmall
+                        color: appController.activeTab === "history" ? CherryStyle.surfaceCardElevated : (historyTabMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
+                        border.color: appController.activeTab === "history" ? CherryStyle.strongBorderColor : "transparent"
+                        border.width: 1
+                    }
 
                     Rectangle {
                         anchors.bottom: parent.bottom
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        height: 2
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        height: 3
+                        radius: 1.5
                         color: appController.activeTab === "history" ? Kirigami.Theme.highlightColor : "transparent"
                     }
 
@@ -112,7 +148,9 @@ Rectangle {
                     }
 
                     MouseArea {
+                        id: historyTabMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: appController.activeTab = "history"
                     }
@@ -146,3 +184,4 @@ Rectangle {
         }
     }
 }
+

@@ -3,30 +3,41 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 QQC2.Popup {
     id: repoDropdownPopup
-    width: 360
-    height: 420
-    padding: Kirigami.Units.smallSpacing
+    width: 380
+    height: 440
+    padding: Kirigami.Units.mediumSpacing
     modal: true
+    dim: false
     focus: true
-    closePolicy: QQC2.Popup.CloseOnEscape | QQC2.Popup.CloseOnPressOutsideParent
+    closePolicy: QQC2.Popup.CloseOnEscape | QQC2.Popup.CloseOnPressOutside
 
     background: Rectangle {
-        color: Kirigami.Theme.backgroundColor
-        border.color: CherryStyle.borderColor
+        color: CherryStyle.surfacePopup
+        border.color: CherryStyle.popupBorderColor
         border.width: 1
-        radius: CherryStyle.radiusMedium
+        radius: CherryStyle.radiusLarge
 
-        // Breeze shadow simulation
+        // Multi-layered shadow for realistic floating weight & contrast
         Rectangle {
             anchors.fill: parent
             anchors.margins: -1
             z: -1
             color: "transparent"
+            border.color: Qt.rgba(0, 0, 0, 0.35)
+            radius: CherryStyle.radiusLarge + 1
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -3
+            z: -2
+            color: "transparent"
             border.color: Qt.rgba(0, 0, 0, 0.15)
-            radius: CherryStyle.radiusMedium + 1
+            radius: CherryStyle.radiusLarge + 3
         }
     }
 
@@ -39,22 +50,31 @@ QQC2.Popup {
             id: searchField
             Layout.fillWidth: true
             placeholderText: qsTr("Filter repositories...")
-            leftPadding: Kirigami.Units.largeSpacing + 10
+            leftPadding: Kirigami.Units.largeSpacing + 12
             rightPadding: text.length > 0 ? Kirigami.Units.largeSpacing + 10 : Kirigami.Units.smallSpacing
+
+            background: Rectangle {
+                color: CherryStyle.inputBackground
+                border.color: searchField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                border.width: searchField.activeFocus ? 2 : 1
+                radius: CherryStyle.radiusSmall
+            }
 
             Kirigami.Icon {
                 source: "search"
-                width: Kirigami.Units.iconSizes.small
-                height: width
+                width: 14
+                height: 14
                 anchors.left: parent.left
-                anchors.leftMargin: Kirigami.Units.smallSpacing
+                anchors.leftMargin: Kirigami.Units.smallSpacing + 2
                 anchors.verticalCenter: parent.verticalCenter
-                color: Kirigami.Theme.disabledTextColor
+                color: searchField.activeFocus ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
             }
 
             QQC2.ToolButton {
                 visible: searchField.text.length > 0
                 icon.name: "edit-clear"
+                icon.width: 12
+                icon.height: 12
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: searchField.text = ""
@@ -67,11 +87,11 @@ QQC2.Popup {
             height: 20
             QQC2.Label {
                 anchors.left: parent.left
-                anchors.leftMargin: Kirigami.Units.smallSpacing
+                anchors.leftMargin: 2
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Repositories")
                 font.bold: true
-                font.pixelSize: CherryStyle.basePixelSize - 1
+                font.pixelSize: CherryStyle.smallFont.pixelSize
                 color: Kirigami.Theme.disabledTextColor
             }
         }
@@ -85,7 +105,7 @@ QQC2.Popup {
             ListView {
                 id: repoListView
                 model: appController.repositories
-                spacing: 2
+                spacing: 3
 
                 signal requestClose()
                 onRequestClose: repoDropdownPopup.close()
@@ -93,7 +113,7 @@ QQC2.Popup {
                 delegate: QQC2.ItemDelegate {
                     id: repoDelegate
                     width: repoListView.width
-                    height: 48
+                    height: 52
 
                     required property int index
                     required property string repoId
@@ -109,19 +129,22 @@ QQC2.Popup {
                     highlighted: repoDelegate.isCurrent
 
                     background: Rectangle {
-                        color: repoDelegate.highlighted ? CherryStyle.activeBackground : (repoDelegate.hovered ? CherryStyle.hoverBackground : "transparent")
+                        color: repoDelegate.highlighted ? CherryStyle.activeBackground : (repoDelegate.hovered ? CherryStyle.hoverBackground : CherryStyle.surfaceCard)
                         radius: CherryStyle.radiusSmall
-                        border.color: repoDelegate.highlighted ? Kirigami.Theme.highlightColor : "transparent"
-                        border.width: repoDelegate.highlighted ? 1 : 0
+                        border.color: repoDelegate.highlighted ? Kirigami.Theme.highlightColor : (repoDelegate.hovered ? CherryStyle.borderColor : CherryStyle.subtleBorderColor)
+                        border.width: 1
                     }
 
                     contentItem: RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Kirigami.Units.smallSpacing
+                        anchors.rightMargin: Kirigami.Units.smallSpacing
                         spacing: Kirigami.Units.smallSpacing
 
                         Kirigami.Icon {
                             source: "folder-git"
-                            width: Kirigami.Units.iconSizes.medium
-                            height: width
+                            width: 20
+                            height: 20
                             color: repoDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                         }
 

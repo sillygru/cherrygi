@@ -3,11 +3,12 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 Rectangle {
     id: root
-    implicitHeight: 40
-    color: CherryStyle.cardBackground
+    implicitHeight: 42
+    color: CherryStyle.surfaceHeader
     border.color: CherryStyle.borderColor
     border.width: 1
 
@@ -39,13 +40,13 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: Kirigami.Units.smallSpacing
-        anchors.rightMargin: Kirigami.Units.smallSpacing
+        anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+        anchors.rightMargin: Kirigami.Units.smallSpacing + 2
         spacing: Kirigami.Units.smallSpacing
 
         // Up arrow (previous file)
         QQC2.ToolButton {
-            icon.name: "arrow-up"
+            icon.name: "go-up-symbolic"
             icon.width: 14
             icon.height: 14
             QQC2.ToolTip.text: qsTr("Previous changed file")
@@ -65,7 +66,7 @@ Rectangle {
 
         // Down arrow (next file)
         QQC2.ToolButton {
-            icon.name: "arrow-down"
+            icon.name: "go-down-symbolic"
             icon.width: 14
             icon.height: 14
             QQC2.ToolTip.text: qsTr("Next changed file")
@@ -100,10 +101,12 @@ Rectangle {
 
             Rectangle {
                 visible: root.additions > 0
-                width: addLbl.width + 8
-                height: 18
+                implicitWidth: addLbl.implicitWidth + 10
+                implicitHeight: 20
                 radius: 4
                 color: CherryStyle.additionBg
+                border.color: Qt.rgba(CherryStyle.additionColor.r, CherryStyle.additionColor.g, CherryStyle.additionColor.b, 0.4)
+                border.width: 1
 
                 QQC2.Label {
                     id: addLbl
@@ -117,10 +120,12 @@ Rectangle {
 
             Rectangle {
                 visible: root.deletions > 0
-                width: delLbl.width + 8
-                height: 18
+                implicitWidth: delLbl.implicitWidth + 10
+                implicitHeight: 20
                 radius: 4
                 color: CherryStyle.deletionBg
+                border.color: Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.4)
+                border.width: 1
 
                 QQC2.Label {
                     id: delLbl
@@ -164,3 +169,4 @@ Rectangle {
         }
     }
 }
+

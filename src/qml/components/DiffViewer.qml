@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 ColumnLayout {
     id: root
@@ -98,16 +99,14 @@ ColumnLayout {
 
                         // Old Line Number Gutter
                         Rectangle {
-                            Layout.preferredWidth: 46
+                            Layout.preferredWidth: 48
                             Layout.fillHeight: true
                             color: {
                                 if (unifiedLineDelegate.lineType === 1) return CherryStyle.additionGutterBg;
                                 if (unifiedLineDelegate.lineType === 2) return CherryStyle.deletionGutterBg;
                                 if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderBg;
-                                return CherryStyle.cardBackground;
+                                return CherryStyle.gutterBg;
                             }
-                            border.color: CherryStyle.subtleBorderColor
-                            border.width: 1
 
                             QQC2.Label {
                                 anchors.centerIn: parent
@@ -119,16 +118,14 @@ ColumnLayout {
 
                         // New Line Number Gutter
                         Rectangle {
-                            Layout.preferredWidth: 46
+                            Layout.preferredWidth: 48
                             Layout.fillHeight: true
                             color: {
                                 if (unifiedLineDelegate.lineType === 1) return CherryStyle.additionGutterBg;
                                 if (unifiedLineDelegate.lineType === 2) return CherryStyle.deletionGutterBg;
                                 if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderBg;
-                                return CherryStyle.cardBackground;
+                                return CherryStyle.gutterBg;
                             }
-                            border.color: CherryStyle.subtleBorderColor
-                            border.width: 1
 
                             QQC2.Label {
                                 anchors.centerIn: parent
@@ -136,6 +133,13 @@ ColumnLayout {
                                 font: CherryStyle.codeFont
                                 color: Kirigami.Theme.disabledTextColor
                             }
+                        }
+
+                        // Gutter Divider Line
+                        Rectangle {
+                            Layout.preferredWidth: 1
+                            Layout.fillHeight: true
+                            color: CherryStyle.borderColor
                         }
 
                         // Marker Column (+, -, @@, space)
@@ -173,9 +177,8 @@ ColumnLayout {
                                     if (unifiedLineDelegate.content.trim().startsWith("//") || unifiedLineDelegate.content.trim().startsWith("/*") || unifiedLineDelegate.content.trim().startsWith("*")) {
                                         return "#2ec27e"; // comment styling
                                     }
-                                    if (unifiedLineDelegate.content.includes("readonly") || unifiedLineDelegate.content.includes("interface") || unifiedLineDelegate.content.includes("return") || unifiedLineDelegate.content.includes("const") || unifiedLineDelegate.content.includes("export")) {
-                                        return Kirigami.Theme.textColor;
-                                    }
+                                    if (unifiedLineDelegate.lineType === 1) return Kirigami.Theme.textColor;
+                                    if (unifiedLineDelegate.lineType === 2) return Kirigami.Theme.textColor;
                                     return Kirigami.Theme.textColor;
                                 }
                                 elide: Text.ElideNone
@@ -216,18 +219,16 @@ ColumnLayout {
                         required property string oldLineNumStr
                         required property string content
 
-                        color: (splitLeftDelegate.lineType === 2) ? CherryStyle.deletionBg : (splitLeftDelegate.lineType === 3 ? CherryStyle.hunkHeaderBg : (splitLeftDelegate.lineType === 1 ? CherryStyle.cardBackground : "transparent"))
+                        color: (splitLeftDelegate.lineType === 2) ? CherryStyle.deletionBg : (splitLeftDelegate.lineType === 3 ? CherryStyle.hunkHeaderBg : (splitLeftDelegate.lineType === 1 ? CherryStyle.surfaceCard : "transparent"))
 
                         RowLayout {
                             anchors.fill: parent
                             spacing: 0
 
                             Rectangle {
-                                Layout.preferredWidth: 44
+                                Layout.preferredWidth: 46
                                 Layout.fillHeight: true
-                                color: CherryStyle.cardBackground
-                                border.color: CherryStyle.subtleBorderColor
-                                border.width: 1
+                                color: (splitLeftDelegate.lineType === 2) ? CherryStyle.deletionGutterBg : CherryStyle.gutterBg
 
                                 QQC2.Label {
                                     anchors.centerIn: parent
@@ -235,6 +236,12 @@ ColumnLayout {
                                     font: CherryStyle.codeFont
                                     color: Kirigami.Theme.disabledTextColor
                                 }
+                            }
+
+                            Rectangle {
+                                Layout.preferredWidth: 1
+                                Layout.fillHeight: true
+                                color: CherryStyle.borderColor
                             }
 
                             QQC2.Label {
@@ -253,7 +260,7 @@ ColumnLayout {
                 Rectangle {
                     Layout.preferredWidth: 1
                     Layout.fillHeight: true
-                    color: CherryStyle.borderColor
+                    color: CherryStyle.strongBorderColor
                 }
 
                 // RIGHT PANE (New Version)
@@ -274,18 +281,16 @@ ColumnLayout {
                         required property string newLineNumStr
                         required property string content
 
-                        color: (splitRightDelegate.lineType === 1) ? CherryStyle.additionBg : (splitRightDelegate.lineType === 3 ? CherryStyle.hunkHeaderBg : (splitRightDelegate.lineType === 2 ? CherryStyle.cardBackground : "transparent"))
+                        color: (splitRightDelegate.lineType === 1) ? CherryStyle.additionBg : (splitRightDelegate.lineType === 3 ? CherryStyle.hunkHeaderBg : (splitRightDelegate.lineType === 2 ? CherryStyle.surfaceCard : "transparent"))
 
                         RowLayout {
                             anchors.fill: parent
                             spacing: 0
 
                             Rectangle {
-                                Layout.preferredWidth: 44
+                                Layout.preferredWidth: 46
                                 Layout.fillHeight: true
-                                color: CherryStyle.cardBackground
-                                border.color: CherryStyle.subtleBorderColor
-                                border.width: 1
+                                color: (splitRightDelegate.lineType === 1) ? CherryStyle.additionGutterBg : CherryStyle.gutterBg
 
                                 QQC2.Label {
                                     anchors.centerIn: parent
@@ -293,6 +298,12 @@ ColumnLayout {
                                     font: CherryStyle.codeFont
                                     color: Kirigami.Theme.disabledTextColor
                                 }
+                            }
+
+                            Rectangle {
+                                Layout.preferredWidth: 1
+                                Layout.fillHeight: true
+                                color: CherryStyle.borderColor
                             }
 
                             QQC2.Label {
@@ -310,3 +321,4 @@ ColumnLayout {
         }
     }
 }
+

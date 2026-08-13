@@ -3,25 +3,33 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 Rectangle {
     id: root
     implicitHeight: CherryStyle.headerHeight
-    color: Kirigami.Theme.backgroundColor
+    color: CherryStyle.surfaceHeader
 
-    border.color: CherryStyle.borderColor
-    border.width: 1
+    // Subtle bottom border with high contrast
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 1
+        color: CherryStyle.strongBorderColor
+        z: 2
+    }
 
     RepoDropdown {
         id: repoDropdown
-        y: root.height + 4
-        x: repoSegment.x
+        y: root.height + 2
+        x: repoSegment.x + 4
     }
 
     BranchDropdown {
         id: branchDropdown
-        y: root.height + 4
-        x: branchSegment.x
+        y: root.height + 2
+        x: branchSegment.x + 4
     }
 
     RemoteDropdown {
@@ -39,13 +47,15 @@ Rectangle {
             id: repoSegment
             Layout.fillHeight: true
             Layout.preferredWidth: 260
-            Layout.minimumWidth: 180
+            Layout.minimumWidth: 190
 
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 4
                 radius: CherryStyle.radiusSmall
-                color: repoMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
+                color: repoDropdown.visible ? CherryStyle.activeBackground : (repoMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
+                border.color: repoDropdown.visible ? Kirigami.Theme.highlightColor : (repoMouse.containsMouse ? CherryStyle.borderColor : "transparent")
+                border.width: 1
             }
 
             ColumnLayout {
@@ -68,24 +78,24 @@ Rectangle {
 
                     Kirigami.Icon {
                         source: "folder-git"
-                        width: Kirigami.Units.iconSizes.small
-                        height: width
-                        color: Kirigami.Theme.textColor
+                        width: 16
+                        height: 16
+                        color: repoDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                     }
 
                     QQC2.Label {
                         text: appController.currentRepoName
                         font.bold: true
-                        color: Kirigami.Theme.textColor
+                        color: repoDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
 
                     Kirigami.Icon {
-                        source: "arrow-down"
+                        source: "go-down-symbolic"
                         width: 12
                         height: 12
-                        color: Kirigami.Theme.disabledTextColor
+                        color: repoDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
                     }
                 }
             }
@@ -99,6 +109,7 @@ Rectangle {
                     if (repoDropdown.visible) {
                         repoDropdown.close();
                     } else {
+                        branchDropdown.close();
                         repoDropdown.open();
                     }
                 }
@@ -120,14 +131,16 @@ Rectangle {
         Item {
             id: branchSegment
             Layout.fillHeight: true
-            Layout.preferredWidth: 280
-            Layout.minimumWidth: 200
+            Layout.preferredWidth: 290
+            Layout.minimumWidth: 210
 
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 4
                 radius: CherryStyle.radiusSmall
-                color: branchMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
+                color: branchDropdown.visible ? CherryStyle.activeBackground : (branchMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
+                border.color: branchDropdown.visible ? Kirigami.Theme.highlightColor : (branchMouse.containsMouse ? CherryStyle.borderColor : "transparent")
+                border.width: 1
             }
 
             ColumnLayout {
@@ -150,15 +163,15 @@ Rectangle {
 
                     Kirigami.Icon {
                         source: "vcs-branch"
-                        width: Kirigami.Units.iconSizes.small
-                        height: width
-                        color: Kirigami.Theme.textColor
+                        width: 16
+                        height: 16
+                        color: branchDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                     }
 
                     QQC2.Label {
                         text: appController.currentBranchName
                         font.bold: true
-                        color: Kirigami.Theme.textColor
+                        color: branchDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -166,29 +179,30 @@ Rectangle {
                     // PR Badge if present
                     Rectangle {
                         visible: appController.currentBranchPr !== ""
-                        width: prHeaderLabel.width + 12
-                        height: 20
+                        implicitWidth: prRow.implicitWidth + 12
+                        implicitHeight: 20
                         radius: 10
-                        color: Qt.rgba(0.2, 0.6, 1.0, 0.15)
-                        border.color: Qt.rgba(0.2, 0.6, 1.0, 0.5)
+                        color: Qt.rgba(0.2, 0.6, 1.0, 0.18)
+                        border.color: Qt.rgba(0.2, 0.6, 1.0, 0.6)
                         border.width: 1
 
                         RowLayout {
+                            id: prRow
                             anchors.centerIn: parent
-                            spacing: 2
+                            spacing: 3
 
                             QQC2.Label {
                                 id: prHeaderLabel
                                 text: appController.currentBranchPr
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
                                 font.bold: true
-                                color: "#3584e4"
+                                color: "#4595f6"
                             }
 
                             Kirigami.Icon {
                                 source: "dialog-ok"
-                                width: 12
-                                height: 12
+                                width: 11
+                                height: 11
                                 color: "#2ec27e"
                                 visible: appController.currentBranchPrActive
                             }
@@ -196,10 +210,10 @@ Rectangle {
                     }
 
                     Kirigami.Icon {
-                        source: "arrow-down"
+                        source: "go-down-symbolic"
                         width: 12
                         height: 12
-                        color: Kirigami.Theme.disabledTextColor
+                        color: branchDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
                     }
                 }
             }
@@ -213,6 +227,7 @@ Rectangle {
                     if (branchDropdown.visible) {
                         branchDropdown.close();
                     } else {
+                        repoDropdown.close();
                         branchDropdown.open();
                     }
                 }
@@ -234,128 +249,182 @@ Rectangle {
         Item {
             id: remoteSegment
             Layout.fillHeight: true
-            Layout.preferredWidth: 260
-            Layout.minimumWidth: 200
+            Layout.preferredWidth: 280
+            Layout.minimumWidth: 220
 
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 4
                 radius: CherryStyle.radiusSmall
-                color: remoteMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
+                color: remotePrimaryMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
+                border.color: remotePrimaryMouse.containsMouse ? CherryStyle.borderColor : "transparent"
+                border.width: 1
             }
 
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Kirigami.Units.mediumSpacing
-                anchors.rightMargin: Kirigami.Units.mediumSpacing
+                anchors.rightMargin: 4
                 anchors.topMargin: 4
                 anchors.bottomMargin: 4
                 spacing: Kirigami.Units.smallSpacing
 
-                // Sync Icon
-                Kirigami.Icon {
-                    source: {
-                        if (appController.behindCount > 0) return "vcs-pull-symbolic";
-                        if (appController.aheadCount > 0) return "vcs-push-symbolic";
-                        return "view-refresh";
-                    }
-                    width: Kirigami.Units.iconSizes.medium
-                    height: width
-                    color: Kirigami.Theme.textColor
-
-                    // Spinning animation when fetching/pulling/pushing
-                    RotationAnimator on rotation {
-                        running: appController.isFetching || appController.isPulling || appController.isPushing
-                        from: 0
-                        to: 360
-                        loops: Animation.Infinite
-                        duration: 800
-                    }
-                }
-
-                // Text Stack
-                ColumnLayout {
+                // Primary Clickable Action Area
+                Item {
                     Layout.fillWidth: true
-                    spacing: 1
+                    Layout.fillHeight: true
 
                     RowLayout {
-                        spacing: 4
+                        anchors.fill: parent
+                        spacing: Kirigami.Units.smallSpacing
 
-                        QQC2.Label {
-                            text: {
-                                if (appController.isPulling) return qsTr("Pulling...");
-                                if (appController.isPushing) return qsTr("Pushing...");
-                                if (appController.isFetching) return qsTr("Fetching...");
-                                if (appController.behindCount > 0) return qsTr("Pull origin");
-                                if (appController.aheadCount > 0) return qsTr("Push origin");
-                                return qsTr("Fetch origin");
+                        // Sync Icon with controlled rotation
+                        Item {
+                            width: 22
+                            height: 22
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Kirigami.Icon {
+                                id: syncIcon
+                                anchors.centerIn: parent
+                                source: {
+                                    if (appController.behindCount > 0) return "vcs-pull-symbolic";
+                                    if (appController.aheadCount > 0) return "vcs-push-symbolic";
+                                    return "view-refresh";
+                                }
+                                width: 18
+                                height: 18
+                                color: Kirigami.Theme.textColor
+                                rotation: 0
+
+                                NumberAnimation on rotation {
+                                    id: spinAnim
+                                    running: appController.isFetching || appController.isPulling || appController.isPushing
+                                    from: 0
+                                    to: 360
+                                    loops: Animation.Infinite
+                                    duration: 900
+                                    alwaysRunToEnd: false
+                                }
+
+                                Connections {
+                                    target: appController
+                                    function onRemoteStatusChanged() {
+                                        if (!appController.isFetching && !appController.isPulling && !appController.isPushing) {
+                                            syncIcon.rotation = 0;
+                                        }
+                                    }
+                                }
                             }
-                            font.bold: true
-                            color: Kirigami.Theme.textColor
                         }
 
-                        // Badge count (e.g. 3 v or 1 ^)
-                        Rectangle {
-                            visible: appController.behindCount > 0 || appController.aheadCount > 0
-                            width: syncCountLabel.width + 10
-                            height: 18
-                            radius: 9
-                            color: CherryStyle.cardBackground
-                            border.color: CherryStyle.borderColor
-                            border.width: 1
+                        // Text Stack
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 1
 
                             RowLayout {
-                                anchors.centerIn: parent
-                                spacing: 2
+                                Layout.fillWidth: true
+                                spacing: 6
 
                                 QQC2.Label {
-                                    id: syncCountLabel
-                                    text: appController.behindCount > 0 ? ("" + appController.behindCount) : ("" + appController.aheadCount)
-                                    font.pixelSize: CherryStyle.smallFont.pixelSize
+                                    text: {
+                                        if (appController.isPulling) return qsTr("Pulling...");
+                                        if (appController.isPushing) return qsTr("Pushing...");
+                                        if (appController.isFetching) return qsTr("Fetching...");
+                                        if (appController.behindCount > 0) return qsTr("Pull origin");
+                                        if (appController.aheadCount > 0) return qsTr("Push origin");
+                                        return qsTr("Fetch origin");
+                                    }
                                     font.bold: true
                                     color: Kirigami.Theme.textColor
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
                                 }
 
-                                Kirigami.Icon {
-                                    source: appController.behindCount > 0 ? "arrow-down" : "arrow-up"
-                                    width: 10
-                                    height: 10
-                                    color: Kirigami.Theme.textColor
+                                // Clean non-overlapping Badge count (e.g. 3 ↓ or 1 ↑)
+                                Rectangle {
+                                    visible: appController.behindCount > 0 || appController.aheadCount > 0
+                                    implicitWidth: syncBadgeRow.implicitWidth + 10
+                                    implicitHeight: 18
+                                    radius: 9
+                                    color: CherryStyle.surfaceCardElevated
+                                    border.color: CherryStyle.strongBorderColor
+                                    border.width: 1
+
+                                    RowLayout {
+                                        id: syncBadgeRow
+                                        anchors.centerIn: parent
+                                        spacing: 2
+
+                                        QQC2.Label {
+                                            id: syncCountLabel
+                                            text: appController.behindCount > 0 ? ("" + appController.behindCount) : ("" + appController.aheadCount)
+                                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                            font.bold: true
+                                            color: Kirigami.Theme.textColor
+                                        }
+
+                                        Kirigami.Icon {
+                                            source: appController.behindCount > 0 ? "arrow-down" : "arrow-up"
+                                            width: 10
+                                            height: 10
+                                            color: Kirigami.Theme.textColor
+                                        }
+                                    }
                                 }
+                            }
+
+                            QQC2.Label {
+                                text: appController.lastFetchedText
+                                font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                color: Kirigami.Theme.disabledTextColor
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
                             }
                         }
                     }
 
-                    QQC2.Label {
-                        text: appController.lastFetchedText
-                        font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                        color: Kirigami.Theme.disabledTextColor
-                        elide: Text.ElideRight
+                    MouseArea {
+                        id: remotePrimaryMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (appController.behindCount > 0) {
+                                appController.pullOrigin();
+                            } else if (appController.aheadCount > 0) {
+                                appController.pushOrigin();
+                            } else {
+                                appController.fetchOrigin();
+                            }
+                        }
                     }
                 }
 
-                // Sub-menu trigger
-                QQC2.ToolButton {
-                    icon.name: "arrow-down"
-                    icon.width: 12
-                    icon.height: 12
-                    onClicked: remoteMenu.popup(this, 0, this.height)
-                }
-            }
+                // Sub-menu Trigger Button
+                Rectangle {
+                    width: 28
+                    height: 28
+                    radius: CherryStyle.radiusSmall
+                    color: remoteMenuMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
+                    border.color: remoteMenuMouse.containsMouse ? CherryStyle.borderColor : "transparent"
+                    border.width: 1
 
-            MouseArea {
-                id: remoteMouse
-                anchors.fill: parent
-                anchors.rightMargin: 30
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (appController.behindCount > 0) {
-                        appController.pullOrigin();
-                    } else if (appController.aheadCount > 0) {
-                        appController.pushOrigin();
-                    } else {
-                        appController.fetchOrigin();
+                    Kirigami.Icon {
+                        anchors.centerIn: parent
+                        source: "go-down-symbolic"
+                        width: 12
+                        height: 12
+                        color: Kirigami.Theme.disabledTextColor
+                    }
+
+                    MouseArea {
+                        id: remoteMenuMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: remoteMenu.popup(remoteSegment, remoteSegment.width - remoteMenu.width, remoteSegment.height + 2)
                     }
                 }
             }
@@ -377,3 +446,4 @@ Rectangle {
         }
     }
 }
+

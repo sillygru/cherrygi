@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.cherrygi
+import "../style"
 
 Rectangle {
     id: root
@@ -13,25 +14,34 @@ Rectangle {
         NumberAnimation { duration: 200 }
     }
 
-    implicitWidth: Math.min(toastLayout.implicitWidth + 32, 500)
+    implicitWidth: Math.min(toastLayout.implicitWidth + 36, 520)
     implicitHeight: 44
     radius: CherryStyle.radiusMedium
 
     color: appController.toastIsError ?
-           Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.95) :
-           Qt.rgba(Kirigami.Theme.backgroundColor.r, Kirigami.Theme.backgroundColor.g, Kirigami.Theme.backgroundColor.b, 0.95)
+           Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.96) :
+           CherryStyle.surfacePopup
 
-    border.color: appController.toastIsError ? Kirigami.Theme.negativeTextColor : CherryStyle.borderColor
+    border.color: appController.toastIsError ? Kirigami.Theme.negativeTextColor : CherryStyle.popupBorderColor
     border.width: 1
 
-    // Shadow simulation
+    // Layered floating shadow
     Rectangle {
         anchors.fill: parent
-        anchors.margins: -2
+        anchors.margins: -1
         z: -1
         color: "transparent"
-        border.color: Qt.rgba(0, 0, 0, 0.2)
-        radius: CherryStyle.radiusMedium + 2
+        border.color: Qt.rgba(0, 0, 0, 0.4)
+        radius: CherryStyle.radiusMedium + 1
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: -3
+        z: -2
+        color: "transparent"
+        border.color: Qt.rgba(0, 0, 0, 0.18)
+        radius: CherryStyle.radiusMedium + 3
     }
 
     Timer {
@@ -45,14 +55,14 @@ Rectangle {
     RowLayout {
         id: toastLayout
         anchors.fill: parent
-        anchors.leftMargin: Kirigami.Units.mediumSpacing
-        anchors.rightMargin: Kirigami.Units.mediumSpacing
+        anchors.leftMargin: Kirigami.Units.mediumSpacing + 2
+        anchors.rightMargin: Kirigami.Units.mediumSpacing + 2
         spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Icon {
             source: appController.toastIsError ? "dialog-error" : "dialog-information"
-            width: Kirigami.Units.iconSizes.small
-            height: width
+            width: 16
+            height: 16
             color: appController.toastIsError ? "#ffffff" : Kirigami.Theme.highlightColor
         }
 
@@ -79,3 +89,4 @@ Rectangle {
         }
     }
 }
+
