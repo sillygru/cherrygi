@@ -989,41 +989,53 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
 
     // Check if gh CLI is installed
     QString ghExe = QStandardPaths::findExecutable("gh");
-    if (!ghExe.isEmpty()) {
+    if (ghExe.isEmpty()) {
+        emit operationFailed("GitHub CLI ('gh') is not installed. Please configure a remote origin URL manually in Repository Settings.");
+        return false;
+    }
+
+    m_remoteStatus.isPushing = true;
+    emit remoteStatusUpdated(m_remoteStatus);
+
+    QString dir = m_repoPath;
+    QString desc = description.trimmed();
+
+    QThread *thread = QThread::create([this, dir, repoName, desc, isPrivate]() {
         QStringList args = {"repo", "create", repoName, isPrivate ? "--private" : "--public", "--source=.", "--remote=origin", "--push"};
-        if (!description.trimmed().isEmpty()) {
-            args << "--description" << description.trimmed();
+        if (!desc.isEmpty()) {
+            args << "--description" << desc;
         }
 
-        m_remoteStatus.isPushing = true;
-        emit remoteStatusUpdated(m_remoteStatus);
-
         QProcess process;
-        process.setWorkingDirectory(m_repoPath);
+        process.setWorkingDirectory(dir);
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert("LC_ALL", "C");
+        env.insert("GIT_TERMINAL_PROMPT", "0");
+        process.setProcessEnvironment(env);
         process.start("gh", args);
-        bool finished = process.waitForFinished(60000);
+        bool finished = process.waitForFinished(120000);
 
-        m_remoteStatus.isPushing = false;
         int exitCode = process.exitCode();
         QString stdOut = QString::fromUtf8(process.readAllStandardOutput());
         QString stdErr = QString::fromUtf8(process.readAllStandardError());
 
-        if (finished && exitCode == 0) {
-            getRemoteStatus();
-            emit branchListChanged();
-            emit commitHistoryUpdated();
-            emit operationSucceeded(QString("Successfully published '%1' to GitHub!").arg(repoName));
-            return true;
-        }
-
-        QString errorMsg = stdErr.trimmed().isEmpty() ? stdOut.trimmed() : stdErr.trimmed();
-        emit operationFailed(QString("Failed to publish with gh CLI: %1").arg(errorMsg.isEmpty() ? "Unknown error" : errorMsg));
-        getRemoteStatus();
-        return false;
-    }
-
-    emit operationFailed("GitHub CLI ('gh') is not installed. Please configure a remote origin URL manually in Repository Settings.");
-    return false;
+        QMetaObject::invokeMethod(this, [this, finished, exitCode, stdOut, stdErr, repoName]() {
+            m_remoteStatus.isPushing = false;
+            if (finished && exitCode == 0) {
+                getRemoteStatus();
+                emit branchListChanged();
+                emit commitHistoryUpdated();
+                emit operationSucceeded(QString("Successfully published '%1' to GitHub!").arg(repoName));
+            } else {
+                getRemoteStatus();
+                QString errorMsg = stdErr.trimmed().isEmpty() ? stdOut.trimmed() : stdErr.trimmed();
+                emit operationFailed(QString("Failed to publish with gh CLI: %1").arg(errorMsg.isEmpty() ? "Process timed out or unknown error" : errorMsg));
+            }
+        }, Qt::QueuedConnection);
+    });
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
+    return true;
 }
 
 RemoteStatus GitCliService::getRemoteStatus()
@@ -1142,28 +1154,34 @@ void GitCliService::pushOrigin()
     m_remoteStatus.isPushing = true;
     emit remoteStatusUpdated(m_remoteStatus);
 
-    // Check if current branch has upstream
     auto curBranch = getCurrentBranch();
     QString branchName = curBranch ? curBranch->name : "main";
+    QString dir = m_repoPath;
 
-    GitResult upstreamCheck = runGit({"rev-parse", "--verify", "@{upstream}"}, QString(), 2000);
-    QStringList pushArgs = {"push"};
-    if (!upstreamCheck.success) {
-        // Set upstream tracking on initial push
-        pushArgs = {"push", "-u", "origin", branchName};
-    }
-
-    runGitAsync(pushArgs, [this](const GitResult &res) {
-        m_remoteStatus.isPushing = false;
-        if (res.success) {
-            getRemoteStatus();
-            emit commitHistoryUpdated();
-            emit operationSucceeded("Successfully pushed commits to origin");
-        } else {
-            emit remoteStatusUpdated(m_remoteStatus);
-            emit operationFailed(res.stdErr.trimmed().isEmpty() ? "Push failed" : res.stdErr.trimmed());
+    QThread *thread = QThread::create([this, dir, branchName]() {
+        GitResult upstreamCheck = const_cast<GitCliService*>(this)->runGit({"rev-parse", "--verify", "@{upstream}"}, dir, 3000);
+        QStringList pushArgs = {"push"};
+        if (!upstreamCheck.success) {
+            // Set upstream tracking on initial push
+            pushArgs = {"push", "-u", "origin", branchName};
         }
+
+        GitResult res = const_cast<GitCliService*>(this)->runGit(pushArgs, dir, 120000);
+
+        QMetaObject::invokeMethod(this, [this, res]() {
+            m_remoteStatus.isPushing = false;
+            if (res.success) {
+                getRemoteStatus();
+                emit commitHistoryUpdated();
+                emit operationSucceeded("Successfully pushed commits to origin");
+            } else {
+                emit remoteStatusUpdated(m_remoteStatus);
+                emit operationFailed(res.stdErr.trimmed().isEmpty() ? "Push failed" : res.stdErr.trimmed());
+            }
+        }, Qt::QueuedConnection);
     });
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
 }
 
 QList<StashItem> GitCliService::getStashes()

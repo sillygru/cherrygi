@@ -23,10 +23,45 @@ ColumnLayout {
         Layout.fillHeight: true
         color: Kirigami.Theme.backgroundColor
 
+        // Loading state when computing diff
+        Item {
+            anchors.centerIn: parent
+            visible: appController.diffModel.isLoading
+            width: parent.width - 60
+            height: 140
+
+            ColumnLayout {
+                anchors.centerIn: parent
+                spacing: Kirigami.Units.mediumSpacing
+
+                Kirigami.BusyIndicator {
+                    width: 32
+                    height: 32
+                    Layout.alignment: Qt.AlignHCenter
+                    running: appController.diffModel.isLoading
+                }
+
+                QQC2.Label {
+                    text: qsTr("Loading diff...")
+                    font.bold: true
+                    font.pixelSize: CherryStyle.basePixelSize + 2
+                    Layout.alignment: Qt.AlignHCenter
+                    color: Kirigami.Theme.textColor
+                }
+
+                QQC2.Label {
+                    text: qsTr("Computing line changes and hunk diffs...")
+                    font.pixelSize: CherryStyle.smallFont.pixelSize
+                    Layout.alignment: Qt.AlignHCenter
+                    color: Kirigami.Theme.disabledTextColor
+                }
+            }
+        }
+
         // Empty state when no file or empty diff
         Item {
             anchors.centerIn: parent
-            visible: appController.diffModel.count === 0
+            visible: !appController.diffModel.isLoading && appController.diffModel.count === 0
             width: parent.width - 60
             height: 140
 
@@ -64,7 +99,7 @@ ColumnLayout {
         // ==========================================
         QQC2.ScrollView {
             anchors.fill: parent
-            visible: appController.diffModel.count > 0 && appController.diffViewMode === "unified"
+            visible: !appController.diffModel.isLoading && appController.diffModel.count > 0 && appController.diffViewMode === "unified"
             clip: true
 
             ListView {
@@ -194,7 +229,7 @@ ColumnLayout {
         // ==========================================
         QQC2.ScrollView {
             anchors.fill: parent
-            visible: appController.diffModel.count > 0 && appController.diffViewMode === "split"
+            visible: !appController.diffModel.isLoading && appController.diffModel.count > 0 && appController.diffViewMode === "split"
             clip: true
 
             RowLayout {

@@ -140,14 +140,28 @@ void AppController::connectServiceSignals()
         m_remoteStatus = status;
         m_commitHistoryModel->setAheadCount(m_remoteStatus.ahead);
         emit remoteStatusChanged();
+        emit operatingStateChanged();
         emit undoStateChanged();
     });
 
     connect(m_activeService, &IGitService::operationSucceeded, this, [this](const QString &msg) {
+        if (m_isPublishing) {
+            m_isPublishing = false;
+            emit isPublishingChanged();
+            emit operatingStateChanged();
+            hidePublishDialog();
+        }
         showToast(msg, false);
     });
 
     connect(m_activeService, &IGitService::operationFailed, this, [this](const QString &msg) {
+        if (m_isPublishing) {
+            m_isPublishing = false;
+            m_publishErrorMessage = msg;
+            emit isPublishingChanged();
+            emit publishErrorMessageChanged();
+            emit operatingStateChanged();
+        }
         showToast(msg, true);
     });
 
@@ -237,6 +251,23 @@ QString AppController::currentAuthorInitial() const
 bool AppController::isGhAvailable() const
 {
     return m_settings ? m_settings->isGhAvailable() : false;
+}
+
+QString AppController::operationMessage() const
+{
+    if (m_isPublishing) return tr("Publishing repository to GitHub...");
+    if (isPushing()) {
+        return aheadCount() > 0 ? (aheadCount() == 1 ? tr("Pushing 1 commit to origin...") : tr("Pushing %1 commits to origin...").arg(aheadCount())) : tr("Pushing to origin...");
+    }
+    if (isPulling()) {
+        return behindCount() > 0 ? (behindCount() == 1 ? tr("Pulling 1 commit from origin...") : tr("Pulling %1 commits from origin...").arg(behindCount())) : tr("Pulling from origin...");
+    }
+    if (isFetching()) return tr("Fetching latest changes from origin...");
+    if (m_isCommitting) return tr("Committing changes...");
+    if (m_isDiscarding) return tr("Discarding changes...");
+    if (m_isStashing) return tr("Managing stash...");
+    if (m_isReverting) return tr("Reverting commit...");
+    return QString();
 }
 
 void AppController::setActiveTab(const QString &tab)
@@ -470,6 +501,8 @@ void AppController::hideSettingsDialog()
 
 void AppController::showPublishDialog()
 {
+    m_publishErrorMessage.clear();
+    emit publishErrorMessageChanged();
     setPublishDialogVisible(true);
 }
 
@@ -481,10 +514,17 @@ void AppController::hidePublishDialog()
 bool AppController::publishRepository(const QString &name, const QString &description, bool isPrivate)
 {
     if (!m_activeService) return false;
+    m_isPublishing = true;
+    m_publishErrorMessage.clear();
+    emit isPublishingChanged();
+    emit publishErrorMessageChanged();
+    emit operatingStateChanged();
+
     bool res = m_activeService->publishRepository(name, description, isPrivate);
-    if (res) {
-        hidePublishDialog();
-        updateCurrentState();
+    if (!res) {
+        m_isPublishing = false;
+        emit isPublishingChanged();
+        emit operatingStateChanged();
     }
     return res;
 }
@@ -607,7 +647,16 @@ void AppController::deleteBranch(const QString &branchName)
 bool AppController::commit(const QString &summary, const QString &description, const QStringList &coAuthors)
 {
     if (!m_activeService) return false;
+    m_isCommitting = true;
+    emit isCommittingChanged();
+    emit operatingStateChanged();
+
     bool res = m_activeService->createCommit(summary, description, coAuthors);
+
+    m_isCommitting = false;
+    emit isCommittingChanged();
+    emit operatingStateChanged();
+
     if (res) {
         emit undoStateChanged();
         emit remoteStatusChanged();
@@ -668,33 +717,66 @@ void AppController::pushOrigin()
 
 void AppController::discardFileChanges(const QString &filePath)
 {
-    if (m_activeService) m_activeService->discardFileChanges(filePath);
+    if (!m_activeService) return;
+    m_isDiscarding = true;
+    emit operatingStateChanged();
+
+    m_activeService->discardFileChanges(filePath);
+
+    m_isDiscarding = false;
+    emit operatingStateChanged();
 }
 
 void AppController::discardAllChanges()
 {
-    if (m_activeService) m_activeService->discardAllChanges();
+    if (!m_activeService) return;
+    m_isDiscarding = true;
+    emit operatingStateChanged();
+
+    m_activeService->discardAllChanges();
+
+    m_isDiscarding = false;
+    emit operatingStateChanged();
 }
 
 void AppController::stashChanges(const QString &message)
 {
-    if (m_activeService) m_activeService->stashChanges(message);
+    if (!m_activeService) return;
+    m_isStashing = true;
+    emit operatingStateChanged();
+
+    m_activeService->stashChanges(message);
+
+    m_isStashing = false;
+    emit operatingStateChanged();
 }
 
 void AppController::popStash(const QString &stashId)
 {
     if (!m_activeService) return;
+    m_isStashing = true;
+    emit operatingStateChanged();
+
     QString id = stashId.isEmpty() ? m_selectedStashId : stashId;
     m_activeService->popStash(id);
     clearStashSelection();
+
+    m_isStashing = false;
+    emit operatingStateChanged();
 }
 
 void AppController::dropStash(const QString &stashId)
 {
     if (!m_activeService) return;
+    m_isStashing = true;
+    emit operatingStateChanged();
+
     QString id = stashId.isEmpty() ? m_selectedStashId : stashId;
     m_activeService->dropStash(id);
     clearStashSelection();
+
+    m_isStashing = false;
+    emit operatingStateChanged();
 }
 
 void AppController::selectFileForDiff(const QString &filePath)
@@ -748,7 +830,14 @@ void AppController::selectCommit(const QString &sha)
 
 void AppController::revertCommit(const QString &sha)
 {
-    if (m_activeService) m_activeService->revertCommit(sha);
+    if (!m_activeService) return;
+    m_isReverting = true;
+    emit operatingStateChanged();
+
+    m_activeService->revertCommit(sha);
+
+    m_isReverting = false;
+    emit operatingStateChanged();
 }
 
 void AppController::openInEditor(const QString &filePath)

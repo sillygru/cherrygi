@@ -102,4 +102,36 @@ Kirigami.ApplicationWindow {
             appController.isPublishDialogVisible = false;
         }
     }
+
+    // ==========================================
+    // GLOBAL PROGRESS STRIP (GitHub Desktop Style)
+    // ==========================================
+    Rectangle {
+        id: globalProgressStrip
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 2
+        z: 999
+        color: "transparent"
+        visible: appController.isOperating
+
+        Rectangle {
+            id: globalProgressThumb
+            height: parent.height
+            width: parent.width * 0.35
+            color: Kirigami.Theme.highlightColor
+
+            SequentialAnimation on x {
+                running: globalProgressStrip.visible
+                loops: Animation.Infinite
+                NumberAnimation {
+                    from: -globalProgressThumb.width
+                    to: globalProgressStrip.width
+                    duration: 1100
+                    easing.type: Easing.InOutCubic
+                }
+            }
+        }
+    }
 }

@@ -164,6 +164,7 @@ ColumnLayout {
                     text: qsTr("Revert Commit")
                     icon.name: "edit-undo"
                     implicitHeight: 28
+                    enabled: !appController.isOperating
                     onClicked: {
                         if (root.commitData && root.commitData.sha) {
                             appController.revertCommit(root.commitData.sha);

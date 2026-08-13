@@ -51,6 +51,11 @@ class AppController : public QObject {
     Q_PROPERTY(bool isFetching READ isFetching NOTIFY remoteStatusChanged)
     Q_PROPERTY(bool isPulling READ isPulling NOTIFY remoteStatusChanged)
     Q_PROPERTY(bool isPushing READ isPushing NOTIFY remoteStatusChanged)
+    Q_PROPERTY(bool isPublishing READ isPublishing NOTIFY isPublishingChanged)
+    Q_PROPERTY(QString publishErrorMessage READ publishErrorMessage NOTIFY publishErrorMessageChanged)
+    Q_PROPERTY(bool isCommitting READ isCommitting NOTIFY isCommittingChanged)
+    Q_PROPERTY(bool isOperating READ isOperating NOTIFY operatingStateChanged)
+    Q_PROPERTY(QString operationMessage READ operationMessage NOTIFY operatingStateChanged)
     Q_PROPERTY(bool isGhAvailable READ isGhAvailable CONSTANT)
 
     // Selection & Navigation
@@ -131,6 +136,11 @@ public:
     bool isFetching() const { return m_remoteStatus.isFetching; }
     bool isPulling() const { return m_remoteStatus.isPulling; }
     bool isPushing() const { return m_remoteStatus.isPushing; }
+    bool isPublishing() const { return m_isPublishing; }
+    QString publishErrorMessage() const { return m_publishErrorMessage; }
+    bool isCommitting() const { return m_isCommitting; }
+    bool isOperating() const { return m_isPublishing || m_isCommitting || m_isDiscarding || m_isStashing || m_isReverting || isFetching() || isPulling() || isPushing(); }
+    QString operationMessage() const;
     bool isGhAvailable() const;
 
     QString activeTab() const { return m_activeTab; }
@@ -247,6 +257,10 @@ signals:
     void currentRepoChanged();
     void currentBranchChanged();
     void remoteStatusChanged();
+    void isPublishingChanged();
+    void publishErrorMessageChanged();
+    void isCommittingChanged();
+    void operatingStateChanged();
     void activeTabChanged();
     void selectedFilePathChanged();
     void selectedCommitShaChanged();
@@ -275,6 +289,12 @@ private:
     bool m_isBackendDialogVisible{true};
     bool m_isSettingsDialogVisible{false};
     bool m_isPublishDialogVisible{false};
+    bool m_isPublishing{false};
+    QString m_publishErrorMessage;
+    bool m_isCommitting{false};
+    bool m_isDiscarding{false};
+    bool m_isStashing{false};
+    bool m_isReverting{false};
     QString m_settingsTab{"repository"};
 
     RepositoryListModel *m_repoModel{nullptr};

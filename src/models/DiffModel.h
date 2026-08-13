@@ -11,6 +11,7 @@ class DiffModel : public QAbstractListModel {
     Q_PROPERTY(QString filePath READ filePath WRITE setFilePath NOTIFY filePathChanged)
     Q_PROPERTY(int additions READ additions NOTIFY statsChanged)
     Q_PROPERTY(int deletions READ deletions NOTIFY statsChanged)
+    Q_PROPERTY(bool isLoading READ isLoading NOTIFY isLoadingChanged)
 
 public:
     enum DiffRoles {
@@ -35,6 +36,7 @@ public:
 
     int additions() const { return m_additions; }
     int deletions() const { return m_deletions; }
+    bool isLoading() const { return m_isLoading; }
 
     Q_INVOKABLE void loadDiffForFile(const QString &filePath);
     Q_INVOKABLE void loadDiffForCommit(const QString &commitSha, const QString &filePath);
@@ -46,6 +48,7 @@ signals:
     void countChanged();
     void filePathChanged();
     void statsChanged();
+    void isLoadingChanged();
 
 private:
     void setDiffLines(const QList<DiffLine> &lines);
@@ -56,6 +59,7 @@ private:
     QList<DiffLine> m_lines;
     int m_additions{0};
     int m_deletions{0};
+    bool m_isLoading{false};
 };
 
 } // namespace Cherry

@@ -91,8 +91,14 @@ void DiffModel::loadDiffForFile(const QString &filePath)
         return;
     }
 
+    m_isLoading = true;
+    emit isLoadingChanged();
+
     auto lines = m_service->getDiffForFile(filePath);
     setDiffLines(lines);
+
+    m_isLoading = false;
+    emit isLoadingChanged();
 }
 
 void DiffModel::loadDiffForCommit(const QString &commitSha, const QString &filePath)
@@ -106,8 +112,14 @@ void DiffModel::loadDiffForCommit(const QString &commitSha, const QString &fileP
         return;
     }
 
+    m_isLoading = true;
+    emit isLoadingChanged();
+
     auto lines = m_service->getDiffForCommitFile(commitSha, filePath);
     setDiffLines(lines);
+
+    m_isLoading = false;
+    emit isLoadingChanged();
 }
 
 void DiffModel::loadDiffForStash(const QString &stashId, const QString &filePath)
@@ -121,8 +133,14 @@ void DiffModel::loadDiffForStash(const QString &stashId, const QString &filePath
         return;
     }
 
+    m_isLoading = true;
+    emit isLoadingChanged();
+
     auto lines = m_service->getDiffForStashFile(stashId, filePath);
     setDiffLines(lines);
+
+    m_isLoading = false;
+    emit isLoadingChanged();
 }
 
 void DiffModel::clear()
@@ -132,6 +150,8 @@ void DiffModel::clear()
     m_additions = 0;
     m_deletions = 0;
     endResetModel();
+    m_isLoading = false;
+    emit isLoadingChanged();
     emit countChanged();
     emit statsChanged();
 }

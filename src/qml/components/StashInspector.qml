@@ -110,6 +110,7 @@ ColumnLayout {
                         text: qsTr("Discard...")
                         icon.name: "edit-delete"
                         implicitHeight: 28
+                        enabled: !appController.isOperating
                         onClicked: {
                             if (root.stashData && root.stashData.stashId) {
                                 appController.dropStash(root.stashData.stashId);
@@ -122,6 +123,7 @@ ColumnLayout {
                         icon.name: "edit-undo"
                         highlighted: true
                         implicitHeight: 28
+                        enabled: !appController.isOperating
                         onClicked: {
                             if (root.stashData && root.stashData.stashId) {
                                 appController.popStash(root.stashData.stashId);

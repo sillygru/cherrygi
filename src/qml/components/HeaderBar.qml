@@ -246,11 +246,13 @@ Rectangle {
             Layout.preferredWidth: 300
             Layout.minimumWidth: 220
 
+            readonly property bool isSyncActive: appController.isFetching || appController.isPulling || appController.isPushing || appController.isPublishing
+
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 6
                 radius: CherryStyle.radiusMedium
-                color: remotePrimaryMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
+                color: remotePrimaryMouse.containsMouse && !remoteSegment.isSyncActive ? CherryStyle.hoverBackground : "transparent"
             }
 
             RowLayout {
@@ -281,18 +283,18 @@ Rectangle {
                                 anchors.centerIn: parent
                                 source: {
                                     if (!appController.hasRemote) return "cloud-upload";
-                                    if (appController.behindCount > 0) return "vcs-pull-symbolic";
-                                    if (appController.aheadCount > 0) return "vcs-push-symbolic";
+                                    if (appController.isPushing || appController.aheadCount > 0) return "vcs-push-symbolic";
+                                    if (appController.isPulling || appController.behindCount > 0) return "vcs-pull-symbolic";
                                     return "view-refresh";
                                 }
                                 width: 18
                                 height: 18
-                                color: !appController.hasRemote ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                color: (!appController.hasRemote || remoteSegment.isSyncActive) ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                                 rotation: 0
 
                                 NumberAnimation on rotation {
                                     id: spinAnim
-                                    running: appController.isFetching || appController.isPulling || appController.isPushing
+                                    running: remoteSegment.isSyncActive
                                     from: 0
                                     to: 360
                                     loops: Animation.Infinite
@@ -303,7 +305,12 @@ Rectangle {
                                 Connections {
                                     target: appController
                                     function onRemoteStatusChanged() {
-                                        if (!appController.isFetching && !appController.isPulling && !appController.isPushing) {
+                                        if (!remoteSegment.isSyncActive) {
+                                            syncIcon.rotation = 0;
+                                        }
+                                    }
+                                    function onIsPublishingChanged() {
+                                        if (!remoteSegment.isSyncActive) {
                                             syncIcon.rotation = 0;
                                         }
                                     }
@@ -322,23 +329,34 @@ Rectangle {
 
                                 QQC2.Label {
                                     text: {
-                                        if (!appController.hasRemote) return qsTr("Publish repository");
-                                        if (appController.isPulling) return qsTr("Pulling...");
-                                        if (appController.isPushing) return qsTr("Pushing...");
-                                        if (appController.isFetching) return qsTr("Fetching...");
+                                        if (!appController.hasRemote) {
+                                            if (appController.isPublishing) return qsTr("Publishing repository...");
+                                            return qsTr("Publish repository");
+                                        }
+                                        if (appController.isPushing) {
+                                            return appController.aheadCount > 0 ?
+                                                (appController.aheadCount === 1 ? qsTr("Pushing 1 commit...") : qsTr("Pushing %1 commits...").arg(appController.aheadCount)) :
+                                                qsTr("Pushing origin...");
+                                        }
+                                        if (appController.isPulling) {
+                                            return appController.behindCount > 0 ?
+                                                (appController.behindCount === 1 ? qsTr("Pulling 1 commit...") : qsTr("Pulling %1 commits...").arg(appController.behindCount)) :
+                                                qsTr("Pulling origin...");
+                                        }
+                                        if (appController.isFetching) return qsTr("Fetching origin...");
                                         if (appController.behindCount > 0) return qsTr("Pull origin");
                                         if (appController.aheadCount > 0) return qsTr("Push origin");
                                         return qsTr("Fetch origin");
                                     }
                                     font.bold: true
-                                    color: !appController.hasRemote ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                    color: (!appController.hasRemote || remoteSegment.isSyncActive) ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
                                 }
 
                                 // Clean non-overlapping Badge count (e.g. 3 ↓ or 1 ↑)
                                 Rectangle {
-                                    visible: appController.hasRemote && (appController.behindCount > 0 || appController.aheadCount > 0)
+                                    visible: !remoteSegment.isSyncActive && appController.hasRemote && (appController.behindCount > 0 || appController.aheadCount > 0)
                                     implicitWidth: syncBadgeRow.implicitWidth + 10
                                     implicitHeight: 18
                                     radius: 9
@@ -368,7 +386,14 @@ Rectangle {
                             }
 
                             QQC2.Label {
-                                text: appController.hasRemote ? appController.lastFetchedText : qsTr("Publish to GitHub or add remote")
+                                text: {
+                                    if (appController.isPublishing) return qsTr("Creating repository on GitHub...");
+                                    if (appController.isPushing) return qsTr("Uploading commits to remote...");
+                                    if (appController.isPulling) return qsTr("Downloading changes from remote...");
+                                    if (appController.isFetching) return qsTr("Checking for remote updates...");
+                                    if (!appController.hasRemote) return qsTr("Publish to GitHub or add remote");
+                                    return appController.lastFetchedText;
+                                }
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                 color: Kirigami.Theme.disabledTextColor
                                 elide: Text.ElideRight
@@ -380,8 +405,9 @@ Rectangle {
                     MouseArea {
                         id: remotePrimaryMouse
                         anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        enabled: !remoteSegment.isSyncActive
+                        hoverEnabled: !remoteSegment.isSyncActive
+                        cursorShape: remoteSegment.isSyncActive ? Qt.ArrowCursor : Qt.PointingHandCursor
                         onClicked: {
                             if (!appController.hasRemote) {
                                 appController.showPublishDialog();
@@ -401,7 +427,8 @@ Rectangle {
                     width: 32
                     height: 32
                     radius: CherryStyle.radiusMedium
-                    color: remoteMenuMouse.containsMouse ? CherryStyle.hoverBackground : "transparent"
+                    color: remoteMenuMouse.containsMouse && !remoteSegment.isSyncActive ? CherryStyle.hoverBackground : "transparent"
+                    opacity: remoteSegment.isSyncActive ? 0.4 : 1.0
 
                     Kirigami.Icon {
                         anchors.centerIn: parent
@@ -414,9 +441,43 @@ Rectangle {
                     MouseArea {
                         id: remoteMenuMouse
                         anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        enabled: !remoteSegment.isSyncActive
+                        hoverEnabled: !remoteSegment.isSyncActive
+                        cursorShape: remoteSegment.isSyncActive ? Qt.ArrowCursor : Qt.PointingHandCursor
                         onClicked: remoteMenu.popup(remoteSegment, remoteSegment.width - remoteMenu.width, remoteSegment.height + 2)
+                    }
+                }
+            }
+
+            // GitHub Desktop style Progress Bar for Push/Pull/Fetch/Publish
+            Rectangle {
+                id: syncProgressBarContainer
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 8
+                height: 3
+                radius: 1.5
+                clip: true
+                color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.2)
+                visible: remoteSegment.isSyncActive
+
+                Rectangle {
+                    id: syncProgressBarThumb
+                    height: parent.height
+                    width: parent.width * 0.4
+                    radius: 1.5
+                    color: Kirigami.Theme.highlightColor
+
+                    SequentialAnimation on x {
+                        running: syncProgressBarContainer.visible
+                        loops: Animation.Infinite
+                        NumberAnimation {
+                            from: -syncProgressBarThumb.width
+                            to: syncProgressBarContainer.width
+                            duration: 1100
+                            easing.type: Easing.InOutCubic
+                        }
                     }
                 }
             }

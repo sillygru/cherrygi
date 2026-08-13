@@ -17,12 +17,14 @@ ColumnLayout {
         QQC2.MenuItem {
             text: qsTr("Restore Stash")
             icon.name: "edit-undo"
+            enabled: !appController.isOperating
             onTriggered: appController.popStash(stashContextMenu.targetStashId)
         }
 
         QQC2.MenuItem {
             text: qsTr("Discard Stash")
             icon.name: "edit-delete"
+            enabled: !appController.isOperating
             onTriggered: appController.dropStash(stashContextMenu.targetStashId)
         }
     }
@@ -41,6 +43,7 @@ ColumnLayout {
         QQC2.MenuItem {
             text: qsTr("Discard Changes...")
             icon.name: "edit-delete"
+            enabled: !appController.isOperating
             onTriggered: appController.discardFileChanges(fileContextMenu.targetFilePath)
         }
 
@@ -68,6 +71,7 @@ ColumnLayout {
             QQC2.CheckBox {
                 id: selectAllBox
                 checked: appController.changedFiles.allSelected
+                enabled: !appController.isOperating
                 checkState: appController.changedFiles.hasPartialSelection ? Qt.PartiallyChecked : (appController.changedFiles.allSelected ? Qt.Checked : Qt.Unchecked)
                 onClicked: {
                     appController.changedFiles.selectAll(checkState === Qt.Checked);
@@ -89,6 +93,7 @@ ColumnLayout {
                 icon.width: 14
                 icon.height: 14
                 visible: appController.changedFiles.count > 0
+                enabled: !appController.isOperating
                 QQC2.ToolTip.text: qsTr("Discard all changes")
                 QQC2.ToolTip.visible: hovered
                 onClicked: appController.discardAllChanges()

@@ -8,18 +8,18 @@ import "../style"
 QQC2.Popup {
     id: root
     width: 560
-    height: 460
+    height: 480
     anchors.centerIn: parent
     padding: Kirigami.Units.largeSpacing
     modal: true
     dim: true
     focus: true
-    closePolicy: QQC2.Popup.CloseOnEscape | QQC2.Popup.CloseOnPressOutside
+    closePolicy: appController.isPublishing ? QQC2.Popup.NoAutoClose : (QQC2.Popup.CloseOnEscape | QQC2.Popup.CloseOnPressOutside)
 
     property int activeTab: 0 // 0: GitHub Publish, 1: Custom Git Remote
 
     onAboutToShow: {
-        repoNameField.text = appController.currentRepoName !== "No repository" ? appController.currentRepoName : "";
+        repoNameField.text = (appController.currentRepoName !== "No repository" && appController.currentRepoName !== "") ? appController.currentRepoName : "";
         descField.text = "";
         privateCheckBox.checked = true;
         remoteUrlField.text = "";
@@ -88,7 +88,124 @@ QQC2.Popup {
                 icon.name: "window-close"
                 icon.width: 14
                 icon.height: 14
+                enabled: !appController.isPublishing
                 onClicked: root.close()
+            }
+        }
+
+        // Active Publishing Loading Banner
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: publishingRow.implicitHeight + 16
+            radius: CherryStyle.radiusMedium
+            color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.12)
+            border.color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.35)
+            border.width: 1
+            visible: appController.isPublishing
+
+            ColumnLayout {
+                id: publishingRow
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 6
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Kirigami.BusyIndicator {
+                        width: 18
+                        height: 18
+                        running: appController.isPublishing
+                    }
+
+                    QQC2.Label {
+                        text: qsTr("Publishing repository to GitHub...")
+                        font.bold: true
+                        color: Kirigami.Theme.textColor
+                        Layout.fillWidth: true
+                    }
+                }
+
+                // Indeterminate moving progress bar
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 4
+                    radius: 2
+                    clip: true
+                    color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.25)
+
+                    Rectangle {
+                        id: dialogProgressBarThumb
+                        height: parent.height
+                        width: parent.width * 0.35
+                        radius: 2
+                        color: Kirigami.Theme.highlightColor
+
+                        SequentialAnimation on x {
+                            running: appController.isPublishing
+                            loops: Animation.Infinite
+                            NumberAnimation {
+                                from: -dialogProgressBarThumb.width
+                                to: parent.width
+                                duration: 1100
+                                easing.type: Easing.InOutCubic
+                            }
+                        }
+                    }
+                }
+
+                QQC2.Label {
+                    text: qsTr("Creating GitHub repository and pushing branch commits. This runs in background without freezing.")
+                    font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                    color: Kirigami.Theme.disabledTextColor
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
+        // Inline Error Banner (if publish failed)
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: errorRow.implicitHeight + 16
+            radius: CherryStyle.radiusMedium
+            color: Qt.rgba(0.9, 0.2, 0.2, 0.15)
+            border.color: Qt.rgba(0.9, 0.2, 0.2, 0.4)
+            border.width: 1
+            visible: appController.publishErrorMessage.length > 0 && !appController.isPublishing
+
+            RowLayout {
+                id: errorRow
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 8
+
+                Kirigami.Icon {
+                    source: "dialog-error"
+                    width: 18
+                    height: 18
+                    color: "#e01b24"
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+
+                    QQC2.Label {
+                        text: qsTr("Publish Failed")
+                        font.bold: true
+                        color: "#e01b24"
+                    }
+
+                    QQC2.Label {
+                        text: appController.publishErrorMessage
+                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                        color: Kirigami.Theme.textColor
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                    }
+                }
             }
         }
 
@@ -100,6 +217,7 @@ QQC2.Popup {
             color: CherryStyle.surfaceCard
             border.color: CherryStyle.borderColor
             border.width: 1
+            opacity: appController.isPublishing ? 0.5 : 1.0
 
             RowLayout {
                 anchors.fill: parent
@@ -133,7 +251,8 @@ QQC2.Popup {
 
                     MouseArea {
                         anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
+                        enabled: !appController.isPublishing
+                        cursorShape: appController.isPublishing ? Qt.ArrowCursor : Qt.PointingHandCursor
                         onClicked: root.activeTab = 0
                     }
                 }
@@ -165,7 +284,8 @@ QQC2.Popup {
 
                     MouseArea {
                         anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
+                        enabled: !appController.isPublishing
+                        cursorShape: appController.isPublishing ? Qt.ArrowCursor : Qt.PointingHandCursor
                         onClicked: root.activeTab = 1
                     }
                 }
@@ -200,6 +320,7 @@ QQC2.Popup {
                     QQC2.TextField {
                         id: repoNameField
                         Layout.fillWidth: true
+                        enabled: !appController.isPublishing
                         placeholderText: qsTr("e.g. my-awesome-project")
                         background: Rectangle {
                             color: CherryStyle.inputBackground
@@ -225,6 +346,7 @@ QQC2.Popup {
                     QQC2.TextField {
                         id: descField
                         Layout.fillWidth: true
+                        enabled: !appController.isPublishing
                         placeholderText: qsTr("Short description of this repository...")
                         background: Rectangle {
                             color: CherryStyle.inputBackground
@@ -243,6 +365,7 @@ QQC2.Popup {
                     QQC2.CheckBox {
                         id: privateCheckBox
                         checked: true
+                        enabled: !appController.isPublishing
                     }
 
                     ColumnLayout {
@@ -323,6 +446,7 @@ QQC2.Popup {
                         id: remoteNameField
                         text: "origin"
                         Layout.fillWidth: true
+                        enabled: !appController.isPublishing
                         background: Rectangle {
                             color: CherryStyle.inputBackground
                             border.color: remoteNameField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
@@ -346,6 +470,7 @@ QQC2.Popup {
                     QQC2.TextField {
                         id: remoteUrlField
                         Layout.fillWidth: true
+                        enabled: !appController.isPublishing
                         placeholderText: qsTr("https://github.com/user/repo.git or git@github.com:user/repo.git")
                         background: Rectangle {
                             color: CherryStyle.inputBackground
@@ -377,14 +502,22 @@ QQC2.Popup {
 
             QQC2.Button {
                 text: qsTr("Cancel")
+                enabled: !appController.isPublishing
                 onClicked: root.close()
             }
 
             QQC2.Button {
-                text: root.activeTab === 0 ? qsTr("Publish Repository") : qsTr("Set Remote URL")
+                id: publishActionButton
+                text: {
+                    if (root.activeTab === 0) {
+                        return appController.isPublishing ? qsTr("Publishing to GitHub...") : qsTr("Publish Repository");
+                    }
+                    return qsTr("Set Remote URL");
+                }
                 icon.name: root.activeTab === 0 ? "cloud-upload" : "document-save"
                 highlighted: true
                 enabled: {
+                    if (appController.isPublishing) return false;
                     if (root.activeTab === 0) {
                         return repoNameField.text.trim().length > 0;
                     } else {
