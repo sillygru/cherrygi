@@ -27,7 +27,7 @@ cherrygi/
 └── src/
     ├── main.cpp                   # Application entry point, QML engine initialization
     ├── core/
-    │   ├── Types.h                # Data structures: FileChange, CommitItem, DiffLine, etc.
+    │   ├── Types.h                # Data structures: FileChange, CommitItem, DiffLine, StashItem, etc.
     │   ├── IGitService.h          # Abstract interface defining Git backend operations
     │   ├── MockGitService.h/.cpp  # Stateful in-memory mock implementation
     │   └── AppController.h/.cpp   # Central QObject coordinating state, models, and actions
@@ -41,20 +41,21 @@ cherrygi/
     └── qml/
         ├── Main.qml               # Root Kirigami.ApplicationWindow
         ├── style/
-        │   └── CherryStyle.qml    # Theme metrics, Breeze colors, typography
+        │   └── CherryStyle.qml    # Theme metrics, Breeze colors, typography singleton
         └── components/
             ├── HeaderBar.qml      # 3-segmented header (Repo, Branch, Remote)
             ├── RepoDropdown.qml   # Repository switcher popup
             ├── BranchDropdown.qml # Branch switcher and inline creator
             ├── RemoteDropdown.qml # Fetch, Pull, Push, PR actions
             ├── SidebarPanel.qml   # Changes / History tab switcher
-            ├── ChangesTab.qml     # Changed files list with checkboxes and status badges
+            ├── ChangesTab.qml     # Changed files list with checkboxes, status badges, stash row
             ├── HistoryTab.qml     # Searchable commit history list
             ├── CommitBox.qml      # Commit summary, description, co-authors, undo banner
-            ├── MainContentArea.qml# Right content container (Diff vs Commit Inspector)
+            ├── MainContentArea.qml# Right content container (Diff vs Stash vs Commit Inspector)
             ├── DiffHeader.qml     # Diff navigation and display controls
             ├── DiffViewer.qml     # Unified and Split (side-by-side) diff viewer
             ├── CommitInspector.qml# Detailed historical commit viewer
+            ├── StashInspector.qml # Stashed changes viewer with restore and discard actions
             └── UndoToast.qml      # Floating feedback banner
 ```
 
@@ -88,6 +89,8 @@ cmake --build build
 3. **State Invariants**:
    - Committing files must stage selected changes, generate an undo snapshot, update ahead count, and clear input fields.
    - Undoing a commit must restore uncommitted files, pop the commit from history, restore summary/description text, and decrement ahead count.
+   - Selecting a stash updates `selectedStashId` and displays `StashInspector` in the main content area with its stashed file diffs.
+   - Popping or dropping a stash clears the stash selection and restores/drops the snapshot in the service.
 4. **Git Commits**:
    - Make logical incremental commits locally when implementing new features or bug fixes.
    - Do not push commits to remote repositories unless requested.

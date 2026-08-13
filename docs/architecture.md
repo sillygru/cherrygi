@@ -14,6 +14,7 @@ graph TD
         MainContentArea["MainContentArea.qml"]
         DiffViewer["DiffViewer.qml"]
         CommitInspector["CommitInspector.qml"]
+        StashInspector["StashInspector.qml"]
     end
 
     subgraph Controller ["Controller & Models Layer (C++)"]
@@ -40,13 +41,16 @@ graph TD
     Sidebar --> CommitBox
     MainContentArea --> DiffViewer
     MainContentArea --> CommitInspector
+    MainContentArea --> StashInspector
 
     HeaderBar --> AppCtrl
     ChangesTab --> ChangesModel
+    ChangesTab --> StashMdl
     HistoryTab --> HistoryModel
     CommitBox --> AppCtrl
     DiffViewer --> DiffMdl
-    CommitInspector --> HistoryModel
+    CommitInspector --> AppCtrl
+    StashInspector --> AppCtrl
 
     AppCtrl --> RepoModel
     AppCtrl --> BranchModel
@@ -88,10 +92,10 @@ The `IGitService` interface acts as an abstraction barrier between the backend a
 - **Repositories**: `getRepositories()`, `getCurrentRepository()`, `openRepository()`, `addRepository()`.
 - **Branches**: `getBranches()`, `getCurrentBranch()`, `switchBranch()`, `createBranch()`, `deleteBranch()`.
 - **Changes**: `getChangedFiles()`, `setFileSelected()`, `setAllFilesSelected()`, `discardFileChanges()`, `discardAllChanges()`.
-- **Diffs**: `getDiffForFile()`, `getDiffForCommitFile()`.
+- **Diffs**: `getDiffForFile()`, `getDiffForCommitFile()`, `getDiffForStashFile()`.
 - **Commit & History**: `getCommitHistory()`, `getCommitDetails()`, `createCommit()`, `undoLastCommit()`, `revertCommit()`.
 - **Remote Operations**: `getRemoteStatus()`, `fetchOrigin()`, `pullOrigin()`, `pushOrigin()`.
-- **Stashing**: `getStashes()`, `stashChanges()`, `popStash()`, `dropStash()`.
+- **Stashing**: `getStashes()`, `getStashDetails()`, `stashChanges()`, `popStash()`, `dropStash()`.
 
 ---
 
@@ -100,8 +104,9 @@ The `IGitService` interface acts as an abstraction barrier between the backend a
 The mock service provides an in-memory Git simulator with state transitions:
 1. **Interactive Commits**: Calling `createCommit()` removes selected files from `changedFiles`, creates a historical commit, increments `aheadCount`, and pushes a snapshot to an internal `m_undoStack`.
 2. **Undo Commit**: Calling `undoLastCommit()` removes the tip commit from history, restores previous staged files and commit summary/description, and decrements `aheadCount`.
-3. **Branch Switching & Creation**: Allows switching between mock branches (`file-status-tooltip`, `main`, `feat/diff-split-view`, etc.) or creating new branches seamlessly.
-4. **Remote Synchronization**: Simulates network latency with `QTimer::singleShot` for `fetchOrigin()`, `pullOrigin()`, and `pushOrigin()`.
+3. **Stash Management**: Calling `stashChanges()`, `popStash()`, or `dropStash()` updates in-memory stash lists and emits reactive signals.
+4. **Branch Switching & Creation**: Allows switching between mock branches (`file-status-tooltip`, `main`, `feat/diff-split-view`, etc.) or creating new branches seamlessly.
+5. **Remote Synchronization**: Simulates network latency with `QTimer::singleShot` for `fetchOrigin()`, `pullOrigin()`, and `pushOrigin()`.
 
 ---
 
@@ -112,7 +117,7 @@ To provide reactive bindings in QML without overhead, specialized `QAbstractList
 - `BranchListModel`: Exposes branches with live fuzzy filtering (`filterText`).
 - `ChangedFilesModel`: Exposes checkboxes, status icons, status colors, and addition/deletion counts.
 - `CommitHistoryModel`: Exposes commit history with live text search across messages, authors, and SHAs.
-- `DiffModel`: Exposes line-by-line diff chunks with gutter line numbers, markers, and line types.
+- `DiffModel`: Exposes line-by-line diff chunks with gutter line numbers, markers, and line types for uncommitted files, historical commits, and stashes.
 - `StashModel`: Exposes list of stashed changes.
 
 ---
@@ -126,5 +131,8 @@ The QML structure implements GitHub Desktop's workflow using KDE Plasma Breeze d
   - Branch Segment -> `BranchDropdown.qml`
   - Sync Segment -> `RemoteDropdown.qml`
 - `SidebarPanel.qml`: Left panel with segmented `Changes` / `History` buttons, `ChangesTab.qml`, `HistoryTab.qml`, and bottom `CommitBox.qml`.
-- `MainContentArea.qml`: Right area switching between `DiffViewer.qml` (with Unified and Split side-by-side modes) and `CommitInspector.qml`.
+- `MainContentArea.qml`: Right area switching dynamically between:
+  - `DiffViewer.qml`: Working-tree diffs with Unified and Split side-by-side modes.
+  - `CommitInspector.qml`: Historical commit inspection and commit file diffs.
+  - `StashInspector.qml`: Stashed changes inspection with 1-click restore and discard actions.
 - `UndoToast.qml`: Floating transient notification toast for operation feedback and instant commit undo.

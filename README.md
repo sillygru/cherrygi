@@ -8,18 +8,18 @@
 
 - **GitHub Desktop Structure, KDE Plasma Soul**:
   - Distraction-free, modern top header bar with 3 segments:
-    - **Current Repository**: Switch repositories with search filter, view repository paths and active local changes.
-    - **Current Branch**: Switch branches, view Pull Request status badges (`#17192 ✓`), and create new branches.
+    - **Current Repository**: Switch repositories with search filter, view repository paths, and active local changes badges.
+    - **Current Branch**: Switch branches, view Pull Request status badges (`#17192 ✓`), and create new branches inline.
     - **Remote Actions & Sync**: Real-time ahead/behind badges (`3 ↓`, `1 ↑`), fetch origin, pull origin, and push origin with animated spinners.
 - **Left Sidebar Workflow**:
   - **Changes Tab**:
     - Select all / Deselect all master control.
     - List of changed files with checkboxes and status badges (**[M]** Modified, **[+]** Added, **[-]** Deleted, **[R]** Renamed).
     - Additions (`+10`) and Deletions (`-2`) badges per file.
-    - Stashed Changes foldout with 1-click restore or drop.
+    - Interactive **Stashed Changes** row with direct **Restore** and **Discard** buttons.
   - **Commit Box**:
     - Author avatar identicon.
-    - Commit title / summary single-line field.
+    - Commit title / summary single-line field with validation.
     - Multi-line description textarea.
     - Co-author tag chips (`@sergiou87 [x]`, `@tidy-dev [x]`) with interactive addition popup.
     - Prominent **"Commit to <current_branch>"** accent action button.
@@ -27,13 +27,14 @@
   - **History Tab**:
     - Search commits by message, author, or SHA.
     - Chronological list with author avatar, summary, relative timestamp, and short commit SHA badges.
-- **Rich Diff Viewer & Commit Inspector**:
+- **Rich Diff Viewer, Stash Inspector & Commit Inspector**:
   - **Unified & Split Modes**: Seamlessly toggle between unified stacked diff and side-by-side split view.
-  - Line numbers gutter for old and new line numbers.
+  - Dual line-numbers gutter for old and new line numbers.
   - Hunk headers (`@@ -137,10 +137,19 @@`) with subtle accent tinting.
   - Addition and deletion row highlights with Breeze positive/negative semantic colors.
   - Whitespace change visibility toggle.
   - **Commit Inspector**: View full commit metadata, copy commit SHA, list changed files in that commit, and view historical diffs.
+  - **Stash Inspector**: Click on any stash to view stashed files, browse line-by-line diffs, and restore or discard the stash with 1 click.
 - **Modular & Maintainable Architecture**:
   - Fully decoupled `IGitService` abstract interface.
   - Stateful `MockGitService` with rich sample data mirroring GitHub Desktop's UI.
@@ -69,18 +70,17 @@ sudo apt install cmake extra-cmake-modules qt6-base-dev qt6-declarative-dev libk
 
 ---
 
-## 🚀 Building cherrygi
+## 🚀 Building & Running cherrygi
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/cherrygi.git
-cd cherrygi
-
 # Configure with CMake
 cmake -B build
 
 # Build the executable
 cmake --build build
+
+# Run the application
+./build/cherrygi
 ```
 
 ---
@@ -113,20 +113,21 @@ cherrygi/
     └── qml/
         ├── Main.qml               # Root application window
         ├── style/
-        │   └── CherryStyle.qml    # Theme metrics, Breeze colors, typography
+        │   └── CherryStyle.qml    # Theme metrics, Breeze colors, typography singleton
         └── components/
             ├── HeaderBar.qml      # 3-segmented header
             ├── RepoDropdown.qml   # Repository switcher
             ├── BranchDropdown.qml # Branch switcher and creator
             ├── RemoteDropdown.qml # Remote sync and actions
             ├── SidebarPanel.qml   # Changes / History tabs & commit box
-            ├── ChangesTab.qml     # Changes list with checkboxes
+            ├── ChangesTab.qml     # Changes list with checkboxes & stash row
             ├── HistoryTab.qml     # Commit history list
             ├── CommitBox.qml      # Commit message inputs and co-authors
-            ├── MainContentArea.qml# Diff viewer & commit inspector container
+            ├── MainContentArea.qml# Diff viewer, stash inspector & commit inspector container
             ├── DiffHeader.qml     # Diff controls and navigation
             ├── DiffViewer.qml     # Unified & Split diff viewer
             ├── CommitInspector.qml# Detailed historical commit view
+            ├── StashInspector.qml # Stashed changes inspector with restore & discard
             └── UndoToast.qml      # Floating feedback banner
 ```
 

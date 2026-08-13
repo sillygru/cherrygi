@@ -14,7 +14,8 @@ This document explains how GitHub Desktop's layout and interaction hierarchy are
 | **Sync Action (Top Right)** | `HeaderBar.qml` + `RemoteDropdown.qml` | Spin animation during sync, `vcs-pull-symbolic`/`vcs-push-symbolic`, count badge (`3 ↓`), context menu |
 | **Changes / History Tabs** | `SidebarPanel.qml` | Segmented Breeze tabs with count badge, highlight underline indicator |
 | **Changed Files List** | `ChangesTab.qml` | Checkbox staging, semantic status badges (Yellow Modified, Green Added, Red Deleted), addition/deletion pills |
-| **Stashed Changes Strip** | `ChangesTab.qml` | Accordion strip with restore button and drop/pop context menu |
+| **Stashed Changes Strip** | `ChangesTab.qml` | Interactive clickable row with direct **Restore** and **Discard** buttons and selection highlight |
+| **Stash Inspector (Right Pane)** | `StashInspector.qml` | Stash summary card, branch & timestamp tags, Restore/Discard buttons, stashed file list, diff viewer |
 | **Commit Box (Bottom Left)** | `CommitBox.qml` | Identicon avatar, Summary `TextField`, Description `TextArea`, Co-authors chip flow (`@user [x]`), "Commit to <branch>" accent button |
 | **Undo Commit Banner** | `CommitBox.qml` + `UndoToast.qml` | Transient alert banner allowing 1-click commit undo with state restoration |
 | **Diff Header Bar** | `DiffHeader.qml` | File path, prev/next file arrows, split vs unified toggle, whitespace toggle, gear menu |
@@ -58,7 +59,10 @@ This document explains how GitHub Desktop's layout and interaction hierarchy are
    - Clicking Commit clears the fields, updates history, increments ahead count, and displays the **Undo Banner**.
 2. **Undo Commit**:
    - Clicking "Undo" immediately pops the commit from history, restores the uncommitted files, re-populates the summary and description in the input box, and decrements ahead count.
-3. **Diff View Modes**:
+3. **Stashed Changes Inspection**:
+   - Clicking on the Stashed Changes bar opens `StashInspector` with file list and diffs.
+   - Clicking "Restore" or "Discard" pops/drops the stash with visual toast feedback.
+4. **Diff View Modes**:
    - Easily toggle between **Unified** (stacked) and **Split** (side-by-side) with aligned line numbers and synced scrolling.
-4. **Branch & Repository Filtering**:
+5. **Branch & Repository Filtering**:
    - Real-time search filter in both repository and branch dropdown sheets.
