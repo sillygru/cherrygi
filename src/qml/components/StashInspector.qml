@@ -180,6 +180,7 @@ ColumnLayout {
                         id: stashFilesListView
                         model: (root.stashData && root.stashData.files) ? root.stashData.files : []
                         spacing: 2
+                        reuseItems: true
 
                         delegate: QQC2.ItemDelegate {
                             id: stashFileDelegate
@@ -217,21 +218,51 @@ ColumnLayout {
                                     width: 18
                                     height: 18
                                     radius: 3
-                                    color: Qt.rgba(0.9, 0.65, 0.04, 0.15)
-                                    border.color: Qt.rgba(0.9, 0.65, 0.04, 0.5)
+                                    color: {
+                                        var isPathChange = Boolean(stashFileDelegate.modelData.oldFilePath && stashFileDelegate.modelData.oldFilePath !== stashFileDelegate.modelData.filePath);
+                                        var st = stashFileDelegate.modelData.status;
+                                        if (isPathChange || st === 3) return CherryStyle.renamedBg;
+                                        if (st === 1 || st === 4) return CherryStyle.additionBg;
+                                        if (st === 2) return CherryStyle.deletionBg;
+                                        return CherryStyle.modifiedBg;
+                                    }
+                                    border.color: {
+                                        var isPathChange = Boolean(stashFileDelegate.modelData.oldFilePath && stashFileDelegate.modelData.oldFilePath !== stashFileDelegate.modelData.filePath);
+                                        var st = stashFileDelegate.modelData.status;
+                                        if (isPathChange || st === 3) return Qt.rgba(CherryStyle.renamedColor.r, CherryStyle.renamedColor.g, CherryStyle.renamedColor.b, 0.5);
+                                        if (st === 1 || st === 4) return Qt.rgba(CherryStyle.additionColor.r, CherryStyle.additionColor.g, CherryStyle.additionColor.b, 0.5);
+                                        if (st === 2) return Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.5);
+                                        return Qt.rgba(CherryStyle.modifiedColor.r, CherryStyle.modifiedColor.g, CherryStyle.modifiedColor.b, 0.5);
+                                    }
                                     border.width: 1
 
                                     Kirigami.Icon {
                                         anchors.centerIn: parent
-                                        source: "document-edit"
+                                        source: {
+                                            var isPathChange = Boolean(stashFileDelegate.modelData.oldFilePath && stashFileDelegate.modelData.oldFilePath !== stashFileDelegate.modelData.filePath);
+                                            var st = stashFileDelegate.modelData.status;
+                                            if (isPathChange || st === 3) return "arrow-right";
+                                            if (st === 1 || st === 4) return "list-add";
+                                            if (st === 2) return "list-remove";
+                                            return "document-edit";
+                                        }
                                         width: 11
                                         height: 11
-                                        color: "#e5a50a"
+                                        color: {
+                                            var isPathChange = Boolean(stashFileDelegate.modelData.oldFilePath && stashFileDelegate.modelData.oldFilePath !== stashFileDelegate.modelData.filePath);
+                                            var st = stashFileDelegate.modelData.status;
+                                            if (isPathChange || st === 3) return CherryStyle.renamedColor;
+                                            if (st === 1 || st === 4) return CherryStyle.additionColor;
+                                            if (st === 2) return CherryStyle.deletionColor;
+                                            return CherryStyle.modifiedColor;
+                                        }
                                     }
                                 }
 
                                 QQC2.Label {
-                                    text: stashFileDelegate.modelData.filePath
+                                    text: (stashFileDelegate.modelData.oldFilePath && stashFileDelegate.modelData.oldFilePath !== stashFileDelegate.modelData.filePath)
+                                        ? (stashFileDelegate.modelData.oldFilePath + " → " + stashFileDelegate.modelData.filePath)
+                                        : stashFileDelegate.modelData.filePath
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
                                     font.bold: stashFileDelegate.highlighted
                                     color: stashFileDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor

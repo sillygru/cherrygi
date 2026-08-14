@@ -9,6 +9,7 @@
 #include <QTimer>
 #include <QRecursiveMutex>
 #include <functional>
+#include <atomic>
 
 namespace Cherry {
 
@@ -31,6 +32,9 @@ public:
     bool openRepository(const QString &pathOrId) override;
     bool addRepository(const QString &name, const QString &path) override;
     bool removeRepository(const QString &repoIdOrPath) override;
+    bool relocateRepository(const QString &oldPath, const QString &newPath) override;
+    bool cloneRepository(const QString &url, const QString &targetPath) override;
+    bool recheckRepository(const QString &pathOrId) override;
     void refreshRepository() override;
 
     // Branches
@@ -48,9 +52,9 @@ public:
     bool discardAllChanges() override;
 
     // Diff & Blobs
-    QList<DiffLine> getDiffForFile(const QString &filePath) override;
+    QList<DiffLine> getDiffForFile(const QString &filePath, const QString &oldFilePath = QString()) override;
     bool isFileMetadataOnly(const QString &filePath) override;
-    QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath) override;
+    QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath, const QString &oldFilePath = QString()) override;
     QList<DiffLine> getDiffForStashFile(const QString &stashId, const QString &filePath) override;
     QByteArray getFileBlob(const QString &filePath, const QString &ref = QString()) override;
     bool isImageFile(const QString &filePath) const override;
@@ -101,6 +105,7 @@ public:
     void runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback);
 
     QString activeRepoPath() const { return m_repoPath; }
+    bool isCurrentRepoMissing() const { return m_isMissing; }
     void clearUndoState();
 
 private:
@@ -112,6 +117,10 @@ private:
     QList<DiffLine> parseDiffOutput(const QString &diffText);
     QString formatRelativeTime(const QDateTime &dt) const;
     QString formatGitError(const QString &rawError, const QString &fallbackContext) const;
+    bool isValidBranchName(const QString &name);
+    bool isSafeRepositoryPath(const QString &path) const;
+    QString preferredRemoteName() const;
+    bool isValidStashId(const QString &stashId) const;
 
     // Per-repo last-fetch timestamps, persisted to app data.
     void loadFetchTimes();
@@ -134,16 +143,18 @@ private:
     bool m_fileDiffCacheValid{false};
     QString m_fileDiffCachePath;
     QList<DiffLine> m_fileDiffCache;
+    QHash<QString, CommitItem> m_commitDetailsCache;
 
     void preloadRepositoryCaches();
-    void autoStageChanges();
     void emitRepositoryRefreshSignals(bool changedFilesChanged = true);
 
+    bool m_isMissing{false};
     QString m_repoPath;
     QString m_repoName;
     // Native read-only view of .git. Mutating and network operations still use git CLI.
     GitRepositoryReader m_repositoryReader;
     QMap<QString, QString> m_knownRepos; // path -> name
+    QMap<QString, QString> m_repoRemotes; // path -> remoteUrl
     QMap<QString, bool> m_fileSelection; // filePath -> isSelected
 
     RemoteStatus m_remoteStatus;
@@ -158,6 +169,7 @@ private:
     QFileSystemWatcher *m_fsWatcher{nullptr};
     QTimer *m_fsDebounceTimer{nullptr};
     mutable QRecursiveMutex m_cacheMutex;
+    std::atomic<quint64> m_repositoryGeneration{0};
 };
 
 } // namespace Cherry

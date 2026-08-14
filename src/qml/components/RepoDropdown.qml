@@ -197,13 +197,15 @@ QQC2.Popup {
                     required property int aheadCount
                     required property int behindCount
                     required property string lastFetchedTime
+                    required property bool isMissing
+                    required property string remoteUrl
 
                     highlighted: repoDelegate.isCurrent
 
                     background: Rectangle {
                         color: repoDelegate.highlighted ? CherryStyle.activeBackground : (repoDelegate.hovered ? CherryStyle.hoverBackground : CherryStyle.surfaceCard)
                         radius: CherryStyle.radiusSmall
-                        border.color: repoDelegate.highlighted ? Kirigami.Theme.highlightColor : (repoDelegate.hovered ? CherryStyle.borderColor : CherryStyle.subtleBorderColor)
+                        border.color: repoDelegate.isMissing ? Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.5) : (repoDelegate.highlighted ? Kirigami.Theme.highlightColor : (repoDelegate.hovered ? CherryStyle.borderColor : CherryStyle.subtleBorderColor))
                         border.width: 1
                     }
 
@@ -214,10 +216,10 @@ QQC2.Popup {
                         spacing: Kirigami.Units.smallSpacing
 
                         Kirigami.Icon {
-                            source: "folder-git"
+                            source: repoDelegate.isMissing ? "dialog-warning" : "folder-git"
                             width: 20
                             height: 20
-                            color: repoDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: repoDelegate.isMissing ? Kirigami.Theme.negativeTextColor : (repoDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor)
                         }
 
                         ColumnLayout {
@@ -228,15 +230,35 @@ QQC2.Popup {
                                 QQC2.Label {
                                     text: repoDelegate.name
                                     font.bold: repoDelegate.isCurrent
-                                    color: repoDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                    color: repoDelegate.isMissing ? Kirigami.Theme.negativeTextColor : (repoDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor)
                                     elide: Text.ElideRight
+                                }
+
+                                // Missing badge
+                                Rectangle {
+                                    visible: repoDelegate.isMissing
+                                    width: missingLabel.width + 10
+                                    height: 18
+                                    radius: 9
+                                    color: Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.15)
+                                    border.color: Kirigami.Theme.negativeTextColor
+                                    border.width: 1
+
+                                    QQC2.Label {
+                                        id: missingLabel
+                                        anchors.centerIn: parent
+                                        text: qsTr("Missing")
+                                        font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                        font.bold: true
+                                        color: Kirigami.Theme.negativeTextColor
+                                    }
                                 }
 
                                 Item { Layout.fillWidth: true }
 
                                 // Changed files badge if any
                                 Rectangle {
-                                    visible: repoDelegate.changedFilesCount > 0
+                                    visible: !repoDelegate.isMissing && repoDelegate.changedFilesCount > 0
                                     width: countLabel.width + 10
                                     height: 18
                                     radius: 9
@@ -270,10 +292,9 @@ QQC2.Popup {
                         ListView.view.requestClose();
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
+                    TapHandler {
                         acceptedButtons: Qt.RightButton
-                        onClicked: {
+                        onTapped: {
                             repoContextMenu.targetRepoId = repoDelegate.repoId;
                             repoContextMenu.targetRepoPath = repoDelegate.path;
                             repoContextMenu.targetRepoName = repoDelegate.name;
@@ -297,7 +318,6 @@ QQC2.Popup {
                 Layout.fillWidth: true
                 text: qsTr("Add Local...")
                 icon.name: "list-add"
-                highlighted: true
                 onClicked: {
                     repoDropdownPopup.close();
                     appController.openLocalRepositoryDialog();
@@ -306,7 +326,18 @@ QQC2.Popup {
 
             QQC2.Button {
                 Layout.fillWidth: true
-                text: qsTr("Switch Backend...")
+                text: qsTr("Clone...")
+                icon.name: "download"
+                highlighted: true
+                onClicked: {
+                    repoDropdownPopup.close();
+                    appController.showCloneDialog();
+                }
+            }
+
+            QQC2.Button {
+                Layout.fillWidth: true
+                text: qsTr("Backend...")
                 icon.name: "view-refresh"
                 onClicked: {
                     repoDropdownPopup.close();

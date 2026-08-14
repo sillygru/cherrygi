@@ -25,6 +25,7 @@ public:
     void refresh();
 
     bool isOpen() const { return !m_gitDir.isEmpty(); }
+    bool directReadSupported() const { return m_directReadSupported; }
     QString workTreePath() const { return m_workTree; }
     QString gitDirPath() const { return m_headGitDir.isEmpty() ? m_gitDir : m_headGitDir; }
     QString commonGitDirPath() const { return m_gitDir; }
@@ -47,27 +48,50 @@ private:
         quint64 offset{0};
     };
 
+    struct PackIndex {
+        QString packPath;
+        QByteArray data;
+        quint32 objectCount{0};
+        int namesOffset{0};
+        int crcOffset{0};
+        int offsetsOffset{0};
+        int largeOffsetsOffset{0};
+    };
+
+    bool detectDirectReadSupport() const;
     QString resolveGitDir(const QString &path) const;
     QString readRef(const QString &refName) const;
     QString readHeadRef() const;
     QString resolveObjectId(const QString &sha) const;
     void loadPackedRefs() const;
     void loadPackIndexes() const;
+    std::optional<PackLocation> findPackLocation(const QString &sha) const;
 
     std::optional<GitObject> readObject(const QString &sha, int depth = 0) const;
     std::optional<GitObject> readLooseObject(const QString &sha) const;
     std::optional<GitObject> readPackedObject(const QString &sha, int depth) const;
     std::optional<GitObject> readPackEntry(const PackLocation &location, int depth) const;
 
+    struct TreeEntry {
+        QString mode;
+        QString name;
+        QString sha;
+        bool isTree{false};
+    };
+
     std::optional<CommitItem> parseCommit(const QString &sha, bool includeFiles) const;
+    QList<TreeEntry> readTreeEntries(const QString &treeSha) const;
     QHash<QString, QString> readTree(const QString &treeSha, const QString &prefix, int depth = 0) const;
     void populateChangedFiles(CommitItem &commit, const QString &parentSha) const;
+    void diffTrees(const QString &oldTreeSha, const QString &newTreeSha, const QString &prefix, QList<FileChange> &result, int depth = 0) const;
+    void collectAllTreeFiles(const QString &treeSha, const QString &prefix, FileChangeType type, QList<FileChange> &result, int depth = 0) const;
     QList<FileChange> changedFilesBetweenTrees(const QString &oldTree, const QString &newTree) const;
     QList<StashItem> readStashReflog() const;
 
     static quint32 readBigEndian32(const QByteArray &data, int offset);
     static quint64 readBigEndian64(const QByteArray &data, int offset);
     static QString objectId(const QByteArray &bytes);
+    static QByteArray hexToBinary(const QString &hex);
     static QByteArray inflateBytes(const QByteArray &compressed, int *consumed = nullptr);
     static QByteArray inflateFile(QFile &file);
     static QByteArray applyDelta(const QByteArray &base, const QByteArray &delta);
@@ -77,11 +101,12 @@ private:
     QString m_workTree;
     QString m_gitDir;
     QString m_headGitDir; // per-worktree gitdir; m_gitDir may be the shared common dir
+    bool m_directReadSupported{true};
 
     mutable bool m_packedRefsLoaded{false};
     mutable bool m_packIndexesLoaded{false};
     mutable QHash<QString, QString> m_packedRefs;
-    mutable QHash<QString, PackLocation> m_packLocations;
+    mutable QList<PackIndex> m_packIndexes;
     mutable QHash<QString, GitObject> m_objectCache;
     mutable QRecursiveMutex m_mutex;
 };

@@ -1,99 +1,82 @@
-# AGENTS.md - Developer & Agent Guide for cherrygi
+# AGENTS.md — cherrygi
 
-Welcome to the `cherrygi` repository. This file serves as an architectural briefing, codebase roadmap, and development handbook for AI agents and human contributors.
+Native KDE Plasma Git client (Kirigami 6 / Qt Quick) mirroring GitHub Desktop's UI and workflow. This file is instructions for AI coding agents, not documentation for humans. Keep it factual, current, and under 150 lines; update it in the same change that changes a convention.
 
----
+## Stack
 
-## 1. Project Overview
+- C++20, Qt 6.5+, KF6 (Kirigami, CoreAddons, I18n, IconThemes, ColorScheme, Config), CMake 3.20+, zlib.
+- QML/Quick module `org.kde.cherrygi`; `CherryStyle.qml` is a QML singleton (see `QT_QML_SINGLETON_TYPE` in CMakeLists).
+- Two interchangeable backends behind `IGitService`: `GitCliService` (default; hybrid — CLI mutations plus direct `.git` reader for reads) and `MockGitService` (in-memory demo).
+- No external services; all Git I/O is local via the `git` CLI or `GitRepositoryReader`.
 
-- **Name**: `cherrygi`
-- **Purpose**: Native KDE Plasma (Kirigami / Qt 6 / Breeze) Git client matching GitHub Desktop's user interface structure and workflow conventions.
-- **Languages**: C++20, QML (QtQuick / Kirigami 6), CMake.
-- **Execution Policy**: Do **not** execute/launch the UI directly unless explicitly requested; build validation must be done via `cmake --build build`.
+## Commands
 
----
+- Configure: `cmake -B build`
+- Build (the only automated check): `cmake --build build`
+- Clean build: `rm -rf build && cmake -B build && cmake --build build`
+- There is no test target and no `ctest`. Do not invent one. Build success is the validation gate.
+- Do **not** launch/execute the UI unless explicitly asked.
 
-## 2. Directory Layout
+## Code style — C++
 
-```
-cherrygi/
-├── CMakeLists.txt                 # Main CMake project configuration (KF6 + Qt6)
-├── AGENTS.md                      # Agent & Developer briefing (this document)
-├── README.md                      # User-facing manual and features overview
-├── docs/
-│   ├── architecture.md            # Deep-dive on C++ architecture, models, and QML integration
-│   ├── ui_guide.md                # Mapping GitHub Desktop components to KDE Plasma / Breeze
-│   └── git_service_transition.md  # Hybrid Git CLI and direct .git reader guide
-└── src/
-    ├── main.cpp                   # Application entry point, QML engine initialization
-    ├── core/
-    │   ├── Types.h                # Data structures: FileChange, CommitItem, DiffLine, StashItem, etc.
-    │   ├── IGitService.h          # Abstract interface defining Git backend operations
-    │   ├── GitCliService.h/.cpp   # Hybrid backend: CLI mutations plus cached direct reads
-    │   ├── GitRepositoryReader.h/.cpp # Direct .git refs/object/commit reader using zlib
-    │   ├── MockGitService.h/.cpp  # Stateful in-memory mock implementation
-    │   └── AppController.h/.cpp   # Central QObject coordinating state, models, and actions
-    ├── models/
-    │   ├── RepositoryListModel    # QAbstractListModel for repositories
-    │   ├── BranchListModel        # QAbstractListModel with branch search filtering
-    │   ├── ChangedFilesModel      # QAbstractListModel for staged/changed files
-    │   ├── CommitHistoryModel     # QAbstractListModel for searchable commit history
-    │   ├── DiffModel              # QAbstractListModel for line-by-line diff rendering
-    │   └── StashModel             # QAbstractListModel for stashed changes
-    └── qml/
-        ├── Main.qml               # Root Kirigami.ApplicationWindow
-        ├── style/
-        │   └── CherryStyle.qml    # Theme metrics, Breeze colors, typography singleton
-        └── components/
-            ├── HeaderBar.qml      # 3-segmented header (Repo, Branch, Remote, Backend Switcher)
-            ├── BackendSelectionDialog.qml # Startup mode chooser (Real Git vs Mock Demo)
-            ├── RepoDropdown.qml   # Repository switcher popup with folder picker & context menu
-            ├── BranchDropdown.qml # Branch switcher and inline creator
-            ├── RemoteDropdown.qml # Fetch, Pull, Push, PR, Terminal, File Manager actions
-            ├── SidebarPanel.qml   # Changes / History tab switcher
-            ├── ChangesTab.qml     # Changed files list with checkboxes, status badges, stash row
-            ├── HistoryTab.qml     # Searchable commit history list
-            ├── CommitBox.qml      # Commit summary, description, co-authors, undo banner
-            ├── MainContentArea.qml# Right content container (Diff vs Stash vs Commit Inspector)
-            ├── DiffHeader.qml     # Diff navigation and display controls
-            ├── DiffViewer.qml     # Unified and Split (side-by-side) diff viewer
-            ├── CommitInspector.qml# Detailed historical commit viewer
-            ├── StashInspector.qml # Stashed changes viewer with restore and discard actions
-            └── UndoToast.qml      # Floating feedback banner
+- 4-space indent, `#pragma once`, all project code in `namespace Cherry`.
+- Members prefixed `m_`; local functions camelCase; `enum class` and plain structs in `Types.h`.
+- New structs used as model data must be registered with `Q_DECLARE_METATYPE` and use member-init defaults (`int count{0};`).
+- Models are `QAbstractListModel` subclasses exposing roles as camelCase names.
+
+```cpp
+// Data-flow pattern (RepositoryListModel.cpp)
+QVariant RepositoryListModel::data(const QModelIndex &index, int role) const
+{
+    if (!index.isValid() || index.row() >= m_repos.size()) return QVariant();
+    const auto &repo = m_repos[index.row()];
+    switch (role) {
+    case NameRole:   return repo.name;
+    case IsMissingRole: return repo.isMissing;
+    default:         return QVariant();
+    }
+}
 ```
 
----
+## Code style — QML
 
-## 3. Build & Test Commands
+- Import order: `QtQuick`, `QtQuick.Controls as QQC2`, `QtQuick.Layouts`, `org.kde.kirigami as Kirigami`, `org.kde.cherrygi`, then relative `../style`.
+- Every component gets `id: root`, lives in `src/qml/components/`, and talks to the app only via the `appController` singleton.
+- Use `CherryStyle` tokens and `Kirigami.Theme` for all colors/dimensions — never hardcode color values (see `UndoToast.qml` for the pattern).
 
-### Configure & Build
-```bash
-cmake -B build
-cmake --build build
+## Architecture
+
+```
+IGitService → AppController → Qt Item Models → QML
 ```
 
-### Clean Build
-```bash
-rm -rf build
-cmake -B build
-cmake --build build
-```
+- QML never calls `IGitService` or Git directly; only `AppController` talks to the service.
+- New features must work on both `GitCliService` and `MockGitService`.
+- Renames carry `oldFilePath` on `FileChange`; pass it through (`getDiffForFile(path, oldPath)`, `getDiffForCommitFile(sha, path, oldPath)`).
+- Image diffs render via `GitImageProvider` + `ImageDiffViewer.qml`; keep blob reads on the service layer.
 
----
+## State invariants (keep these true)
 
-## 4. Architectural Rules & Guidelines
+- **Commit**: stage selected files → snapshot for undo → update ahead count → clear summary/description.
+- **Undo**: restore uncommitted files → pop commit → restore summary/description → decrement ahead count.
+- **Stash**: selecting a stash sets `selectedStashId` and shows `StashInspector`; popping/dropping clears the selection and restores/drops the snapshot in the service.
 
-1. **Clean Service Decoupling**:
-   - Never couple QML components directly to Git engine details.
-   - All Git data flows through `IGitService` -> `AppController` -> Qt Item Models -> QML.
-2. **KDE Plasma & Breeze Aesthetics**:
-   - Use `Kirigami.Theme` and `CherryStyle` for all colors and dimensions.
-   - Never hardcode arbitrary colors; use semantic tokens (`positiveTextColor`, `negativeTextColor`, `highlightColor`).
-3. **State Invariants**:
-   - Committing files must stage selected changes, generate an undo snapshot, update ahead count, and clear input fields.
-   - Undoing a commit must restore uncommitted files, pop the commit from history, restore summary/description text, and decrement ahead count.
-   - Selecting a stash updates `selectedStashId` and displays `StashInspector` in the main content area with its stashed file diffs.
-   - Popping or dropping a stash clears the stash selection and restores/drops the snapshot in the service.
-4. **Git Commits**:
-   - Make logical incremental commits locally when implementing new features or bug fixes.
-   - Do not push commits to remote repositories unless requested.
+## Boundaries — do not
+
+- Auto-stage or `git add .`; changed files are staged explicitly per-file from the UI.
+- Hardcode colors, sizes, or strings that already exist as `CherryStyle` tokens or `Kirigami.Theme`.
+- Push to remotes, or rewrite history, unless explicitly requested.
+- Touch generated/install artifacts (`build/`, `.desktop` metadata, icon assets) except when the change is intentional.
+
+## Git workflow
+
+- Make logical incremental local commits when implementing features or fixes; never push unless asked.
+- Commit messages follow the existing log: short imperative summary, optional `feat:`/`fix:`/`refactor:`/`docs:` prefix, one topic per commit.
+
+## Key files
+
+- `src/core/IGitService.h` — service interface; all Git capabilities live here.
+- `src/core/AppController.h` — central QObject; QML-facing state and actions.
+- `src/core/GitCliService.cpp` — hybrid backend (CLI + direct `.git` reader).
+- `src/qml/Main.qml` — root `Kirigami.ApplicationWindow`.
+- `docs/architecture.md`, `docs/git_service_transition.md` — deeper context when needed.

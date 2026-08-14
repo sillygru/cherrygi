@@ -24,7 +24,9 @@ public:
         CoAuthorsRole,
         CoAuthorsTextRole,
         ChangedFilesCountRole,
-        IsLocalRole
+        IsLocalRole,
+        AuthorColorRole,
+        AuthorInitialRole
     };
 
     explicit CommitHistoryModel(IGitService *service, QObject *parent = nullptr);

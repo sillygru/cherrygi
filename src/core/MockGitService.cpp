@@ -25,7 +25,9 @@ void MockGitService::initializeMockData()
         3, // changedFilesCount
         0, // aheadCount
         3, // behindCount
-        "Last fetched 8 minutes ago"
+        "Last fetched 8 minutes ago",
+        false,
+        "https://github.com/desktop/desktop.git"
     };
 
     desktopRepo.currentBranch = "file-status-tooltip";
@@ -210,7 +212,9 @@ void MockGitService::initializeMockData()
         "/run/media/gru/fatkingston/code/gitclone",
         "main",
         1, 1, 0,
-        "Last fetched 2 minutes ago"
+        "Last fetched 2 minutes ago",
+        false,
+        "https://github.com/cherry/cherrygi.git"
     };
     cherryRepo.currentBranch = "main";
     cherryRepo.branches = {
@@ -254,7 +258,9 @@ void MockGitService::initializeMockData()
         "/home/developer/kde/plasma-workspace",
         "master",
         2, 0, 12,
-        "Last fetched 1 hour ago"
+        "Last fetched 1 hour ago",
+        false,
+        "https://invent.kde.org/plasma/plasma-workspace.git"
     };
     plasmaRepo.currentBranch = "master";
     plasmaRepo.branches = {
@@ -344,7 +350,7 @@ bool MockGitService::addRepository(const QString &name, const QString &path)
 {
     QString id = "repo-" + QString::number(QRandomGenerator::global()->generate());
     RepoState newRepo;
-    newRepo.info = {id, name, path, "main", 0, 0, 0, "Just now"};
+    newRepo.info = {id, name, path, "main", 0, 0, 0, "Just now", false, ""};
     newRepo.currentBranch = "main";
     newRepo.branches = {{"main", true, true, false, "", false, "init123"}};
     newRepo.remoteStatus.hasRemote = false;
@@ -379,6 +385,39 @@ bool MockGitService::removeRepository(const QString &repoIdOrPath)
         }
     }
     return false;
+}
+
+bool MockGitService::relocateRepository(const QString &oldPath, const QString &newPath)
+{
+    for (auto it = m_repositories.begin(); it != m_repositories.end(); ++it) {
+        if (it.value().info.path == oldPath || it.value().info.id == oldPath) {
+            it.value().info.path = newPath;
+            it.value().info.isMissing = false;
+            openRepository(it.key());
+            emit operationSucceeded("Repository location updated");
+            return true;
+        }
+    }
+    return false;
+}
+
+bool MockGitService::cloneRepository(const QString &url, const QString &targetPath)
+{
+    QString name = QFileInfo(targetPath).fileName();
+    if (name.isEmpty()) name = "Cloned-Repo";
+    addRepository(name, targetPath);
+    if (auto *s = activeState()) {
+        s->info.remoteUrl = url;
+        s->remoteStatus.hasRemote = true;
+        s->remoteStatus.remoteUrl = url;
+    }
+    emit operationSucceeded(QString("Cloned repository '%1'").arg(name));
+    return true;
+}
+
+bool MockGitService::recheckRepository(const QString &pathOrId)
+{
+    return openRepository(pathOrId.isEmpty() ? m_currentRepoId : pathOrId);
 }
 
 QList<BranchInfo> MockGitService::getBranches()
@@ -536,13 +575,13 @@ bool MockGitService::discardAllChanges()
     return true;
 }
 
-QList<DiffLine> MockGitService::getDiffForFile(const QString &filePath)
+QList<DiffLine> MockGitService::getDiffForFile(const QString &filePath, const QString &oldFilePath)
 {
     auto *state = activeState();
     if (!state) return {};
 
     for (const auto &f : state->changedFiles) {
-        if (f.filePath == filePath) {
+        if (f.filePath == filePath || (!oldFilePath.isEmpty() && (f.oldFilePath == oldFilePath || f.filePath == oldFilePath))) {
             return f.diffLines;
         }
     }
@@ -555,7 +594,7 @@ bool MockGitService::isFileMetadataOnly(const QString &filePath)
     return false;
 }
 
-QList<DiffLine> MockGitService::getDiffForCommitFile(const QString &commitSha, const QString &filePath)
+QList<DiffLine> MockGitService::getDiffForCommitFile(const QString &commitSha, const QString &filePath, const QString &oldFilePath)
 {
     auto *state = activeState();
     if (!state) return {};
@@ -563,7 +602,7 @@ QList<DiffLine> MockGitService::getDiffForCommitFile(const QString &commitSha, c
     for (const auto &c : state->commitHistory) {
         if (c.sha == commitSha || c.shortSha == commitSha) {
             for (const auto &f : c.changedFiles) {
-                if (f.filePath == filePath) {
+                if (f.filePath == filePath || (!oldFilePath.isEmpty() && (f.oldFilePath == oldFilePath || f.filePath == oldFilePath))) {
                     return f.diffLines;
                 }
             }

@@ -9,6 +9,24 @@ ColumnLayout {
     id: root
     spacing: 0
 
+    QQC2.Dialog {
+        id: discardAllDialog
+        title: qsTr("Discard all changes?")
+        modal: true
+        standardButtons: QQC2.Dialog.Yes | QQC2.Dialog.No
+        parent: QQC2.Overlay.overlay
+        anchors.centerIn: parent
+
+        contentItem: QQC2.Label {
+            text: qsTr("This will discard all staged and unstaged tracked changes and permanently delete untracked files and directories. This cannot be undone.")
+            wrapMode: Text.WordWrap
+            padding: Kirigami.Units.largeSpacing
+            color: Kirigami.Theme.textColor
+        }
+
+        onAccepted: appController.discardAllChanges()
+    }
+
     // Stash detail / drop popup
     QQC2.Menu {
         id: stashContextMenu
@@ -29,6 +47,25 @@ ColumnLayout {
         }
     }
 
+    QQC2.Dialog {
+        id: discardFileDialog
+        property string targetFilePath: ""
+        title: qsTr("Discard changes?")
+        modal: true
+        standardButtons: QQC2.Dialog.Yes | QQC2.Dialog.No
+        parent: QQC2.Overlay.overlay
+        anchors.centerIn: parent
+
+        contentItem: QQC2.Label {
+            text: qsTr("Discard all staged and unstaged changes for '%1'? This cannot be undone.").arg(discardFileDialog.targetFilePath)
+            wrapMode: Text.WordWrap
+            padding: Kirigami.Units.largeSpacing
+            color: Kirigami.Theme.textColor
+        }
+
+        onAccepted: appController.discardFileChanges(targetFilePath)
+    }
+
     // File context menu
     QQC2.Menu {
         id: fileContextMenu
@@ -44,7 +81,10 @@ ColumnLayout {
             text: qsTr("Discard Changes...")
             icon.name: "edit-delete"
             enabled: !appController.isOperating
-            onTriggered: appController.discardFileChanges(fileContextMenu.targetFilePath)
+            onTriggered: {
+                discardFileDialog.targetFilePath = fileContextMenu.targetFilePath;
+                discardFileDialog.open();
+            }
         }
 
         QQC2.MenuItem {
@@ -106,7 +146,7 @@ ColumnLayout {
                 enabled: !appController.isOperating
                 QQC2.ToolTip.text: qsTr("Discard all changes")
                 QQC2.ToolTip.visible: hovered
-                onClicked: appController.discardAllChanges()
+                onClicked: discardAllDialog.open()
             }
         }
     }
@@ -121,7 +161,7 @@ ColumnLayout {
             id: fileListView
             model: appController.changedFiles
             spacing: 2
-            reuseItems: false
+            reuseItems: true
 
             // Empty state placeholder
             Item {
@@ -167,6 +207,7 @@ ColumnLayout {
                 required property int index
                 required property string fileId
                 required property string filePath
+                required property string oldFilePath
                 required property string fileName
                 required property string fileDir
                 required property int status
@@ -230,7 +271,9 @@ ColumnLayout {
 
                     // File path
                     QQC2.Label {
-                        text: fileDelegate.filePath
+                        text: (fileDelegate.oldFilePath && fileDelegate.oldFilePath !== fileDelegate.filePath)
+                            ? (fileDelegate.oldFilePath + " → " + fileDelegate.filePath)
+                            : fileDelegate.filePath
                         font.pixelSize: CherryStyle.smallFont.pixelSize
                         font.bold: fileDelegate.highlighted
                         color: fileDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
@@ -427,7 +470,7 @@ ColumnLayout {
                 id: stashedFilesList
                 Layout.fillWidth: true
                 implicitHeight: Math.min(count * 28, 120)
-                visible: stashSection.isExpanded && appController.selectedStashData && appController.selectedStashData.files && appController.selectedStashData.files.length > 0
+                visible: Boolean(stashSection.isExpanded && appController.selectedStashData && appController.selectedStashData.files && appController.selectedStashData.files.length > 0)
                 model: (appController.selectedStashData && appController.selectedStashData.files) ? appController.selectedStashData.files : []
                 clip: true
                 spacing: 1
@@ -451,14 +494,30 @@ ColumnLayout {
                         spacing: 4
 
                         Kirigami.Icon {
-                            source: "document-edit"
+                            source: {
+                                var isPathChange = Boolean(modelData.oldFilePath && modelData.oldFilePath !== modelData.filePath);
+                                var st = modelData.status;
+                                if (isPathChange || st === 3) return "arrow-right";
+                                if (st === 1 || st === 4) return "list-add";
+                                if (st === 2) return "list-remove";
+                                return "document-edit";
+                            }
                             width: 11
                             height: 11
-                            color: "#e5a50a"
+                            color: {
+                                var isPathChange = Boolean(modelData.oldFilePath && modelData.oldFilePath !== modelData.filePath);
+                                var st = modelData.status;
+                                if (isPathChange || st === 3) return CherryStyle.renamedColor;
+                                if (st === 1 || st === 4) return CherryStyle.additionColor;
+                                if (st === 2) return CherryStyle.deletionColor;
+                                return CherryStyle.modifiedColor;
+                            }
                         }
 
                         QQC2.Label {
-                            text: modelData.filePath
+                            text: (modelData.oldFilePath && modelData.oldFilePath !== modelData.filePath)
+                                ? (modelData.oldFilePath + " → " + modelData.filePath)
+                                : modelData.filePath
                             font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                             color: Kirigami.Theme.textColor
                             elide: Text.ElideMiddle

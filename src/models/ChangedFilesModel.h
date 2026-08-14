@@ -16,6 +16,7 @@ public:
     enum FileChangeRoles {
         IdRole = Qt::UserRole + 1,
         FilePathRole,
+        OldFilePathRole,
         FileNameRole,
         FileDirRole,
         StatusRole,

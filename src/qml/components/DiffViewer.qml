@@ -163,7 +163,7 @@ ColumnLayout {
                 width: parent.width
                 model: appController.diffModel
                 spacing: 0
-                reuseItems: false
+                reuseItems: true
 
                 delegate: Rectangle {
                     id: unifiedLineDelegate
@@ -300,7 +300,7 @@ ColumnLayout {
                     Layout.fillHeight: true
                     model: appController.diffModel
                     spacing: 0
-                    reuseItems: false
+                    reuseItems: true
 
                     delegate: Rectangle {
                         id: splitLeftDelegate
@@ -363,7 +363,7 @@ ColumnLayout {
                     Layout.fillHeight: true
                     model: appController.diffModel
                     spacing: 0
-                    reuseItems: false
+                    reuseItems: true
 
                     delegate: Rectangle {
                         id: splitRightDelegate

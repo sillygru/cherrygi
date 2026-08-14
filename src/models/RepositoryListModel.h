@@ -19,7 +19,9 @@ public:
         ChangedFilesCountRole,
         AheadCountRole,
         BehindCountRole,
-        LastFetchedTimeRole
+        LastFetchedTimeRole,
+        IsMissingRole,
+        RemoteUrlRole
     };
 
     explicit RepositoryListModel(IGitService *service, QObject *parent = nullptr);

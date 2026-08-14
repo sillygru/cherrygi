@@ -14,6 +14,25 @@ Rectangle {
     property int additions: appController.diffModel.additions
     property int deletions: appController.diffModel.deletions
 
+    QQC2.Dialog {
+        id: discardDialog
+        property string targetFilePath: ""
+        title: qsTr("Discard changes?")
+        modal: true
+        standardButtons: QQC2.Dialog.Yes | QQC2.Dialog.No
+        parent: QQC2.Overlay.overlay
+        anchors.centerIn: parent
+
+        contentItem: QQC2.Label {
+            text: qsTr("Discard all staged and unstaged changes for '%1'? This cannot be undone.").arg(discardDialog.targetFilePath)
+            wrapMode: Text.WordWrap
+            padding: Kirigami.Units.largeSpacing
+            color: Kirigami.Theme.textColor
+        }
+
+        onAccepted: appController.discardFileChanges(targetFilePath)
+    }
+
     QQC2.Menu {
         id: diffOptionsMenu
 
@@ -21,7 +40,10 @@ Rectangle {
             text: qsTr("Discard Changes...")
             icon.name: "edit-delete"
             enabled: root.filePath.length > 0
-            onTriggered: appController.discardFileChanges(root.filePath)
+            onTriggered: {
+                discardDialog.targetFilePath = root.filePath;
+                discardDialog.open();
+            }
         }
 
         QQC2.MenuItem {
@@ -162,6 +184,7 @@ Rectangle {
                 checkable: true
                 checked: appController.diffModel.imageDiffMode === "2-up"
                 QQC2.ToolTip.text: qsTr("Side-by-side 2-Up Image Comparison")
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                 QQC2.ToolTip.visible: hovered
                 onClicked: appController.diffModel.imageDiffMode = "2-up"
             }
@@ -172,6 +195,7 @@ Rectangle {
                 checkable: true
                 checked: appController.diffModel.imageDiffMode === "swipe"
                 QQC2.ToolTip.text: qsTr("Swipe Slider Split Image Comparison")
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                 QQC2.ToolTip.visible: hovered
                 onClicked: appController.diffModel.imageDiffMode = "swipe"
             }
@@ -182,6 +206,7 @@ Rectangle {
                 checkable: true
                 checked: appController.diffModel.imageDiffMode === "onion"
                 QQC2.ToolTip.text: qsTr("Onion Skin Opacity Blending")
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                 QQC2.ToolTip.visible: hovered
                 onClicked: appController.diffModel.imageDiffMode = "onion"
             }
@@ -192,6 +217,7 @@ Rectangle {
             icon.name: "accessories-text-editor"
             visible: root.filePath.length > 0
             QQC2.ToolTip.text: qsTr("Open file in external editor")
+            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             QQC2.ToolTip.visible: hovered
             onClicked: appController.openInEditor(root.filePath)
         }
@@ -203,6 +229,7 @@ Rectangle {
             checked: appController.diffViewMode === "split"
             visible: !appController.diffModel.isImage && root.filePath.length > 0
             QQC2.ToolTip.text: appController.diffViewMode === "split" ? qsTr("Switch to Unified Diff") : qsTr("Switch to Split Diff")
+            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             QQC2.ToolTip.visible: hovered
             onClicked: {
                 appController.diffViewMode = (appController.diffViewMode === "split") ? "unified" : "split";
@@ -216,6 +243,7 @@ Rectangle {
             checked: appController.showWhitespace
             visible: !appController.diffModel.isImage && root.filePath.length > 0
             QQC2.ToolTip.text: appController.showWhitespace ? qsTr("Hide Whitespace Changes") : qsTr("Show Whitespace Changes")
+            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             QQC2.ToolTip.visible: hovered
             onClicked: {
                 appController.showWhitespace = !appController.showWhitespace;

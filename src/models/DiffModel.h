@@ -60,9 +60,9 @@ public:
     QString imageDiffMode() const { return m_imageDiffMode; }
     void setImageDiffMode(const QString &mode);
 
-    Q_INVOKABLE void loadDiffForFile(const QString &filePath);
-    Q_INVOKABLE void loadDiffForCommit(const QString &commitSha, const QString &filePath);
-    Q_INVOKABLE void loadDiffForStash(const QString &stashId, const QString &filePath);
+    Q_INVOKABLE void loadDiffForFile(const QString &filePath, const QString &oldFilePath = QString());
+    Q_INVOKABLE void loadDiffForCommit(const QString &commitSha, const QString &filePath, const QString &oldFilePath = QString());
+    Q_INVOKABLE void loadDiffForStash(const QString &stashId, const QString &filePath, const QString &oldFilePath = QString());
     Q_INVOKABLE void clear();
     void setService(IGitService *service);
 
@@ -92,7 +92,7 @@ private:
 
     void setDiffLines(const QList<DiffLine> &lines);
     void loadDiffAsync(std::function<DiffLoadResult()> loader);
-    static void populateImageInfo(IGitService *service, const QString &filePath, const QString &oldRef, const QString &newRef, DiffLoadResult &result);
+    static void populateImageInfo(IGitService *service, const QString &oldPath, const QString &newPath, const QString &oldRef, const QString &newRef, DiffLoadResult &result);
 
     IGitService *m_service;
     QString m_filePath;

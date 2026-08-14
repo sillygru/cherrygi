@@ -45,6 +45,10 @@ QVariant RepositoryListModel::data(const QModelIndex &index, int role) const
         return repo.behindCount;
     case LastFetchedTimeRole:
         return repo.lastFetchedTime;
+    case IsMissingRole:
+        return repo.isMissing;
+    case RemoteUrlRole:
+        return repo.remoteUrl;
     default:
         return QVariant();
     }
@@ -61,7 +65,9 @@ QHash<int, QByteArray> RepositoryListModel::roleNames() const
         {ChangedFilesCountRole, "changedFilesCount"},
         {AheadCountRole, "aheadCount"},
         {BehindCountRole, "behindCount"},
-        {LastFetchedTimeRole, "lastFetchedTime"}
+        {LastFetchedTimeRole, "lastFetchedTime"},
+        {IsMissingRole, "isMissing"},
+        {RemoteUrlRole, "remoteUrl"}
     };
 }
 

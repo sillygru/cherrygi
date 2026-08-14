@@ -14,6 +14,7 @@ QtObject {
     readonly property color highlightedTextColor: Kirigami.Theme.highlightedTextColor
 
     // Surface elevation levels for hierarchy and visual weight
+    readonly property color surfaceBackground: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.04))
     readonly property color surfaceHeader: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08))
     readonly property color surfaceSidebar: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.05))
     readonly property color surfacePopup: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.12))
@@ -42,8 +43,11 @@ QtObject {
     readonly property color deletionBg: Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.22)
     readonly property color deletionGutterBg: Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.35)
 
-    readonly property color modifiedColor: "#e5a50a"
-    readonly property color modifiedBg: Qt.rgba(0.9, 0.65, 0.04, 0.22)
+    readonly property color modifiedColor: Kirigami.Theme.neutralTextColor
+    readonly property color modifiedBg: Qt.rgba(Kirigami.Theme.neutralTextColor.r, Kirigami.Theme.neutralTextColor.g, Kirigami.Theme.neutralTextColor.b, 0.22)
+
+    readonly property color renamedColor: Kirigami.Theme.highlightColor
+    readonly property color renamedBg: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.22)
 
     readonly property color hunkHeaderBg: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.20)
     readonly property color hunkHeaderColor: Kirigami.Theme.highlightColor
@@ -63,6 +67,11 @@ QtObject {
 
     // Dynamic font metrics with robust fallbacks
     readonly property int basePixelSize: (Kirigami.Theme.defaultFont && Kirigami.Theme.defaultFont.pixelSize > 0) ? Kirigami.Theme.defaultFont.pixelSize : 13
+
+    readonly property font defaultFont: Qt.font({
+        family: Kirigami.Theme.defaultFont ? Kirigami.Theme.defaultFont.family : "sans-serif",
+        pixelSize: basePixelSize
+    })
 
     readonly property font codeFont: Qt.font({
         family: "Monospace, Source Code Pro, Hack, JetBrains Mono, Fira Code, monospace",

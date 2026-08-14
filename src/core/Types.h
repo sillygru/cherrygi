@@ -74,6 +74,8 @@ struct RepositoryInfo {
     int aheadCount{0};
     int behindCount{0};
     QString lastFetchedTime;
+    bool isMissing{false};
+    QString remoteUrl;
 };
 
 struct StashItem {

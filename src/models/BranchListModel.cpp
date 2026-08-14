@@ -97,9 +97,10 @@ void BranchListModel::applyFilter()
         m_filteredBranches = m_allBranches;
     } else {
         m_filteredBranches.clear();
-        const QString lower = m_filterText.trimmed().toLower();
+        const QString filter = m_filterText.trimmed();
+        m_filteredBranches.reserve(m_allBranches.size());
         for (const auto &b : m_allBranches) {
-            if (b.name.toLower().contains(lower) || b.prNumber.toLower().contains(lower)) {
+            if (b.name.contains(filter, Qt::CaseInsensitive) || (!b.prNumber.isEmpty() && b.prNumber.contains(filter, Qt::CaseInsensitive))) {
                 m_filteredBranches.append(b);
             }
         }

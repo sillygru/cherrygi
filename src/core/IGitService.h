@@ -19,6 +19,9 @@ public:
     virtual bool openRepository(const QString &pathOrId) = 0;
     virtual bool addRepository(const QString &name, const QString &path) = 0;
     virtual bool removeRepository(const QString &repoIdOrPath) = 0;
+    virtual bool relocateRepository(const QString &oldPath, const QString &newPath) = 0;
+    virtual bool cloneRepository(const QString &url, const QString &targetPath) = 0;
+    virtual bool recheckRepository(const QString &pathOrId) = 0;
     virtual void refreshRepository() = 0;
 
     // Branches
@@ -36,9 +39,9 @@ public:
     virtual bool discardAllChanges() = 0;
 
     // Diff & Blobs
-    virtual QList<DiffLine> getDiffForFile(const QString &filePath) = 0;
+    virtual QList<DiffLine> getDiffForFile(const QString &filePath, const QString &oldFilePath = QString()) = 0;
     virtual bool isFileMetadataOnly(const QString &filePath) = 0;
-    virtual QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath) = 0;
+    virtual QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath, const QString &oldFilePath = QString()) = 0;
     virtual QList<DiffLine> getDiffForStashFile(const QString &stashId, const QString &filePath) = 0;
     virtual QByteArray getFileBlob(const QString &filePath, const QString &ref = QString()) = 0;
     virtual bool isImageFile(const QString &filePath) const = 0;

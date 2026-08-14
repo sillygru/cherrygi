@@ -49,28 +49,42 @@ Kirigami.ApplicationWindow {
         }
 
         // ==========================================
-        // MAIN WORKSPACE (SplitView: Left Sidebar + Right Content)
+        // MAIN WORKSPACE (Normal SplitView vs Missing Repository View)
         // ==========================================
-        QQC2.SplitView {
-            id: mainSplitView
+        StackLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            orientation: Qt.Horizontal
+            currentIndex: appController.isCurrentRepoMissing ? 1 : 0
 
-            // Left Sidebar
-            SidebarPanel {
-                id: sidebar
-                QQC2.SplitView.preferredWidth: 380
-                QQC2.SplitView.minimumWidth: 300
-                QQC2.SplitView.maximumWidth: 550
-                QQC2.SplitView.fillHeight: true
+            // Normal Workspace
+            QQC2.SplitView {
+                id: mainSplitView
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                orientation: Qt.Horizontal
+
+                // Left Sidebar
+                SidebarPanel {
+                    id: sidebar
+                    QQC2.SplitView.preferredWidth: 380
+                    QQC2.SplitView.minimumWidth: 300
+                    QQC2.SplitView.maximumWidth: 550
+                    QQC2.SplitView.fillHeight: true
+                }
+
+                // Right Main Content (Diff / Commit Inspector)
+                MainContentArea {
+                    id: contentArea
+                    QQC2.SplitView.fillWidth: true
+                    QQC2.SplitView.fillHeight: true
+                }
             }
 
-            // Right Main Content (Diff / Commit Inspector)
-            MainContentArea {
-                id: contentArea
-                QQC2.SplitView.fillWidth: true
-                QQC2.SplitView.fillHeight: true
+            // Missing Repository Full-Screen View
+            MissingRepositoryView {
+                id: missingRepoView
+                Layout.fillWidth: true
+                Layout.fillHeight: true
             }
         }
     }
@@ -116,6 +130,17 @@ Kirigami.ApplicationWindow {
         visible: appController.isPublishDialogVisible
         onClosed: {
             appController.isPublishDialogVisible = false;
+        }
+    }
+
+    // ==========================================
+    // CLONE REPOSITORY MODAL DIALOG
+    // ==========================================
+    CloneRepositoryDialog {
+        id: cloneDialog
+        visible: appController.isCloneDialogVisible
+        onClosed: {
+            appController.isCloneDialogVisible = false;
         }
     }
 

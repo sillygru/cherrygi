@@ -33,6 +33,8 @@ QVariant ChangedFilesModel::data(const QModelIndex &index, int role) const
         return file.id;
     case FilePathRole:
         return file.filePath;
+    case OldFilePathRole:
+        return file.oldFilePath;
     case FileNameRole:
         return fi.fileName();
     case FileDirRole:
@@ -40,6 +42,9 @@ QVariant ChangedFilesModel::data(const QModelIndex &index, int role) const
     case StatusRole:
         return static_cast<int>(file.status);
     case StatusTextRole: {
+        if (!file.oldFilePath.isEmpty() && file.oldFilePath != file.filePath) {
+            return "Renamed";
+        }
         switch (file.status) {
         case FileChangeType::Modified: return "Modified";
         case FileChangeType::Added: return "Added";
@@ -50,24 +55,30 @@ QVariant ChangedFilesModel::data(const QModelIndex &index, int role) const
         return "Modified";
     }
     case StatusIconRole: {
+        if (!file.oldFilePath.isEmpty() && file.oldFilePath != file.filePath) {
+            return "arrow-right";
+        }
         switch (file.status) {
         case FileChangeType::Modified: return "document-edit";
         case FileChangeType::Added: return "list-add";
         case FileChangeType::Deleted: return "list-remove";
-        case FileChangeType::Renamed: return "edit-rename";
+        case FileChangeType::Renamed: return "arrow-right";
         case FileChangeType::Untracked: return "document-new";
         }
         return "document-edit";
     }
     case StatusColorRole: {
+        if (!file.oldFilePath.isEmpty() && file.oldFilePath != file.filePath) {
+            return "#3584e4";  // Blue
+        }
         switch (file.status) {
-        case FileChangeType::Modified: return "#e5a50a"; // Amber/Orange
+        case FileChangeType::Modified: return "#d97706"; // Amber/Orange
         case FileChangeType::Added: return "#2ec27e";    // Green
         case FileChangeType::Deleted: return "#e01b24";  // Red
         case FileChangeType::Renamed: return "#3584e4";  // Blue
         case FileChangeType::Untracked: return "#865e3c";
         }
-        return "#e5a50a";
+        return "#d97706";
     }
     case IsSelectedRole:
         return file.isSelected;
@@ -106,6 +117,7 @@ QHash<int, QByteArray> ChangedFilesModel::roleNames() const
     return {
         {IdRole, "fileId"},
         {FilePathRole, "filePath"},
+        {OldFilePathRole, "oldFilePath"},
         {FileNameRole, "fileName"},
         {FileDirRole, "fileDir"},
         {StatusRole, "status"},

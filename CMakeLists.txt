@@ -106,6 +106,8 @@ qt_add_qml_module(cherrygi
         src/qml/components/ImageDiffViewer.qml
         src/qml/components/CommitInspector.qml
         src/qml/components/StashInspector.qml
+        src/qml/components/MissingRepositoryView.qml
+        src/qml/components/CloneRepositoryDialog.qml
         src/qml/components/UndoToast.qml
 )
 

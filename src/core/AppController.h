@@ -4,6 +4,7 @@
 #include <QString>
 #include <QStringList>
 #include <memory>
+#include <atomic>
 
 #include "IGitService.h"
 #include "GitCliService.h"
@@ -41,6 +42,14 @@ class AppController : public QObject {
     Q_PROPERTY(bool currentBranchPrActive READ currentBranchPrActive NOTIFY currentBranchChanged)
     Q_PROPERTY(QString currentAuthorName READ currentAuthorName NOTIFY currentRepoChanged)
     Q_PROPERTY(QString currentAuthorInitial READ currentAuthorInitial NOTIFY currentRepoChanged)
+    Q_PROPERTY(bool isCurrentRepoMissing READ isCurrentRepoMissing NOTIFY currentRepoChanged)
+    Q_PROPERTY(QString missingRepoPath READ missingRepoPath NOTIFY currentRepoChanged)
+    Q_PROPERTY(QString missingRepoName READ missingRepoName NOTIFY currentRepoChanged)
+    Q_PROPERTY(QString missingRepoRemoteUrl READ missingRepoRemoteUrl NOTIFY currentRepoChanged)
+    Q_PROPERTY(bool isCloneDialogVisible READ isCloneDialogVisible WRITE setCloneDialogVisible NOTIFY cloneDialogVisibleChanged)
+    Q_PROPERTY(QString clonePrefillUrl READ clonePrefillUrl NOTIFY cloneDialogVisibleChanged)
+    Q_PROPERTY(bool isCloning READ isCloning NOTIFY isCloningChanged)
+    Q_PROPERTY(QString cloneProgressMessage READ cloneProgressMessage NOTIFY cloneProgressMessageChanged)
 
     // Remote Sync State & Capabilities
     Q_PROPERTY(bool hasRemote READ hasRemote NOTIFY remoteStatusChanged)
@@ -150,7 +159,7 @@ public:
     bool isLoadingRepository() const { return m_isLoadingRepository; }
     QString loadingRepositoryMessage() const { return m_loadingRepositoryMessage; }
     QString loadingRepositoryName() const { return m_loadingRepositoryName; }
-    bool isOperating() const { return m_isLoadingRepository || m_isPublishing || m_isCommitting || m_isDiscarding || m_isStashing || m_isReverting || isFetching() || isPulling() || isPushing(); }
+    bool isOperating() const { return m_isCloning || m_isLoadingRepository || m_isPublishing || m_isCommitting || m_isDiscarding || m_isStashing || m_isReverting || isFetching() || isPulling() || isPushing(); }
     QString operationMessage() const;
     bool isGhAvailable() const;
 
@@ -205,6 +214,16 @@ public:
     QString localAuthorName() const;
     QString localAuthorEmail() const;
 
+    bool isCurrentRepoMissing() const { return m_isCurrentRepoMissing; }
+    QString missingRepoPath() const { return m_missingRepoPath; }
+    QString missingRepoName() const { return m_missingRepoName; }
+    QString missingRepoRemoteUrl() const { return m_missingRepoRemoteUrl; }
+    bool isCloneDialogVisible() const { return m_isCloneDialogVisible; }
+    void setCloneDialogVisible(bool visible);
+    QString clonePrefillUrl() const { return m_clonePrefillUrl; }
+    bool isCloning() const { return m_isCloning; }
+    QString cloneProgressMessage() const { return m_cloneProgressMessage; }
+
     QString toastMessage() const { return m_toastMessage; }
     bool toastIsError() const { return m_toastIsError; }
     bool toastVisible() const { return m_toastVisible; }
@@ -220,6 +239,15 @@ public:
     Q_INVOKABLE void showPublishDialog();
     Q_INVOKABLE void hidePublishDialog();
     Q_INVOKABLE bool publishRepository(const QString &name, const QString &description, bool isPrivate);
+
+    Q_INVOKABLE void showCloneDialog(const QString &prefillUrl = QString());
+    Q_INVOKABLE void hideCloneDialog();
+    Q_INVOKABLE void cloneRepository(const QString &url, const QString &targetDir);
+    Q_INVOKABLE void cloneMissingRepository(const QString &targetDir = QString());
+    Q_INVOKABLE void locateMissingRepository();
+    Q_INVOKABLE bool relocateCurrentRepository(const QString &newPath);
+    Q_INVOKABLE void recheckMissingRepository();
+    Q_INVOKABLE void removeCurrentMissingRepository();
 
     Q_INVOKABLE bool saveRemoteUrl(const QString &url, const QString &remoteName = "origin");
     Q_INVOKABLE bool removeRemoteUrl(const QString &remoteName = "origin");
@@ -280,6 +308,9 @@ signals:
     void isLoadingRepositoryChanged();
     void loadingRepositoryMessageChanged();
     void loadingRepositoryNameChanged();
+    void cloneDialogVisibleChanged();
+    void isCloningChanged();
+    void cloneProgressMessageChanged();
     void operatingStateChanged();
     void activeTabChanged();
     void selectedFilePathChanged();
@@ -314,8 +345,17 @@ private:
     QString m_publishErrorMessage;
     bool m_isCommitting{false};
     bool m_isLoadingRepository{false};
+    std::atomic<quint64> m_currentLoadSequence{0};
     QString m_loadingRepositoryMessage;
     QString m_loadingRepositoryName;
+    bool m_isCloneDialogVisible{false};
+    QString m_clonePrefillUrl;
+    bool m_isCloning{false};
+    QString m_cloneProgressMessage;
+    bool m_isCurrentRepoMissing{false};
+    QString m_missingRepoPath;
+    QString m_missingRepoName;
+    QString m_missingRepoRemoteUrl;
     bool m_isDiscarding{false};
     bool m_isStashing{false};
     bool m_isReverting{false};
@@ -334,8 +374,12 @@ private:
     QString m_selectedStashId;
     QString m_diffViewMode{"unified"};
     bool m_showWhitespace{true};
-
     RemoteStatus m_remoteStatus;
+
+    mutable QVariantMap m_cachedCommitData;
+    mutable QString m_cachedCommitDataSha;
+    mutable QVariantMap m_cachedStashData;
+    mutable QString m_cachedStashDataId;
 
     QString m_toastMessage;
     bool m_toastIsError{false};

@@ -91,10 +91,10 @@ void DiffModel::setImageDiffMode(const QString &mode)
     emit imageDiffModeChanged();
 }
 
-void DiffModel::populateImageInfo(IGitService *service, const QString &filePath, const QString &oldRef, const QString &newRef, DiffLoadResult &result)
+void DiffModel::populateImageInfo(IGitService *service, const QString &oldPath, const QString &newPath, const QString &oldRef, const QString &newRef, DiffLoadResult &result)
 {
-    QByteArray oldBlob = service->getFileBlob(filePath, oldRef);
-    QByteArray newBlob = service->getFileBlob(filePath, newRef);
+    QByteArray oldBlob = service->getFileBlob(oldPath, oldRef);
+    QByteArray newBlob = service->getFileBlob(newPath, newRef);
 
     result.oldImageSize = oldBlob.size();
     result.newImageSize = newBlob.size();
@@ -114,81 +114,102 @@ void DiffModel::populateImageInfo(IGitService *service, const QString &filePath,
     }
 }
 
-void DiffModel::loadDiffForFile(const QString &filePath)
+void DiffModel::loadDiffForFile(const QString &filePath, const QString &oldFilePath)
 {
     m_filePath = filePath;
     m_commitSha.clear();
     emit filePathChanged();
 
-    if (!m_service || filePath.isEmpty()) {
+    if (!m_service || (filePath.isEmpty() && oldFilePath.isEmpty())) {
         clear();
         return;
     }
 
+    QString effectiveOldPath = oldFilePath.isEmpty() ? filePath : oldFilePath;
+    QString effectiveNewPath = filePath.isEmpty() ? oldFilePath : filePath;
+
     IGitService *service = m_service;
-    loadDiffAsync([service, filePath]() {
+    loadDiffAsync([service, effectiveOldPath, effectiveNewPath]() {
         DiffLoadResult result;
-        if (service->isImageFile(filePath)) {
+        if (service->isImageFile(effectiveNewPath) || service->isImageFile(effectiveOldPath)) {
             result.isImage = true;
+            populateImageInfo(service, effectiveOldPath, effectiveNewPath, "HEAD", "", result);
             const qint64 ts = QDateTime::currentMSecsSinceEpoch();
-            result.oldImageUrl = QString("image://gitimage/working/old/%1?t=%2").arg(filePath).arg(ts);
-            result.newImageUrl = QString("image://gitimage/working/new/%1?t=%2").arg(filePath).arg(ts);
-            populateImageInfo(service, filePath, "HEAD", "", result);
+            if (result.oldImageSize > 0) {
+                result.oldImageUrl = QString("image://gitimage/working/old/%1?t=%2").arg(effectiveOldPath).arg(ts);
+            }
+            if (result.newImageSize > 0) {
+                result.newImageUrl = QString("image://gitimage/working/new/%1?t=%2").arg(effectiveNewPath).arg(ts);
+            }
         } else {
-            result.lines = service->getDiffForFile(filePath);
-            result.metadataOnly = service->isFileMetadataOnly(filePath);
+            result.lines = service->getDiffForFile(effectiveNewPath, effectiveOldPath);
+            result.metadataOnly = service->isFileMetadataOnly(effectiveNewPath);
         }
         return result;
     });
 }
 
-void DiffModel::loadDiffForCommit(const QString &commitSha, const QString &filePath)
+void DiffModel::loadDiffForCommit(const QString &commitSha, const QString &filePath, const QString &oldFilePath)
 {
     m_filePath = filePath;
     m_commitSha = commitSha;
     emit filePathChanged();
 
-    if (!m_service || filePath.isEmpty() || commitSha.isEmpty()) {
+    if (!m_service || (filePath.isEmpty() && oldFilePath.isEmpty()) || commitSha.isEmpty()) {
         clear();
         return;
     }
 
+    QString effectiveOldPath = oldFilePath.isEmpty() ? filePath : oldFilePath;
+    QString effectiveNewPath = filePath.isEmpty() ? oldFilePath : filePath;
+
     IGitService *service = m_service;
-    loadDiffAsync([service, commitSha, filePath]() {
+    loadDiffAsync([service, commitSha, effectiveOldPath, effectiveNewPath]() {
         DiffLoadResult result;
-        if (service->isImageFile(filePath)) {
+        if (service->isImageFile(effectiveNewPath) || service->isImageFile(effectiveOldPath)) {
             result.isImage = true;
-            result.oldImageUrl = QString("image://gitimage/commit/%1/old/%2").arg(commitSha, filePath);
-            result.newImageUrl = QString("image://gitimage/commit/%1/new/%2").arg(commitSha, filePath);
-            populateImageInfo(service, filePath, QString("%1~1").arg(commitSha), commitSha, result);
+            populateImageInfo(service, effectiveOldPath, effectiveNewPath, QString("%1~1").arg(commitSha), commitSha, result);
+            if (result.oldImageSize > 0) {
+                result.oldImageUrl = QString("image://gitimage/commit/%1/old/%2").arg(commitSha, effectiveOldPath);
+            }
+            if (result.newImageSize > 0) {
+                result.newImageUrl = QString("image://gitimage/commit/%1/new/%2").arg(commitSha, effectiveNewPath);
+            }
         } else {
-            result.lines = service->getDiffForCommitFile(commitSha, filePath);
+            result.lines = service->getDiffForCommitFile(commitSha, effectiveNewPath, effectiveOldPath);
         }
         return result;
     });
 }
 
-void DiffModel::loadDiffForStash(const QString &stashId, const QString &filePath)
+void DiffModel::loadDiffForStash(const QString &stashId, const QString &filePath, const QString &oldFilePath)
 {
     m_filePath = filePath;
     m_commitSha.clear();
     emit filePathChanged();
 
-    if (!m_service || filePath.isEmpty()) {
+    if (!m_service || (filePath.isEmpty() && oldFilePath.isEmpty())) {
         clear();
         return;
     }
 
+    QString effectiveOldPath = oldFilePath.isEmpty() ? filePath : oldFilePath;
+    QString effectiveNewPath = filePath.isEmpty() ? oldFilePath : filePath;
+
     IGitService *service = m_service;
-    loadDiffAsync([service, stashId, filePath]() {
+    loadDiffAsync([service, stashId, effectiveOldPath, effectiveNewPath]() {
         DiffLoadResult result;
-        if (service->isImageFile(filePath)) {
+        if (service->isImageFile(effectiveNewPath) || service->isImageFile(effectiveOldPath)) {
             result.isImage = true;
-            result.oldImageUrl = QString("image://gitimage/stash/%1/old/%2").arg(stashId, filePath);
-            result.newImageUrl = QString("image://gitimage/stash/%1/new/%2").arg(stashId, filePath);
-            populateImageInfo(service, filePath, QString("%1^1").arg(stashId), stashId, result);
+            populateImageInfo(service, effectiveOldPath, effectiveNewPath, QString("%1^1").arg(stashId), stashId, result);
+            if (result.oldImageSize > 0) {
+                result.oldImageUrl = QString("image://gitimage/stash/%1/old/%2").arg(stashId, effectiveOldPath);
+            }
+            if (result.newImageSize > 0) {
+                result.newImageUrl = QString("image://gitimage/stash/%1/new/%2").arg(stashId, effectiveNewPath);
+            }
         } else {
-            result.lines = service->getDiffForStashFile(stashId, filePath);
+            result.lines = service->getDiffForStashFile(stashId, effectiveNewPath);
         }
         return result;
     });

@@ -75,16 +75,16 @@ Rectangle {
                     spacing: Kirigami.Units.smallSpacing
 
                     Kirigami.Icon {
-                        source: "folder-git"
+                        source: appController.isCurrentRepoMissing ? "dialog-warning" : "folder-git"
                         width: 16
                         height: 16
-                        color: repoDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                        color: appController.isCurrentRepoMissing ? Kirigami.Theme.negativeTextColor : (repoDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor)
                     }
 
                     QQC2.Label {
-                        text: appController.currentRepoName
+                        text: appController.isCurrentRepoMissing ? (appController.missingRepoName !== "" ? appController.missingRepoName : appController.currentRepoName) : appController.currentRepoName
                         font.bold: true
-                        color: repoDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                        color: appController.isCurrentRepoMissing ? Kirigami.Theme.negativeTextColor : (repoDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor)
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -131,6 +131,8 @@ Rectangle {
             Layout.fillHeight: true
             Layout.preferredWidth: 310
             Layout.minimumWidth: 210
+            enabled: !appController.isCurrentRepoMissing
+            opacity: appController.isCurrentRepoMissing ? 0.4 : 1.0
 
             Rectangle {
                 anchors.fill: parent
@@ -245,6 +247,8 @@ Rectangle {
             Layout.fillHeight: true
             Layout.preferredWidth: 300
             Layout.minimumWidth: 220
+            enabled: !appController.isCurrentRepoMissing
+            opacity: appController.isCurrentRepoMissing ? 0.4 : 1.0
 
             readonly property bool isSyncActive: appController.isFetching || appController.isPulling || appController.isPushing || appController.isPublishing
 

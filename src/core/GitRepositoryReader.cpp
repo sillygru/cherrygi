@@ -7,9 +7,11 @@
 #include <QTextStream>
 #include <QDateTime>
 #include <QTimeZone>
+#include <QCryptographicHash>
 #include <QSet>
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <zlib.h>
 
 namespace Cherry {
@@ -51,8 +53,19 @@ bool GitRepositoryReader::open(const QString &path)
 
     m_headGitDir = gitDir;
     m_gitDir = gitDir;
-    if (QFileInfo(cleanPath + "/.git").exists()) {
-        m_workTree = cleanPath;
+    m_directReadSupported = true;
+
+    // Opening a subdirectory of a worktree is valid Git usage. Resolve the
+    // actual worktree root instead of mistaking that case for a bare repo.
+    QString candidate = cleanPath;
+    for (int depth = 0; depth < 128 && !candidate.isEmpty(); ++depth) {
+        if (QFileInfo(candidate + "/.git").exists()) {
+            m_workTree = candidate;
+            break;
+        }
+        const QString parent = QFileInfo(candidate).dir().absolutePath();
+        if (parent == candidate) break;
+        candidate = parent;
     }
 
     // Linked worktrees keep HEAD and their index in a private gitdir while
@@ -72,7 +85,57 @@ bool GitRepositoryReader::open(const QString &path)
     }
 
     // A bare repository has no work tree, but is still a valid Git database.
-    return !readHeadRef().isEmpty() || !readRef("HEAD").isEmpty();
+    const bool valid = !readHeadRef().isEmpty() || !readRef("HEAD").isEmpty();
+    if (valid) m_directReadSupported = detectDirectReadSupport();
+    return valid;
+}
+
+bool GitRepositoryReader::detectDirectReadSupport() const
+{
+    if (m_gitDir.isEmpty()) return false;
+
+    QFile config(m_gitDir + "/config");
+    if (config.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QString section;
+        const QStringList lines = QString::fromUtf8(config.readAll()).split('\n');
+        for (const QString &line : lines) {
+            const QString trimmed = line.trimmed().toLower();
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                section = trimmed;
+                continue;
+            }
+            QString value = trimmed;
+            value.remove(' ').remove('\t');
+            if (section == "[extensions]" &&
+                (value == "objectformat=sha256" || value == "refstorage=reftable" ||
+                 value.startsWith("partialclone="))) {
+                return false;
+            }
+            if (value == "promisor=true") return false;
+        }
+    }
+
+    // These repositories can legitimately refer to objects outside the main
+    // object database or require Git-specific history semantics.
+    if (QFile::exists(m_gitDir + "/objects/info/alternates") ||
+        QFile::exists(m_gitDir + "/shallow") ||
+        QFile::exists(m_gitDir + "/info/grafts") ||
+        QDir(m_gitDir + "/refs/replace").exists()) {
+        return false;
+    }
+
+    // The direct reader currently understands only pack index v2.
+    const QDir packDir(m_gitDir + "/objects/pack");
+    for (const QString &indexName : packDir.entryList({"*.idx"}, QDir::Files)) {
+        QFile indexFile(packDir.filePath(indexName));
+        if (!indexFile.open(QIODevice::ReadOnly)) return false;
+        const QByteArray prefix = indexFile.read(8);
+        if (prefix.size() < 8 || prefix.left(4) != QByteArray("\xfftOc", 4) ||
+            readBigEndian32(prefix, 4) != 2) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void GitRepositoryReader::refresh()
@@ -81,7 +144,7 @@ void GitRepositoryReader::refresh()
     m_packedRefsLoaded = false;
     m_packIndexesLoaded = false;
     m_packedRefs.clear();
-    m_packLocations.clear();
+    m_packIndexes.clear();
     m_objectCache.clear();
 }
 
@@ -156,15 +219,20 @@ void GitRepositoryReader::loadPackedRefs() const
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
 
     QString previousRef;
-    const QStringList lines = QString::fromUtf8(file.readAll()).split('\n');
+    const QString content = QString::fromUtf8(file.readAll());
+    const QStringList lines = content.split('\n');
     for (const QString &line : lines) {
         const QString value = line.trimmed();
         if (value.isEmpty() || value.startsWith('#')) continue;
         if (value.startsWith('^')) continue; // peeled tag line
-        const QStringList parts = value.split(QRegularExpression("\\s+"));
-        if (parts.size() >= 2 && parts[0].size() >= ObjectIdHexLength) {
-            previousRef = parts[1];
-            m_packedRefs.insert(previousRef, parts[0].left(ObjectIdHexLength));
+        int spaceIdx = value.indexOf(' ');
+        if (spaceIdx < 0) spaceIdx = value.indexOf('\t');
+        if (spaceIdx >= ObjectIdHexLength) {
+            QString sha = value.left(ObjectIdHexLength);
+            QString ref = value.mid(spaceIdx + 1).trimmed();
+            if (!ref.isEmpty()) {
+                m_packedRefs.insert(ref, sha);
+            }
         }
     }
 }
@@ -176,6 +244,9 @@ void GitRepositoryReader::loadPackIndexes() const
 
     QDir packDir(m_gitDir + "/objects/pack");
     const QStringList indexes = packDir.entryList({"*.idx"}, QDir::Files);
+    m_packIndexes.clear();
+    m_packIndexes.reserve(indexes.size());
+
     for (const QString &indexName : indexes) {
         QFile indexFile(packDir.filePath(indexName));
         if (!indexFile.open(QIODevice::ReadOnly)) continue;
@@ -185,25 +256,75 @@ void GitRepositoryReader::loadPackIndexes() const
 
         const quint32 objectCount = readBigEndian32(index, 8 + 255 * 4);
         const int namesOffset = 8 + 256 * 4;
-        const int namesEnd = namesOffset + static_cast<int>(objectCount) * ObjectIdBytes;
-        const int crcEnd = namesEnd + static_cast<int>(objectCount) * 4;
-        const int offsetsEnd = crcEnd + static_cast<int>(objectCount) * 4;
-        if (namesOffset < 0 || offsetsEnd > index.size()) continue;
+        const qint64 namesEnd64 = static_cast<qint64>(namesOffset) + static_cast<qint64>(objectCount) * ObjectIdBytes;
+        const qint64 crcEnd64 = namesEnd64 + static_cast<qint64>(objectCount) * 4;
+        const qint64 offsetsEnd64 = crcEnd64 + static_cast<qint64>(objectCount) * 4;
+        if (namesOffset < 0 || namesEnd64 > std::numeric_limits<int>::max() ||
+            offsetsEnd64 > index.size()) continue;
+        const int namesEnd = static_cast<int>(namesEnd64);
+        const int crcEnd = static_cast<int>(crcEnd64);
+        const int offsetsEnd = static_cast<int>(offsetsEnd64);
 
         const QString packPath = packDir.filePath(indexName.left(indexName.size() - 4) + ".pack");
-        for (quint32 i = 0; i < objectCount; ++i) {
-            const QString sha = objectId(index.mid(namesOffset + static_cast<int>(i) * ObjectIdBytes, ObjectIdBytes));
-            const quint32 rawOffset = readBigEndian32(index, crcEnd + static_cast<int>(i) * 4);
-            quint64 offset = rawOffset;
-            if (rawOffset & 0x80000000U) {
-                const quint32 largeIndex = rawOffset & 0x7fffffffU;
-                const int largeOffset = offsetsEnd + static_cast<int>(largeIndex) * 8;
-                if (largeOffset + 8 > index.size()) continue;
-                offset = readBigEndian64(index, largeOffset);
+        PackIndex pIdx;
+        pIdx.packPath = packPath;
+        pIdx.data = index;
+        pIdx.objectCount = objectCount;
+        pIdx.namesOffset = namesOffset;
+        pIdx.crcOffset = namesEnd;
+        pIdx.offsetsOffset = crcEnd;
+        pIdx.largeOffsetsOffset = offsetsEnd;
+        m_packIndexes.append(std::move(pIdx));
+    }
+}
+
+QByteArray GitRepositoryReader::hexToBinary(const QString &hex)
+{
+    return QByteArray::fromHex(hex.toLatin1());
+}
+
+std::optional<GitRepositoryReader::PackLocation> GitRepositoryReader::findPackLocation(const QString &sha) const
+{
+    const QString norm = normaliseSha(sha);
+    if (norm.size() != ObjectIdHexLength) return std::nullopt;
+    const QByteArray bin = hexToBinary(norm);
+    if (bin.size() != ObjectIdBytes) return std::nullopt;
+
+    const quint8 firstByte = static_cast<quint8>(bin[0]);
+    const unsigned char *target = reinterpret_cast<const unsigned char*>(bin.constData());
+
+    loadPackIndexes();
+    for (const auto &idx : m_packIndexes) {
+        if (idx.objectCount == 0) continue;
+        const quint32 start = (firstByte == 0) ? 0 : readBigEndian32(idx.data, 8 + (firstByte - 1) * 4);
+        const quint32 end = readBigEndian32(idx.data, 8 + firstByte * 4);
+        if (start >= end || end > idx.objectCount) continue;
+
+        quint32 low = start;
+        quint32 high = end;
+        while (low < high) {
+            const quint32 mid = low + (high - low) / 2;
+            const unsigned char *candidate = reinterpret_cast<const unsigned char*>(idx.data.constData() + idx.namesOffset + mid * ObjectIdBytes);
+            const int cmp = std::memcmp(target, candidate, ObjectIdBytes);
+            if (cmp == 0) {
+                const quint32 rawOffset = readBigEndian32(idx.data, idx.offsetsOffset + mid * 4);
+                quint64 offset = rawOffset;
+                if (rawOffset & 0x80000000U) {
+                    const quint32 largeIndex = rawOffset & 0x7fffffffU;
+                    const int largeOffsetPos = idx.largeOffsetsOffset + largeIndex * 8;
+                    if (largeOffsetPos + 8 <= idx.data.size()) {
+                        offset = readBigEndian64(idx.data, largeOffsetPos);
+                    }
+                }
+                return PackLocation{idx.packPath, offset};
+            } else if (cmp < 0) {
+                high = mid;
+            } else {
+                low = mid + 1;
             }
-            m_packLocations.insert(sha, {packPath, offset});
         }
     }
+    return std::nullopt;
 }
 
 QString GitRepositoryReader::resolveObjectId(const QString &sha) const
@@ -213,8 +334,20 @@ QString GitRepositoryReader::resolveObjectId(const QString &sha) const
     if (candidate.size() < 4) return QString();
 
     loadPackIndexes();
-    for (auto it = m_packLocations.cbegin(); it != m_packLocations.cend(); ++it) {
-        if (it.key().startsWith(candidate)) return it.key();
+    const QByteArray binPrefix = QByteArray::fromHex(candidate.toLatin1());
+    if (!binPrefix.isEmpty()) {
+        const quint8 firstByte = static_cast<quint8>(binPrefix[0]);
+        for (const auto &idx : m_packIndexes) {
+            if (idx.objectCount == 0) continue;
+            const quint32 start = (firstByte == 0) ? 0 : readBigEndian32(idx.data, 8 + (firstByte - 1) * 4);
+            const quint32 end = readBigEndian32(idx.data, 8 + firstByte * 4);
+            if (start >= end || end > idx.objectCount) continue;
+
+            for (quint32 i = start; i < end; ++i) {
+                const QString full = objectId(idx.data.mid(idx.namesOffset + static_cast<int>(i) * ObjectIdBytes, ObjectIdBytes));
+                if (full.startsWith(candidate)) return full;
+            }
+        }
     }
 
     if (candidate.size() >= 2) {
@@ -234,6 +367,7 @@ std::optional<GitRepositoryReader::GitObject> GitRepositoryReader::readLooseObje
     QFile file(m_gitDir + "/objects/" + sha.left(2) + "/" + sha.mid(2));
     if (!file.open(QIODevice::ReadOnly)) return std::nullopt;
     const QByteArray inflated = inflateBytes(file.readAll());
+    if (inflated.isEmpty()) return std::nullopt;
     const int separator = inflated.indexOf('\0');
     if (separator <= 0) return std::nullopt;
 
@@ -245,23 +379,32 @@ std::optional<GitRepositoryReader::GitObject> GitRepositoryReader::readLooseObje
 
 std::optional<GitRepositoryReader::GitObject> GitRepositoryReader::readObject(const QString &sha, int depth) const
 {
-    if (depth > 64) return std::nullopt;
+    if (depth > 64 || !m_directReadSupported) return std::nullopt;
     const QString resolved = resolveObjectId(sha);
     if (resolved.isEmpty()) return std::nullopt;
     if (m_objectCache.contains(resolved)) return m_objectCache.value(resolved);
 
     std::optional<GitObject> object = readLooseObject(resolved);
     if (!object) object = readPackedObject(resolved, depth);
-    if (object) m_objectCache.insert(resolved, *object);
+    if (object) {
+        const QByteArray header = object->type.toLatin1() + ' ' + QByteArray::number(object->data.size()) + '\0';
+        const QString calculated = objectId(QCryptographicHash::hash(header + object->data, QCryptographicHash::Sha1));
+        if (calculated != resolved) object.reset();
+    }
+    if (object) {
+        if (m_objectCache.size() > 128) {
+            m_objectCache.remove(m_objectCache.begin().key());
+        }
+        m_objectCache.insert(resolved, *object);
+    }
     return object;
 }
 
 std::optional<GitRepositoryReader::GitObject> GitRepositoryReader::readPackedObject(const QString &sha, int depth) const
 {
-    loadPackIndexes();
-    const auto location = m_packLocations.constFind(sha);
-    if (location == m_packLocations.cend()) return std::nullopt;
-    return readPackEntry(location.value(), depth);
+    auto location = findPackLocation(sha);
+    if (!location) return std::nullopt;
+    return readPackEntry(*location, depth);
 }
 
 std::optional<GitRepositoryReader::GitObject> GitRepositoryReader::readPackEntry(const PackLocation &location, int depth) const
@@ -284,6 +427,7 @@ std::optional<GitRepositoryReader::GitObject> GitRepositoryReader::readPackEntry
         size |= static_cast<quint64>(byte & 0x7f) << shift;
         shift += 7;
     }
+    if (size > 256 * 1024 * 1024ULL) return std::nullopt;
 
     QString type = objectTypeForPackCode(typeCode);
     quint64 baseOffset = 0;
@@ -311,19 +455,11 @@ std::optional<GitRepositoryReader::GitObject> GitRepositoryReader::readPackEntry
 
     const QByteArray inflated = inflateFile(file);
     if (inflated.isEmpty() && size != 0) return std::nullopt;
+    if (static_cast<quint64>(inflated.size()) != size) return std::nullopt;
     if (typeCode == 6 || typeCode == 7) {
         std::optional<GitObject> base;
         if (typeCode == 6) {
-            loadPackIndexes();
-            QString baseObjectSha;
-            for (auto it = m_packLocations.cbegin(); it != m_packLocations.cend(); ++it) {
-                if (it.value().packPath == location.packPath && it.value().offset == baseOffset) {
-                    baseObjectSha = it.key();
-                    break;
-                }
-            }
-            if (!baseObjectSha.isEmpty()) base = readObject(baseObjectSha, depth + 1);
-            if (!base && baseOffset != 0) base = readPackEntry({location.packPath, baseOffset}, depth + 1);
+            if (baseOffset != 0) base = readPackEntry({location.packPath, baseOffset}, depth + 1);
         } else {
             base = readObject(baseSha, depth + 1);
         }
@@ -365,9 +501,9 @@ QList<BranchInfo> GitRepositoryReader::branches() const
     QList<BranchInfo> result;
     const auto current = currentBranch();
     QSet<QString> seen;
+    static const QRegularExpression prRegex(R"(#?(\d+))");
 
-    auto addRef = [&](const QString &refName, bool remote) {
-        const QString sha = readRef(refName);
+    auto addRefWithSha = [&](const QString &refName, const QString &sha, bool remote) {
         if (sha.isEmpty()) return;
         QString name;
         if (remote) {
@@ -384,7 +520,7 @@ QList<BranchInfo> GitRepositoryReader::branches() const
         branch.isCurrent = current && !remote && current->name == name;
         branch.isDefault = name == "main" || name == "master" || name == "origin/main" || name == "origin/master";
         branch.tipCommitSha = sha.left(7);
-        const auto match = QRegularExpression("#?(\\d+)").match(name);
+        const auto match = prRegex.match(name);
         if (match.hasMatch()) {
             branch.prNumber = "#" + match.captured(1);
             branch.prMergedOrActive = true;
@@ -392,6 +528,7 @@ QList<BranchInfo> GitRepositoryReader::branches() const
         result.append(branch);
     };
 
+    // 1. Loose refs
     for (const QString &root : {QStringLiteral("heads"), QStringLiteral("remotes")}) {
         const QDir dir(m_gitDir + "/refs/" + root);
         if (!dir.exists()) continue;
@@ -399,14 +536,18 @@ QList<BranchInfo> GitRepositoryReader::branches() const
         while (it.hasNext()) {
             const QString path = it.next();
             const QString relative = dir.relativeFilePath(path).replace(QDir::separator(), '/');
-            addRef("refs/" + root + "/" + relative, root == "remotes");
+            const QString refName = "refs/" + root + "/" + relative;
+            addRefWithSha(refName, readRef(refName), root == "remotes");
         }
     }
 
+    // 2. Packed refs (SHA is already in memory, no disk syscalls needed)
     loadPackedRefs();
     for (auto it = m_packedRefs.cbegin(); it != m_packedRefs.cend(); ++it) {
-        if (it.key().startsWith("refs/heads/") || it.key().startsWith("refs/remotes/")) {
-            addRef(it.key(), it.key().startsWith("refs/remotes/"));
+        if (it.key().startsWith("refs/heads/")) {
+            addRefWithSha(it.key(), it.value(), false);
+        } else if (it.key().startsWith("refs/remotes/")) {
+            addRefWithSha(it.key(), it.value(), true);
         }
     }
     return result;
@@ -461,11 +602,12 @@ std::optional<CommitItem> GitRepositoryReader::parseCommit(const QString &sha, b
     commit.shortSha = resolved.left(7);
     QString treeSha;
     QString firstParent;
+    static const QRegularExpression authorRegex("^(.*) <([^>]+)> (\\d+) ([+-]\\d{4})$");
     for (const QString &line : headers) {
         if (line.startsWith("tree ")) treeSha = line.mid(5).trimmed();
         else if (line.startsWith("parent ") && firstParent.isEmpty()) firstParent = line.mid(7).trimmed();
         else if (line.startsWith("author ")) {
-            const auto match = QRegularExpression("^(.*) <([^>]+)> (\\d+) ([+-]\\d{4})$").match(line.mid(7));
+            const auto match = authorRegex.match(line.mid(7));
             if (match.hasMatch()) {
                 commit.authorName = match.captured(1);
                 commit.authorEmail = match.captured(2);
@@ -480,7 +622,7 @@ std::optional<CommitItem> GitRepositoryReader::parseCommit(const QString &sha, b
     commit.description = messageLines.mid(1).join('\n').trimmed();
     commit.relativeTime = relativeTime(commit.timestamp);
 
-    const auto coAuthorRegex = QRegularExpression("Co-authored-by:\\s*(.*?)(?:<|$)", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression coAuthorRegex("Co-authored-by:\\s*(.*?)(?:<|$)", QRegularExpression::CaseInsensitiveOption);
     auto coAuthors = coAuthorRegex.globalMatch(commit.description);
     while (coAuthors.hasNext()) {
         const QString value = coAuthors.next().captured(1).trimmed();
@@ -544,32 +686,175 @@ void GitRepositoryReader::populateChangedFiles(CommitItem &commit, const QString
     commit.changedFiles = changedFilesBetweenTrees(parentTree, treeSha);
 }
 
+QList<GitRepositoryReader::TreeEntry> GitRepositoryReader::readTreeEntries(const QString &treeSha) const
+{
+    QList<TreeEntry> entries;
+    const auto tree = readObject(treeSha);
+    if (!tree || tree->type != "tree") return entries;
+
+    int cursor = 0;
+    while (cursor < tree->data.size()) {
+        const int modeEnd = tree->data.indexOf(' ', cursor);
+        if (modeEnd < 0) break;
+        const int nameEnd = tree->data.indexOf('\0', modeEnd + 1);
+        if (nameEnd < 0 || nameEnd + 1 + ObjectIdBytes > tree->data.size()) break;
+        const QString mode = QString::fromLatin1(tree->data.mid(cursor, modeEnd - cursor));
+        const QString name = QString::fromUtf8(tree->data.mid(modeEnd + 1, nameEnd - modeEnd - 1));
+        const QString childSha = objectId(tree->data.mid(nameEnd + 1, ObjectIdBytes));
+        const bool isTree = mode.startsWith("04") || mode == "40000";
+        entries.append({mode, name, childSha, isTree});
+        cursor = nameEnd + 1 + ObjectIdBytes;
+    }
+    return entries;
+}
+
+void GitRepositoryReader::collectAllTreeFiles(const QString &treeSha, const QString &prefix, FileChangeType type, QList<FileChange> &result, int depth) const
+{
+    if (depth > 64 || treeSha.isEmpty()) return;
+    const auto entries = readTreeEntries(treeSha);
+    for (const auto &e : entries) {
+        const QString path = prefix + e.name;
+        if (e.isTree) {
+            collectAllTreeFiles(e.sha, path + "/", type, result, depth + 1);
+        } else {
+            FileChange file;
+            file.id = QString("fc-%1").arg(result.size());
+            file.filePath = path;
+            file.status = type;
+            result.append(file);
+        }
+    }
+}
+
+void GitRepositoryReader::diffTrees(const QString &oldTreeSha, const QString &newTreeSha, const QString &prefix, QList<FileChange> &result, int depth) const
+{
+    if (depth > 64) return;
+    if (oldTreeSha == newTreeSha) return; // Unchanged subtree pruned immediately
+
+    if (oldTreeSha.isEmpty() && !newTreeSha.isEmpty()) {
+        collectAllTreeFiles(newTreeSha, prefix, FileChangeType::Added, result, depth);
+        return;
+    }
+    if (!oldTreeSha.isEmpty() && newTreeSha.isEmpty()) {
+        collectAllTreeFiles(oldTreeSha, prefix, FileChangeType::Deleted, result, depth);
+        return;
+    }
+
+    const auto oldEntries = readTreeEntries(oldTreeSha);
+    const auto newEntries = readTreeEntries(newTreeSha);
+
+    QHash<QString, TreeEntry> oldMap;
+    for (const auto &e : oldEntries) oldMap.insert(e.name, e);
+
+    QHash<QString, TreeEntry> newMap;
+    for (const auto &e : newEntries) newMap.insert(e.name, e);
+
+    QSet<QString> allNames;
+    for (auto it = oldMap.cbegin(); it != oldMap.cend(); ++it) allNames.insert(it.key());
+    for (auto it = newMap.cbegin(); it != newMap.cend(); ++it) allNames.insert(it.key());
+
+    QStringList sortedNames = allNames.values();
+    std::sort(sortedNames.begin(), sortedNames.end());
+
+    for (const QString &name : sortedNames) {
+        const bool hadOld = oldMap.contains(name);
+        const bool hasNew = newMap.contains(name);
+        const QString path = prefix + name;
+
+        if (hadOld && !hasNew) {
+            const auto &oldE = oldMap[name];
+            if (oldE.isTree) {
+                collectAllTreeFiles(oldE.sha, path + "/", FileChangeType::Deleted, result, depth + 1);
+            } else {
+                FileChange file;
+                file.id = QString("fc-%1").arg(result.size());
+                file.filePath = path;
+                file.oldFilePath = path;
+                file.status = FileChangeType::Deleted;
+                result.append(file);
+            }
+        } else if (!hadOld && hasNew) {
+            const auto &newE = newMap[name];
+            if (newE.isTree) {
+                collectAllTreeFiles(newE.sha, path + "/", FileChangeType::Added, result, depth + 1);
+            } else {
+                FileChange file;
+                file.id = QString("fc-%1").arg(result.size());
+                file.filePath = path;
+                file.status = FileChangeType::Added;
+                result.append(file);
+            }
+        } else {
+            const auto &oldE = oldMap[name];
+            const auto &newE = newMap[name];
+            if (oldE.sha == newE.sha) continue; // Same object SHA
+
+            if (oldE.isTree && newE.isTree) {
+                diffTrees(oldE.sha, newE.sha, path + "/", result, depth + 1);
+            } else if (!oldE.isTree && !newE.isTree) {
+                FileChange file;
+                file.id = QString("fc-%1").arg(result.size());
+                file.filePath = path;
+                file.status = FileChangeType::Modified;
+                result.append(file);
+            } else {
+                // One is tree, one is blob
+                if (oldE.isTree) collectAllTreeFiles(oldE.sha, path + "/", FileChangeType::Deleted, result, depth + 1);
+                else {
+                    FileChange f;
+                    f.id = QString("fc-%1").arg(result.size());
+                    f.filePath = path;
+                    f.status = FileChangeType::Deleted;
+                    result.append(f);
+                }
+                if (newE.isTree) collectAllTreeFiles(newE.sha, path + "/", FileChangeType::Added, result, depth + 1);
+                else {
+                    FileChange f;
+                    f.id = QString("fc-%1").arg(result.size());
+                    f.filePath = path;
+                    f.status = FileChangeType::Added;
+                    result.append(f);
+                }
+            }
+        }
+    }
+}
+
 QList<FileChange> GitRepositoryReader::changedFilesBetweenTrees(const QString &oldTree, const QString &newTree) const
 {
+    QList<FileChange> result;
+    diffTrees(oldTree, newTree, QString(), result);
+
+    // The tree format has no rename primitive. Recover exact renames by
+    // matching deleted and added paths with the same blob object ID so the
+    // direct-reader result remains consistent with Git's rename-aware CLI.
     const auto oldFiles = oldTree.isEmpty() ? QHash<QString, QString>() : readTree(oldTree, QString());
     const auto newFiles = newTree.isEmpty() ? QHash<QString, QString>() : readTree(newTree, QString());
-    QSet<QString> paths;
-    for (auto it = oldFiles.cbegin(); it != oldFiles.cend(); ++it) paths.insert(it.key());
-    for (auto it = newFiles.cbegin(); it != newFiles.cend(); ++it) paths.insert(it.key());
-
-    QStringList sortedPaths = paths.values();
-    std::sort(sortedPaths.begin(), sortedPaths.end());
-    QList<FileChange> result;
-    int index = 0;
-    for (const QString &path : sortedPaths) {
-        const bool hadOld = oldFiles.contains(path);
-        const bool hasNew = newFiles.contains(path);
-        if (hadOld && hasNew && oldFiles.value(path) == newFiles.value(path)) continue;
-
-        FileChange file;
-        file.id = QString("fc-%1").arg(index++);
-        file.filePath = path;
-        if (!hadOld) file.status = FileChangeType::Added;
-        else if (!hasNew) file.status = FileChangeType::Deleted;
-        else file.status = FileChangeType::Modified;
-        result.append(file);
+    QHash<QString, QString> renameSourceByTarget;
+    QSet<QString> deletedPaths;
+    for (const auto &file : result) {
+        if (file.status != FileChangeType::Deleted || !oldFiles.contains(file.filePath)) continue;
+        const QString objectId = oldFiles.value(file.filePath);
+        for (auto it = newFiles.cbegin(); it != newFiles.cend(); ++it) {
+            if (it.value() == objectId && !oldFiles.contains(it.key())) {
+                renameSourceByTarget.insert(it.key(), file.filePath);
+                deletedPaths.insert(file.filePath);
+                break;
+            }
+        }
     }
-    return result;
+
+    QList<FileChange> normalized;
+    for (auto file : result) {
+        if (file.status == FileChangeType::Deleted && deletedPaths.contains(file.filePath)) continue;
+        if (file.status == FileChangeType::Added && renameSourceByTarget.contains(file.filePath)) {
+            file.status = FileChangeType::Renamed;
+            file.oldFilePath = renameSourceByTarget.value(file.filePath);
+        }
+        file.id = QString("fc-%1").arg(normalized.size());
+        normalized.append(file);
+    }
+    return normalized;
 }
 
 QList<StashItem> GitRepositoryReader::readStashReflog() const
@@ -661,6 +946,7 @@ quint32 GitRepositoryReader::readBigEndian32(const QByteArray &data, int offset)
 
 quint64 GitRepositoryReader::readBigEndian64(const QByteArray &data, int offset)
 {
+    if (offset < 0 || offset + 8 > data.size()) return 0;
     quint64 value = 0;
     for (int i = 0; i < 8; ++i) value = (value << 8) | static_cast<unsigned char>(data.at(offset + i));
     return value;
@@ -688,7 +974,13 @@ QByteArray GitRepositoryReader::inflateBytes(const QByteArray &compressed, int *
         stream.avail_out = sizeof(buffer);
         status = inflate(&stream, Z_NO_FLUSH);
         const int produced = static_cast<int>(sizeof(buffer) - stream.avail_out);
-        if (produced > 0) output.append(buffer, produced);
+        if (produced > 0) {
+            if (output.size() > 256 * 1024 * 1024 - produced) {
+                inflateEnd(&stream);
+                return {};
+            }
+            output.append(buffer, produced);
+        }
     }
     if (consumed) *consumed = static_cast<int>(stream.total_in);
     inflateEnd(&stream);
@@ -713,7 +1005,13 @@ QByteArray GitRepositoryReader::inflateFile(QFile &file)
             stream.avail_out = sizeof(buffer);
             status = inflate(&stream, Z_NO_FLUSH);
             const int produced = static_cast<int>(sizeof(buffer) - stream.avail_out);
-            if (produced > 0) output.append(buffer, produced);
+            if (produced > 0) {
+                if (output.size() > 256 * 1024 * 1024 - produced) {
+                    inflateEnd(&stream);
+                    return {};
+                }
+                output.append(buffer, produced);
+            }
         }
         if (status == Z_STREAM_END) {
             file.seek(file.pos() - stream.avail_in);
@@ -727,21 +1025,24 @@ QByteArray GitRepositoryReader::inflateFile(QFile &file)
 QByteArray GitRepositoryReader::applyDelta(const QByteArray &base, const QByteArray &delta)
 {
     int cursor = 0;
-    auto readVarInt = [&]() -> quint64 {
+    auto readVarInt = [&]() -> std::optional<quint64> {
         quint64 value = 0;
         int shift = 0;
         while (cursor < delta.size()) {
             const unsigned char byte = static_cast<unsigned char>(delta[cursor++]);
+            if (shift >= 64 || (shift == 63 && (byte & 0x7f) > 1)) return std::nullopt;
             value |= static_cast<quint64>(byte & 0x7f) << shift;
-            if (!(byte & 0x80)) break;
+            if (!(byte & 0x80)) return value;
             shift += 7;
-            if (shift > 63) break;
         }
-        return value;
+        return std::nullopt;
     };
 
-    const quint64 baseSize = readVarInt();
-    const quint64 resultSize = readVarInt();
+    const auto baseSizeValue = readVarInt();
+    const auto resultSizeValue = readVarInt();
+    if (!baseSizeValue || !resultSizeValue) return {};
+    const quint64 baseSize = *baseSizeValue;
+    const quint64 resultSize = *resultSizeValue;
     if (baseSize != static_cast<quint64>(base.size()) || resultSize > 256 * 1024 * 1024ULL) return {};
 
     QByteArray result;
@@ -751,13 +1052,23 @@ QByteArray GitRepositoryReader::applyDelta(const QByteArray &base, const QByteAr
         if (opcode & 0x80) {
             quint64 offset = 0;
             quint64 size = 0;
-            if (opcode & 0x01) offset |= static_cast<unsigned char>(delta.at(cursor++));
-            if (opcode & 0x02) offset |= static_cast<quint64>(static_cast<unsigned char>(delta.at(cursor++))) << 8;
-            if (opcode & 0x04) offset |= static_cast<quint64>(static_cast<unsigned char>(delta.at(cursor++))) << 16;
-            if (opcode & 0x08) offset |= static_cast<quint64>(static_cast<unsigned char>(delta.at(cursor++))) << 24;
-            if (opcode & 0x10) size |= static_cast<unsigned char>(delta.at(cursor++));
-            if (opcode & 0x20) size |= static_cast<quint64>(static_cast<unsigned char>(delta.at(cursor++))) << 8;
-            if (opcode & 0x40) size |= static_cast<quint64>(static_cast<unsigned char>(delta.at(cursor++))) << 16;
+            auto readDeltaByte = [&](quint64 shift) -> bool {
+                if (cursor >= delta.size()) return false;
+                offset |= static_cast<quint64>(static_cast<unsigned char>(delta[cursor++])) << shift;
+                return true;
+            };
+            if ((opcode & 0x01) && !readDeltaByte(0)) return {};
+            if ((opcode & 0x02) && !readDeltaByte(8)) return {};
+            if ((opcode & 0x04) && !readDeltaByte(16)) return {};
+            if ((opcode & 0x08) && !readDeltaByte(24)) return {};
+            auto readDeltaSizeByte = [&](quint64 shift) -> bool {
+                if (cursor >= delta.size()) return false;
+                size |= static_cast<quint64>(static_cast<unsigned char>(delta[cursor++])) << shift;
+                return true;
+            };
+            if ((opcode & 0x10) && !readDeltaSizeByte(0)) return {};
+            if ((opcode & 0x20) && !readDeltaSizeByte(8)) return {};
+            if ((opcode & 0x40) && !readDeltaSizeByte(16)) return {};
             if (size == 0) size = 0x10000;
             if (offset + size > static_cast<quint64>(base.size())) return {};
             result.append(base.mid(static_cast<int>(offset), static_cast<int>(size)));

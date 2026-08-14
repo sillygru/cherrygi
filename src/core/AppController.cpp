@@ -215,8 +215,26 @@ void AppController::updateCurrentState()
 {
     if (!m_activeService) return;
 
-    m_remoteStatus = m_activeService->getRemoteStatus();
-    m_commitHistoryModel->setAheadCount(m_remoteStatus.ahead);
+    auto repo = m_activeService->getCurrentRepository();
+    if (repo && repo->isMissing) {
+        m_isCurrentRepoMissing = true;
+        m_missingRepoPath = repo->path;
+        m_missingRepoName = repo->name;
+        m_missingRepoRemoteUrl = repo->remoteUrl;
+        m_selectedFilePath.clear();
+        m_selectedCommitSha.clear();
+        m_diffModel->clear();
+        emit selectedFilePathChanged();
+        emit selectedCommitShaChanged();
+    } else {
+        m_isCurrentRepoMissing = false;
+        m_missingRepoPath.clear();
+        m_missingRepoName.clear();
+        m_missingRepoRemoteUrl.clear();
+        m_remoteStatus = m_activeService->getRemoteStatus();
+        m_commitHistoryModel->setAheadCount(m_remoteStatus.ahead);
+    }
+
     emit remoteStatusChanged();
     emit currentRepoChanged();
     emit currentBranchChanged();
@@ -279,6 +297,9 @@ bool AppController::isGhAvailable() const
 
 QString AppController::operationMessage() const
 {
+    if (m_isCloning) {
+        return m_cloneProgressMessage.isEmpty() ? tr("Cloning repository...") : m_cloneProgressMessage;
+    }
     if (m_isLoadingRepository) {
         return m_loadingRepositoryMessage.isEmpty() ? tr("Loading repository...") : m_loadingRepositoryMessage;
     }
@@ -328,19 +349,35 @@ void AppController::setSelectedFilePath(const QString &path)
     if (m_selectedFilePath == path) return;
     m_selectedFilePath = path;
     emit selectedFilePathChanged();
-    m_diffModel->loadDiffForFile(m_selectedFilePath);
+
+    QString oldPath;
+    if (m_activeService) {
+        for (const auto &f : m_activeService->getChangedFiles()) {
+            if (f.filePath == path) {
+                oldPath = f.oldFilePath;
+                break;
+            }
+        }
+    }
+    m_diffModel->loadDiffForFile(m_selectedFilePath, oldPath);
 }
 
 void AppController::setSelectedCommitSha(const QString &sha)
 {
     if (m_selectedCommitSha == sha) return;
     m_selectedCommitSha = sha;
+    m_cachedCommitData.clear();
+    m_cachedCommitDataSha.clear();
     emit selectedCommitShaChanged();
 }
 
 QVariant AppController::selectedCommitData() const
 {
-    if (!m_activeService) return QVariantMap();
+    if (!m_activeService || m_selectedCommitSha.isEmpty()) return QVariantMap();
+
+    if (m_cachedCommitDataSha == m_selectedCommitSha && !m_cachedCommitData.isEmpty()) {
+        return m_cachedCommitData;
+    }
 
     auto c = m_activeService->getCommitDetails(m_selectedCommitSha);
     if (!c) return QVariantMap();
@@ -361,12 +398,16 @@ QVariant AppController::selectedCommitData() const
     for (const auto &f : c->changedFiles) {
         QVariantMap fm;
         fm["filePath"] = f.filePath;
+        fm["oldFilePath"] = f.oldFilePath;
         fm["status"] = static_cast<int>(f.status);
         fm["additions"] = f.additions;
         fm["deletions"] = f.deletions;
         files.append(fm);
     }
     map["files"] = files;
+
+    m_cachedCommitData = map;
+    m_cachedCommitDataSha = m_selectedCommitSha;
 
     return map;
 }
@@ -375,12 +416,18 @@ void AppController::setSelectedStashId(const QString &id)
 {
     if (m_selectedStashId == id) return;
     m_selectedStashId = id;
+    m_cachedStashData.clear();
+    m_cachedStashDataId.clear();
     emit selectedStashIdChanged();
 }
 
 QVariant AppController::selectedStashData() const
 {
     if (!m_activeService) return QVariantMap();
+
+    if (m_cachedStashDataId == m_selectedStashId && !m_cachedStashData.isEmpty()) {
+        return m_cachedStashData;
+    }
 
     auto s = m_activeService->getStashDetails(m_selectedStashId);
     if (!s) {
@@ -402,13 +449,18 @@ QVariant AppController::selectedStashData() const
     for (const auto &f : s->files) {
         QVariantMap fm;
         fm["filePath"] = f.filePath;
+        fm["oldFilePath"] = f.oldFilePath;
         fm["status"] = static_cast<int>(f.status);
-        fm["statusText"] = (f.status == FileChangeType::Added) ? "Added" : ((f.status == FileChangeType::Deleted) ? "Deleted" : "Modified");
+        fm["statusText"] = (f.status == FileChangeType::Added) ? "Added" : ((f.status == FileChangeType::Deleted) ? "Deleted" : (f.status == FileChangeType::Renamed ? "Renamed" : (f.status == FileChangeType::Untracked ? "Untracked" : "Modified")));
         fm["additions"] = f.additions;
         fm["deletions"] = f.deletions;
         files.append(fm);
     }
     map["files"] = files;
+
+    m_cachedStashData = map;
+    m_cachedStashDataId = m_selectedStashId;
+
     return map;
 }
 
@@ -636,7 +688,8 @@ void AppController::openLocalRepositoryDialog()
 void AppController::switchRepository(const QString &repoIdOrPath)
 {
     if (!m_activeService) return;
-    if (m_isLoadingRepository) return;
+
+    quint64 seq = ++m_currentLoadSequence;
 
     QString cleanName = QFileInfo(repoIdOrPath).fileName();
     if (cleanName.isEmpty()) cleanName = repoIdOrPath;
@@ -653,10 +706,10 @@ void AppController::switchRepository(const QString &repoIdOrPath)
     QString target = repoIdOrPath;
     IGitService *service = m_activeService;
 
-    QThread *thread = QThread::create([self, service, target]() {
+    QThread *thread = QThread::create([self, service, target, seq]() {
         bool ok = service->openRepository(target);
-        QMetaObject::invokeMethod(self, [self, ok]() {
-            if (!self) return;
+        QMetaObject::invokeMethod(self, [self, ok, seq]() {
+            if (!self || self->m_currentLoadSequence != seq) return;
             self->m_isLoadingRepository = false;
             emit self->isLoadingRepositoryChanged();
             emit self->operatingStateChanged();
@@ -688,7 +741,8 @@ void AppController::switchRepository(const QString &repoIdOrPath)
 void AppController::addRepository(const QString &name, const QString &path)
 {
     if (!m_activeService) return;
-    if (m_isLoadingRepository) return;
+
+    quint64 seq = ++m_currentLoadSequence;
 
     QString cleanName = name.trimmed().isEmpty() ? QFileInfo(path).fileName() : name.trimmed();
 
@@ -705,10 +759,10 @@ void AppController::addRepository(const QString &name, const QString &path)
     QString targetPath = path;
     IGitService *service = m_activeService;
 
-    QThread *thread = QThread::create([self, service, targetName, targetPath]() {
+    QThread *thread = QThread::create([self, service, targetName, targetPath, seq]() {
         bool ok = service->addRepository(targetName, targetPath);
-        QMetaObject::invokeMethod(self, [self, ok]() {
-            if (!self) return;
+        QMetaObject::invokeMethod(self, [self, ok, seq]() {
+            if (!self || self->m_currentLoadSequence != seq) return;
             self->m_isLoadingRepository = false;
             emit self->isLoadingRepositoryChanged();
             emit self->operatingStateChanged();
@@ -742,6 +796,125 @@ void AppController::removeRepository(const QString &repoIdOrPath)
     if (!m_activeService) return;
     m_activeService->removeRepository(repoIdOrPath);
     updateCurrentState();
+}
+
+void AppController::setCloneDialogVisible(bool visible)
+{
+    if (m_isCloneDialogVisible == visible) return;
+    m_isCloneDialogVisible = visible;
+    emit cloneDialogVisibleChanged();
+}
+
+void AppController::showCloneDialog(const QString &prefillUrl)
+{
+    m_clonePrefillUrl = prefillUrl.isEmpty() ? m_missingRepoRemoteUrl : prefillUrl;
+    emit cloneDialogVisibleChanged();
+    setCloneDialogVisible(true);
+}
+
+void AppController::hideCloneDialog()
+{
+    setCloneDialogVisible(false);
+}
+
+void AppController::cloneRepository(const QString &url, const QString &targetDir)
+{
+    if (!m_activeService || m_isCloning) return;
+
+    m_isCloning = true;
+    m_cloneProgressMessage = tr("Cloning %1...").arg(url);
+    emit isCloningChanged();
+    emit cloneProgressMessageChanged();
+    emit operatingStateChanged();
+
+    QPointer<AppController> self(this);
+    QString cleanUrl = url;
+    QString cleanDir = targetDir;
+    IGitService *service = m_activeService;
+
+    QThread *thread = QThread::create([self, service, cleanUrl, cleanDir]() {
+        bool ok = service->cloneRepository(cleanUrl, cleanDir);
+        QMetaObject::invokeMethod(self, [self, ok]() {
+            if (!self) return;
+            self->m_isCloning = false;
+            emit self->isCloningChanged();
+            emit self->operatingStateChanged();
+            if (ok) {
+                self->hideCloneDialog();
+                self->updateCurrentState();
+            }
+        }, Qt::QueuedConnection);
+    });
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
+}
+
+void AppController::cloneMissingRepository(const QString &targetDir)
+{
+    QString url = m_missingRepoRemoteUrl;
+    if (url.isEmpty()) {
+        showCloneDialog();
+        return;
+    }
+
+    QString chosenDir = targetDir;
+    if (chosenDir.isEmpty()) {
+        chosenDir = QFileDialog::getExistingDirectory(
+            nullptr,
+            tr("Select Destination Directory for Cloned Repository"),
+            QDir::homePath(),
+            QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
+        );
+        if (chosenDir.isEmpty()) return;
+        QString name = m_missingRepoName.isEmpty() ? "repository" : m_missingRepoName;
+        chosenDir = chosenDir + "/" + name;
+    }
+
+    cloneRepository(url, chosenDir);
+}
+
+void AppController::locateMissingRepository()
+{
+    QString dir = QFileDialog::getExistingDirectory(
+        nullptr,
+        tr("Locate Repository Folder for '%1'").arg(m_missingRepoName),
+        QDir::homePath(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
+    );
+
+    if (!dir.isEmpty()) {
+        relocateCurrentRepository(dir);
+    }
+}
+
+bool AppController::relocateCurrentRepository(const QString &newPath)
+{
+    if (!m_activeService) return false;
+    QString oldPath = m_missingRepoPath.isEmpty() ? currentRepoPath() : m_missingRepoPath;
+    bool ok = m_activeService->relocateRepository(oldPath, newPath);
+    if (ok) {
+        updateCurrentState();
+        showToast(tr("Repository location updated successfully"), false);
+    }
+    return ok;
+}
+
+void AppController::recheckMissingRepository()
+{
+    if (!m_activeService) return;
+    QString target = m_missingRepoPath.isEmpty() ? currentRepoPath() : m_missingRepoPath;
+    bool ok = m_activeService->recheckRepository(target);
+    if (ok) {
+        updateCurrentState();
+        showToast(tr("Repository found and opened"), false);
+    }
+}
+
+void AppController::removeCurrentMissingRepository()
+{
+    if (!m_activeService) return;
+    QString target = m_missingRepoPath.isEmpty() ? currentRepoPath() : m_missingRepoPath;
+    removeRepository(target);
 }
 
 void AppController::refresh()

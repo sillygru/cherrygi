@@ -1,6 +1,20 @@
 #include "CommitHistoryModel.h"
+#include <QColor>
 
 namespace Cherry {
+
+namespace {
+QColor computeAuthorColor(const QString &name)
+{
+    if (name.isEmpty()) return QColor("#7f8c8d");
+    quint32 hash = 0;
+    for (int i = 0; i < name.size(); ++i) {
+        hash = static_cast<quint32>(name[i].unicode()) + ((hash << 5) - hash);
+    }
+    int hue = static_cast<int>(hash % 360);
+    return QColor::fromHsl(hue, 140, 115);
+}
+}
 
 CommitHistoryModel::CommitHistoryModel(IGitService *service, QObject *parent)
     : QAbstractListModel(parent)
@@ -53,6 +67,10 @@ QVariant CommitHistoryModel::data(const QModelIndex &index, int role) const
         return commit.changedFiles.size();
     case IsLocalRole:
         return index.row() < m_aheadCount;
+    case AuthorColorRole:
+        return computeAuthorColor(commit.authorName);
+    case AuthorInitialRole:
+        return commit.authorName.isEmpty() ? QString("G") : QString(commit.authorName.at(0).toUpper());
     default:
         return QVariant();
     }
@@ -73,7 +91,9 @@ QHash<int, QByteArray> CommitHistoryModel::roleNames() const
         {CoAuthorsRole, "coAuthors"},
         {CoAuthorsTextRole, "coAuthorsText"},
         {ChangedFilesCountRole, "changedFilesCount"},
-        {IsLocalRole, "isLocal"}
+        {IsLocalRole, "isLocal"},
+        {AuthorColorRole, "authorColor"},
+        {AuthorInitialRole, "authorInitial"}
     };
 }
 
@@ -104,11 +124,28 @@ QString CommitHistoryModel::getSha(int index) const
 void CommitHistoryModel::reload()
 {
     if (!m_service) {
-        m_allCommits.clear();
-        applyFilter();
+        if (!m_allCommits.isEmpty()) {
+            m_allCommits.clear();
+            applyFilter();
+        }
         return;
     }
-    m_allCommits = m_service->getCommitHistory();
+    auto newCommits = m_service->getCommitHistory();
+    if (newCommits.size() == m_allCommits.size()) {
+        bool identical = true;
+        for (int i = 0; i < newCommits.size(); ++i) {
+            if (newCommits[i].sha != m_allCommits[i].sha ||
+                newCommits[i].summary != m_allCommits[i].summary ||
+                newCommits[i].relativeTime != m_allCommits[i].relativeTime) {
+                identical = false;
+                break;
+            }
+        }
+        if (identical) {
+            return;
+        }
+    }
+    m_allCommits = std::move(newCommits);
     applyFilter();
 }
 
@@ -131,13 +168,14 @@ void CommitHistoryModel::applyFilter()
         m_filteredCommits = m_allCommits;
     } else {
         m_filteredCommits.clear();
-        const QString lower = m_filterText.trimmed().toLower();
+        const QString filter = m_filterText.trimmed();
+        m_filteredCommits.reserve(m_allCommits.size() / 2);
         for (const auto &c : m_allCommits) {
-            if (c.summary.toLower().contains(lower) ||
-                c.description.toLower().contains(lower) ||
-                c.authorName.toLower().contains(lower) ||
-                c.sha.toLower().startsWith(lower) ||
-                c.shortSha.toLower().startsWith(lower)) {
+            if (c.summary.contains(filter, Qt::CaseInsensitive) ||
+                c.description.contains(filter, Qt::CaseInsensitive) ||
+                c.authorName.contains(filter, Qt::CaseInsensitive) ||
+                c.sha.startsWith(filter, Qt::CaseInsensitive) ||
+                c.shortSha.startsWith(filter, Qt::CaseInsensitive)) {
                 m_filteredCommits.append(c);
             }
         }

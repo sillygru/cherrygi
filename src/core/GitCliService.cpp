@@ -11,8 +11,18 @@
 #include <QTextStream>
 #include <QFileSystemWatcher>
 #include <QTimer>
+#include <future>
 
 namespace Cherry {
+
+namespace {
+QString redactRemoteUrl(const QString &url)
+{
+    QString result = url;
+    result.replace(QRegularExpression(R"((https?://)[^/\s@]+@)"), "\\1");
+    return result;
+}
+}
 
 GitCliService::GitCliService(QObject *parent)
     : IGitService(parent)
@@ -91,49 +101,38 @@ void GitCliService::invalidateRepositoryCaches()
     m_fileDiffCacheValid = false;
     m_fileDiffCachePath.clear();
     m_fileDiffCache.clear();
-}
-
-void GitCliService::autoStageChanges()
-{
-    if (m_repoPath.isEmpty()) return;
-
-    // Fast check: look for any untracked or unstaged modifications
-    GitResult statusRes = runGit({"status", "--porcelain=v1", "-unormal"}, QString(), 5000);
-    if (!statusRes.success || statusRes.stdOut.trimmed().isEmpty()) {
-        return;
-    }
-
-    bool needsAdd = false;
-    const QStringList lines = statusRes.stdOut.split('\n', Qt::SkipEmptyParts);
-    for (const QString &line : lines) {
-        if (line.length() < 2) continue;
-        QChar x = line[0];
-        QChar y = line[1];
-        // If untracked (??) or worktree has unstaged modifications/deletions/additions (y != ' ')
-        if (x == '?' || y != ' ') {
-            needsAdd = true;
-            break;
-        }
-    }
-
-    if (needsAdd) {
-        runGit({"add", "."}, QString(), 10000);
-    }
+    m_commitDetailsCache.clear();
 }
 
 void GitCliService::preloadRepositoryCaches()
 {
-    // All expensive Git queries happen before the update signals are posted. Model
-    // reloads can therefore return these snapshots without running Git on the UI thread.
+    // All expensive Git queries happen before the update signals are posted.
+    // We run independent queries in parallel so big repositories open almost instantly.
     m_suppressRefreshSignals = true;
     invalidateRepositoryCaches();
-    autoStageChanges();
-    getRemoteStatus();
-    getCurrentBranch();
-    getBranches();
-    getChangedFiles();
-    getCommitHistory();
-    getStashes();
+
+    auto fReader = std::async(std::launch::async, [this]() {
+        getCurrentBranch();
+        getBranches();
+        getStashes();
+    });
+
+    auto fRemote = std::async(std::launch::async, [this]() {
+        getRemoteStatus();
+    });
+
+    auto fHistory = std::async(std::launch::async, [this]() {
+        getCommitHistory();
+    });
+
+    auto fFiles = std::async(std::launch::async, [this]() {
+        getChangedFiles();
+    });
+
+    fReader.get();
+    fRemote.get();
+    fHistory.get();
+    fFiles.get();
 
     {
         QMutexLocker locker(&m_cacheMutex);
@@ -171,10 +170,26 @@ void GitCliService::refreshRepository()
 {
     if (m_repoPath.isEmpty() || m_refreshInProgress) return;
 
+    if (!QDir(m_repoPath).exists() || (!QFile::exists(m_repoPath + "/.git") && !QDir(m_repoPath + "/.git").exists())) {
+        if (!m_isMissing) {
+            m_isMissing = true;
+            invalidateRepositoryCaches();
+            RepositoryInfo missingInfo;
+            missingInfo.id = m_repoPath;
+            missingInfo.name = m_repoName;
+            missingInfo.path = m_repoPath;
+            missingInfo.isMissing = true;
+            missingInfo.remoteUrl = m_repoRemotes.value(m_repoPath);
+            emit repositoryChanged(missingInfo);
+            emitRepositoryRefreshSignals();
+        }
+        return;
+    }
+
     m_refreshInProgress = true;
     const QString repoPath = m_repoPath;
-    QThread *thread = QThread::create([this, repoPath]() {
-        Q_UNUSED(repoPath);
+    const quint64 generation = m_repositoryGeneration.load();
+    QThread *thread = QThread::create([this, repoPath, generation]() {
         const bool hadFilesCache = m_changedFilesCacheValid;
         const QList<FileChange> previousFiles = m_changedFilesCache;
         preloadRepositoryCaches();
@@ -194,7 +209,9 @@ void GitCliService::refreshRepository()
             }
         }
 
-        QMetaObject::invokeMethod(this, [this, filesChanged]() {
+        if (m_repositoryGeneration.load() != generation || m_repoPath != repoPath) return;
+        QMetaObject::invokeMethod(this, [this, filesChanged, repoPath, generation]() {
+            if (m_repositoryGeneration.load() != generation || m_repoPath != repoPath) return;
             m_refreshInProgress = false;
             emitRepositoryRefreshSignals(filesChanged);
         }, Qt::QueuedConnection);
@@ -214,7 +231,9 @@ GitResult GitCliService::runGit(const QStringList &args, const QString &workingD
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert("LC_ALL", "C");
     env.insert("GIT_TERMINAL_PROMPT", "0");
-    env.insert("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new");
+    if (!env.contains("GIT_SSH_COMMAND")) {
+        env.insert("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
+    }
     process.setProcessEnvironment(env);
 
     process.start("git", args);
@@ -232,8 +251,8 @@ GitResult GitCliService::runGit(const QStringList &args, const QString &workingD
     result.success = finished && (result.exitCode == 0);
 
     if (!result.success && !result.stdErr.trimmed().isEmpty()) {
-        qWarning().noquote() << QString("[GitCliService] 'git %1' failed (exit %2): %3")
-                                    .arg(args.join(' '))
+        // Do not log the command arguments: remote URLs may contain credentials.
+        qWarning().noquote() << QString("[GitCliService] Git command failed (exit %1): %2")
                                     .arg(result.exitCode)
                                     .arg(result.stdErr.trimmed());
     }
@@ -263,9 +282,13 @@ void GitCliService::loadSavedRepositories()
         settings.beginGroup(group);
         QString path = settings.value("path").toString();
         QString name = settings.value("name").toString();
-        if (!path.isEmpty() && QDir(path).exists()) {
+        QString remote = settings.value("remoteUrl").toString();
+        if (!path.isEmpty()) {
             if (name.isEmpty()) name = QFileInfo(path).fileName();
             m_knownRepos.insert(path, name);
+            if (!remote.isEmpty()) {
+                m_repoRemotes.insert(path, redactRemoteUrl(remote));
+            }
         }
         settings.endGroup();
     }
@@ -282,6 +305,9 @@ void GitCliService::saveRepositories()
         settings.beginGroup(QString::number(idx++));
         settings.setValue("path", it.key());
         settings.setValue("name", it.value());
+        if (m_repoRemotes.contains(it.key())) {
+            settings.setValue("remoteUrl", redactRemoteUrl(m_repoRemotes.value(it.key())));
+        }
         settings.endGroup();
     }
     settings.endGroup();
@@ -292,6 +318,7 @@ void GitCliService::saveRepositories()
 void GitCliService::loadFetchTimes()
 {
     m_repoFetchTimes.clear();
+    bool needsPruning = false;
     QSettings settings(AppSettings::dataDir() + "/fetchTimes.ini", QSettings::IniFormat);
     settings.beginGroup("FetchTimes");
     const QStringList groups = settings.childGroups();
@@ -300,11 +327,16 @@ void GitCliService::loadFetchTimes()
         QString path = settings.value("path").toString();
         QDateTime dt = QDateTime::fromString(settings.value("time").toString(), Qt::ISODate);
         settings.endGroup();
-        if (!path.isEmpty() && dt.isValid()) {
+        if (!path.isEmpty() && dt.isValid() && QDir(path).exists()) {
             m_repoFetchTimes.insert(path, dt);
+        } else if (!path.isEmpty() && !QDir(path).exists()) {
+            needsPruning = true;
         }
     }
     settings.endGroup();
+    if (needsPruning) {
+        saveFetchTimes();
+    }
 }
 
 void GitCliService::saveFetchTimes()
@@ -328,8 +360,9 @@ void GitCliService::discoverInitialRepository()
     QSettings settings("KDE", "cherrygi");
     QString lastRepo = settings.value("General/lastRepository").toString();
 
-    if (!lastRepo.isEmpty() && QDir(lastRepo).exists()) {
-        if (openRepository(lastRepo)) return;
+    if (!lastRepo.isEmpty() && m_knownRepos.contains(lastRepo)) {
+        openRepository(lastRepo);
+        return;
     }
 
     // Auto-discover the current working directory directly from .git/HEAD.
@@ -340,9 +373,15 @@ void GitCliService::discoverInitialRepository()
         return;
     }
 
-    // Check if any saved repo is valid
+    // Check if any saved repo exists
     for (auto it = m_knownRepos.begin(); it != m_knownRepos.end(); ++it) {
-        if (openRepository(it.key())) return;
+        if (QDir(it.key()).exists()) {
+            if (openRepository(it.key())) return;
+        }
+    }
+
+    if (!m_knownRepos.isEmpty()) {
+        openRepository(m_knownRepos.begin().key());
     }
 }
 
@@ -357,20 +396,28 @@ QList<RepositoryInfo> GitCliService::getRepositories()
         info.id = path;
         info.name = name;
         info.path = path;
+        info.remoteUrl = m_repoRemotes.value(path);
+        bool existsOnDisk = QDir(path).exists() && (QFile::exists(path + "/.git") || QDir(path + "/.git").exists());
+        info.isMissing = !existsOnDisk;
 
         if (path == m_repoPath) {
-            auto b = getCurrentBranch();
-            info.currentBranch = b ? b->name : "main";
-            info.changedFilesCount = m_fileSelection.size();
-            info.aheadCount = m_remoteStatus.ahead;
-            info.behindCount = m_remoteStatus.behind;
-            info.lastFetchedTime = m_remoteStatus.lastFetchedText;
+            if (m_isMissing) {
+                info.isMissing = true;
+                info.currentBranch = "-";
+            } else {
+                auto b = getCurrentBranch();
+                info.currentBranch = b ? b->name : "main";
+                info.changedFilesCount = m_fileSelection.size();
+                info.aheadCount = m_remoteStatus.ahead;
+                info.behindCount = m_remoteStatus.behind;
+                info.lastFetchedTime = m_remoteStatus.lastFetchedText;
+            }
         } else {
             info.currentBranch = "main";
             QDateTime repoFetch = m_repoFetchTimes.value(path);
             info.lastFetchedTime = repoFetch.isValid()
                 ? QString("Last fetched %1").arg(formatRelativeTime(repoFetch))
-                : "Not fetched in this session";
+                : (info.isMissing ? "Repository not found on disk" : "Not fetched in this session");
         }
         list.append(info);
     }
@@ -384,6 +431,13 @@ std::optional<RepositoryInfo> GitCliService::getCurrentRepository()
     info.id = m_repoPath;
     info.name = m_repoName;
     info.path = m_repoPath;
+    info.isMissing = m_isMissing;
+    info.remoteUrl = m_repoRemotes.value(m_repoPath);
+    if (m_isMissing) {
+        info.currentBranch = "-";
+        info.lastFetchedTime = "Repository not found on disk";
+        return info;
+    }
     auto b = getCurrentBranch();
     info.currentBranch = b ? b->name : "main";
     info.changedFilesCount = m_fileSelection.size();
@@ -395,6 +449,7 @@ std::optional<RepositoryInfo> GitCliService::getCurrentRepository()
 
 bool GitCliService::openRepository(const QString &pathOrId)
 {
+    m_repositoryGeneration.fetch_add(1);
     QString targetPath = pathOrId;
     if (!m_knownRepos.contains(targetPath)) {
         for (auto it = m_knownRepos.begin(); it != m_knownRepos.end(); ++it) {
@@ -406,16 +461,57 @@ bool GitCliService::openRepository(const QString &pathOrId)
     }
 
     if (!m_repositoryReader.open(targetPath)) {
-        emit operationFailed(QString("Not a valid Git repository: %1").arg(pathOrId));
+        // Directory missing or not a valid Git repo -> enter missing repository state
+        m_repoPath = targetPath;
+        m_repoName = m_knownRepos.value(targetPath, QFileInfo(targetPath).fileName());
+        if (m_repoName.isEmpty()) m_repoName = "Repository";
+        m_isMissing = true;
+        m_refreshInProgress = false;
+        m_remoteStatus.isFetching = false;
+        m_remoteStatus.isPulling = false;
+        m_remoteStatus.isPushing = false;
+        m_knownRepos.insert(m_repoPath, m_repoName);
+        saveRepositories();
+
+        invalidateRepositoryCaches();
+        m_fileSelection.clear();
+        clearUndoState();
+
+        RepositoryInfo missingInfo;
+        missingInfo.id = m_repoPath;
+        missingInfo.name = m_repoName;
+        missingInfo.path = m_repoPath;
+        missingInfo.isMissing = true;
+        missingInfo.remoteUrl = m_repoRemotes.value(m_repoPath);
+
+        emit repositoryChanged(missingInfo);
+        emitRepositoryRefreshSignals();
+        return true;
+    }
+
+    if (m_repositoryReader.workTreePath().isEmpty()) {
+        m_refreshInProgress = false;
+        emit operationFailed("Bare repositories are not supported; select a repository with a working tree");
         return false;
     }
 
+    m_isMissing = false;
+    m_refreshInProgress = false;
+    m_remoteStatus.isFetching = false;
+    m_remoteStatus.isPulling = false;
+    m_remoteStatus.isPushing = false;
     const QString discoveredPath = m_repositoryReader.workTreePath().isEmpty()
         ? QDir::cleanPath(targetPath)
         : m_repositoryReader.workTreePath();
     m_repoPath = discoveredPath;
     m_repoName = QFileInfo(m_repoPath).fileName();
     if (m_repoName.isEmpty()) m_repoName = "Repository";
+
+    // Cache remote URL if available
+    QString remote = getRemoteUrl("origin");
+    if (!remote.isEmpty()) {
+        m_repoRemotes.insert(m_repoPath, redactRemoteUrl(remote));
+    }
 
     // Restore this repo's persisted last-fetch time so "Last fetched" survives restarts.
     m_lastFetchTime = m_repoFetchTimes.value(m_repoPath);
@@ -443,17 +539,107 @@ bool GitCliService::addRepository(const QString &name, const QString &path)
     }
 
     GitRepositoryReader reader;
-    if (!reader.open(targetPath)) {
-        emit operationFailed(QString("Directory '%1' is not a Git repository").arg(targetPath));
+    if (!reader.open(targetPath) || reader.workTreePath().isEmpty()) {
+        emit operationFailed(QString("Directory '%1' is not a non-bare Git repository").arg(targetPath));
         return false;
     }
 
-    QString realPath = reader.workTreePath().isEmpty() ? QDir::cleanPath(targetPath) : reader.workTreePath();
+    QString realPath = reader.workTreePath();
     QString realName = name.trimmed().isEmpty() ? QFileInfo(realPath).fileName() : name.trimmed();
     m_knownRepos.insert(realPath, realName);
     saveRepositories();
 
     return openRepository(realPath);
+}
+
+bool GitCliService::relocateRepository(const QString &oldPath, const QString &newPath)
+{
+    QString cleanNew = newPath.trimmed();
+    if (cleanNew.startsWith("file://")) {
+        cleanNew = QUrl(cleanNew).toLocalFile();
+    }
+    cleanNew = QDir::cleanPath(cleanNew);
+
+    GitRepositoryReader reader;
+    if (!reader.open(cleanNew) || reader.workTreePath().isEmpty()) {
+        emit operationFailed(QString("Directory '%1' is not a non-bare Git repository").arg(cleanNew));
+        return false;
+    }
+
+    QString realPath = reader.workTreePath();
+    QString repoName = m_knownRepos.value(oldPath, QFileInfo(realPath).fileName());
+    if (repoName.isEmpty()) repoName = QFileInfo(realPath).fileName();
+
+    QString remote = m_repoRemotes.value(oldPath);
+
+    m_knownRepos.remove(oldPath);
+    m_repoFetchTimes.remove(oldPath);
+    m_repoRemotes.remove(oldPath);
+
+    m_knownRepos.insert(realPath, repoName);
+    if (!remote.isEmpty()) {
+        m_repoRemotes.insert(realPath, remote);
+    }
+
+    saveRepositories();
+    saveFetchTimes();
+
+    return openRepository(realPath);
+}
+
+bool GitCliService::cloneRepository(const QString &url, const QString &targetPath)
+{
+    QString cleanUrl = url.trimmed();
+    QString cleanPath = targetPath.trimmed();
+    if (cleanPath.startsWith("file://")) {
+        cleanPath = QUrl(cleanPath).toLocalFile();
+    }
+    cleanPath = QDir::cleanPath(cleanPath);
+
+    if (cleanUrl.isEmpty() || cleanPath.isEmpty()) {
+        emit operationFailed(tr("Please provide a valid repository URL and destination directory."));
+        return false;
+    }
+
+    QDir targetDir(cleanPath);
+    if (targetDir.exists() && !targetDir.isEmpty()) {
+        emit operationFailed(tr("Destination directory '%1' exists and is not empty.").arg(cleanPath));
+        return false;
+    }
+
+    GitResult res = runGit({"clone", "--progress", "--", cleanUrl, cleanPath}, QString(), 180000);
+    if (!res.success) {
+        emit operationFailed(formatGitError(res.stdErr.isEmpty() ? res.stdOut : res.stdErr, tr("Git clone failed")));
+        return false;
+    }
+
+    QString repoName = QFileInfo(cleanPath).fileName();
+    m_knownRepos.insert(cleanPath, repoName);
+    m_repoRemotes.insert(cleanPath, redactRemoteUrl(cleanUrl));
+    saveRepositories();
+
+    return openRepository(cleanPath);
+}
+
+bool GitCliService::recheckRepository(const QString &pathOrId)
+{
+    QString targetPath = pathOrId.isEmpty() ? m_repoPath : pathOrId;
+    if (!m_knownRepos.contains(targetPath)) {
+        for (auto it = m_knownRepos.begin(); it != m_knownRepos.end(); ++it) {
+            if (it.value() == targetPath) {
+                targetPath = it.key();
+                break;
+            }
+        }
+    }
+
+    GitRepositoryReader reader;
+    if (reader.open(targetPath) && !reader.workTreePath().isEmpty()) {
+        return openRepository(targetPath);
+    }
+
+    emit operationFailed(QString("Repository is still not found at '%1'").arg(targetPath));
+    return false;
 }
 
 bool GitCliService::removeRepository(const QString &repoIdOrPath)
@@ -469,6 +655,7 @@ bool GitCliService::removeRepository(const QString &repoIdOrPath)
     }
 
     if (m_knownRepos.remove(targetPath) > 0) {
+        m_repoRemotes.remove(targetPath);
         saveRepositories();
         if (m_repoFetchTimes.remove(targetPath) > 0) {
             saveFetchTimes();
@@ -479,6 +666,7 @@ bool GitCliService::removeRepository(const QString &repoIdOrPath)
             } else {
                 m_repoPath.clear();
                 m_repoName.clear();
+                m_isMissing = false;
                 emit repositoryChanged({});
             }
         } else {
@@ -497,7 +685,35 @@ QList<BranchInfo> GitCliService::getBranches()
     if (m_branchesCacheValid) return m_branchesCache;
     if (m_repoPath.isEmpty()) return {};
 
-    m_branchesCache = m_repositoryReader.branches();
+    if (m_repositoryReader.directReadSupported()) {
+        m_branchesCache = m_repositoryReader.branches();
+    }
+
+    if (!m_repositoryReader.directReadSupported() || m_branchesCache.isEmpty()) {
+        locker.unlock();
+        const GitResult refs = runGit({"for-each-ref", "--format=%(refname)%x1f%(objectname)%x1e", "refs/heads", "refs/remotes"}, QString(), 3000);
+        locker.relock();
+        if (refs.success) {
+            QList<BranchInfo> parsed;
+            const QStringList records = refs.stdOut.split(QChar('\x1e'), Qt::SkipEmptyParts);
+            for (const QString &record : records) {
+                const QStringList fields = record.split(QChar('\x1f'));
+                if (fields.size() < 2 || fields[0].isEmpty()) continue;
+                const QString refName = fields[0].trimmed();
+                BranchInfo branch;
+                branch.isRemote = refName.startsWith("refs/remotes/");
+                branch.name = branch.isRemote ? refName.mid(QStringLiteral("refs/remotes/").size())
+                                              : refName.mid(QStringLiteral("refs/heads/").size());
+                if (branch.name.isEmpty()) continue;
+                branch.isDefault = branch.name == "main" || branch.name == "master" ||
+                                   branch.name == "origin/main" || branch.name == "origin/master";
+                branch.tipCommitSha = fields[1].trimmed().left(7);
+                parsed.append(branch);
+            }
+            m_branchesCache = parsed;
+        }
+    }
+
     m_branchesCacheValid = true;
     return m_branchesCache;
 }
@@ -508,18 +724,44 @@ std::optional<BranchInfo> GitCliService::getCurrentBranch()
     if (m_currentBranchCacheValid) return m_currentBranchCache;
     if (m_repoPath.isEmpty()) return std::nullopt;
 
-    m_currentBranchCache = m_repositoryReader.currentBranch();
+    if (m_repositoryReader.directReadSupported()) {
+        m_currentBranchCache = m_repositoryReader.currentBranch();
+    }
+
+    if (!m_repositoryReader.directReadSupported() || !m_currentBranchCache) {
+        locker.unlock();
+        const GitResult nameRes = runGit({"symbolic-ref", "--quiet", "--short", "HEAD"}, QString(), 2000);
+        const GitResult shaRes = runGit({"rev-parse", "--verify", "HEAD"}, QString(), 2000);
+        locker.relock();
+        BranchInfo branch;
+        if (nameRes.success && !nameRes.stdOut.trimmed().isEmpty()) {
+            branch.name = nameRes.stdOut.trimmed();
+        } else if (shaRes.success) {
+            branch.name = "(detached)";
+        }
+        if (shaRes.success) branch.tipCommitSha = shaRes.stdOut.trimmed().left(7);
+        if (!branch.name.isEmpty()) {
+            branch.isCurrent = true;
+            branch.isDefault = branch.name == "main" || branch.name == "master";
+            m_currentBranchCache = branch;
+        }
+    }
+
     m_currentBranchCacheValid = true;
     return m_currentBranchCache;
 }
 
 bool GitCliService::switchBranch(const QString &branchName)
 {
-    if (m_repoPath.isEmpty()) return false;
+    if (m_repoPath.isEmpty() || !isValidBranchName(branchName)) {
+        emit operationFailed("Invalid branch name");
+        return false;
+    }
 
-    GitResult res = runGit({"checkout", branchName}, QString(), 15000);
+    const QString name = branchName.trimmed();
+    GitResult res = runGit({"checkout", name}, QString(), 15000);
     if (!res.success) {
-        res = runGit({"switch", branchName}, QString(), 15000);
+        res = runGit({"switch", "--", name}, QString(), 15000);
     }
 
     if (res.success) {
@@ -542,12 +784,20 @@ bool GitCliService::switchBranch(const QString &branchName)
 
 bool GitCliService::createBranch(const QString &branchName, const QString &sourceBranch)
 {
-    if (m_repoPath.isEmpty() || branchName.trimmed().isEmpty()) return false;
+    if (m_repoPath.isEmpty() || !isValidBranchName(branchName)) {
+        emit operationFailed("Invalid branch name");
+        return false;
+    }
 
     QString name = branchName.trimmed();
     QStringList args = {"checkout", "-b", name};
     if (!sourceBranch.trimmed().isEmpty()) {
-        args.append(sourceBranch.trimmed());
+        const QString source = sourceBranch.trimmed();
+        if (source.startsWith('-')) {
+            emit operationFailed("Invalid source branch");
+            return false;
+        }
+        args.append(source);
     }
 
     GitResult res = runGit(args, QString(), 10000);
@@ -568,9 +818,12 @@ bool GitCliService::createBranch(const QString &branchName, const QString &sourc
 
 bool GitCliService::deleteBranch(const QString &branchName)
 {
-    if (m_repoPath.isEmpty() || branchName.trimmed().isEmpty()) return false;
+    if (m_repoPath.isEmpty() || !isValidBranchName(branchName)) {
+        emit operationFailed("Invalid branch name");
+        return false;
+    }
 
-    GitResult res = runGit({"branch", "-D", branchName.trimmed()}, QString(), 10000);
+    GitResult res = runGit({"branch", "-d", "--", branchName.trimmed()}, QString(), 10000);
     if (res.success) {
         clearUndoState();
         invalidateRepositoryCaches();
@@ -590,11 +843,15 @@ QList<FileChange> GitCliService::getChangedFiles()
     if (m_repoPath.isEmpty()) return {};
 
     locker.unlock();
-    autoStageChanges();
 
-    // Avoid recursively enumerating every file in large untracked directories.
-    GitResult statusRes = runGit({"status", "--porcelain=v1", "-unormal"}, QString(), 5000);
-    if (!statusRes.success || statusRes.stdOut.trimmed().isEmpty()) {
+    // Query changed & untracked files with normal untracked scanning for max speed in huge repos
+    GitResult statusRes = runGit({"--no-optional-locks", "status", "--porcelain=v1", "-unormal", "-z"}, QString(), 10000);
+    if (!statusRes.success) {
+        locker.relock();
+        m_changedFilesCacheValid = false;
+        return m_changedFilesCache;
+    }
+    if (statusRes.stdOut.isEmpty()) {
         locker.relock();
         m_fileSelection.clear();
         m_changedFilesCache.clear();
@@ -602,45 +859,79 @@ QList<FileChange> GitCliService::getChangedFiles()
         return m_changedFilesCache;
     }
 
-    // One combined query is enough for tracked additions/deletions and avoids
-    // spawning two extra Git processes for every refresh.
-    QMap<QString, QPair<int, int>> numStats;
-    GitResult numRes = runGit({"diff", "HEAD", "--numstat"}, QString(), 4000);
-    if (!numRes.success) {
-        numRes = runGit({"diff", "--cached", "--numstat"}, QString(), 4000);
+    const QStringList records = statusRes.stdOut.split(QChar('\0'), Qt::KeepEmptyParts);
+    if (records.isEmpty() || (records.size() == 1 && records.first().isEmpty())) {
+        locker.relock();
+        m_fileSelection.clear();
+        m_changedFilesCache.clear();
+        m_changedFilesCacheValid = true;
+        return m_changedFilesCache;
     }
-    if (numRes.success) {
-        for (const QString &line : numRes.stdOut.split('\n', Qt::SkipEmptyParts)) {
-            QStringList p = line.split('\t');
-            if (p.size() >= 3) {
-                numStats[p[2]].first += p[0].toInt();
-                numStats[p[2]].second += p[1].toInt();
+
+    struct StatusRecord {
+        QChar x{' '};
+        QChar y{' '};
+        QString filePath;
+        QString oldFilePath;
+    };
+    QList<StatusRecord> statusRecords;
+    QStringList trackedModifiedPaths;
+    for (int i = 0; i < records.size(); ++i) {
+        const QString &record = records.at(i);
+        if (record.size() < 4) continue;
+        StatusRecord parsed;
+        parsed.x = record.at(0);
+        parsed.y = record.at(1);
+        parsed.filePath = record.mid(3);
+        if ((parsed.x == 'R' || parsed.y == 'R' || parsed.x == 'C' || parsed.y == 'C') && i + 1 < records.size()) {
+            parsed.oldFilePath = records.at(++i);
+        }
+        statusRecords.append(parsed);
+        if (parsed.x != '?' && parsed.y != '?') {
+            trackedModifiedPaths.append(parsed.filePath);
+            if (!parsed.oldFilePath.isEmpty()) trackedModifiedPaths.append(parsed.oldFilePath);
+        }
+    }
+
+    // Only run diff numstat if there are actually modified tracked files.
+    QMap<QString, QPair<int, int>> numStats;
+    if (!trackedModifiedPaths.isEmpty()) {
+        QStringList numArgs = {"diff", "HEAD", "--numstat", "-z", "--"};
+        if (trackedModifiedPaths.size() <= 100) numArgs.append(trackedModifiedPaths);
+        GitResult numRes = runGit(numArgs, QString(), 6000);
+        if (!numRes.success) {
+            QStringList cachedArgs = {"diff", "--cached", "--numstat", "-z", "--"};
+            if (trackedModifiedPaths.size() <= 100) cachedArgs.append(trackedModifiedPaths);
+            numRes = runGit(cachedArgs, QString(), 6000);
+        }
+        if (numRes.success) {
+            const QStringList statRecords = numRes.stdOut.split(QChar('\0'), Qt::KeepEmptyParts);
+            for (int i = 0; i < statRecords.size(); ++i) {
+                const QStringList parts = statRecords.at(i).split('\t');
+                if (parts.size() >= 3 && !parts[2].isEmpty()) {
+                    numStats[parts[2]] = qMakePair(parts[0] == "-" ? 0 : parts[0].toInt(),
+                                                    parts[1] == "-" ? 0 : parts[1].toInt());
+                } else if (parts.size() >= 3 && parts[2].isEmpty() && i + 2 < statRecords.size()) {
+                    const auto stats = qMakePair(parts[0] == "-" ? 0 : parts[0].toInt(),
+                                                 parts[1] == "-" ? 0 : parts[1].toInt());
+                    numStats[statRecords.at(i + 1)] = stats;
+                    numStats[statRecords.at(i + 2)] = stats;
+                    i += 2;
+                }
             }
         }
     }
 
     QList<FileChange> files;
-    const QStringList lines = statusRes.stdOut.split('\n', Qt::SkipEmptyParts);
+    files.reserve(statusRecords.size());
 
     int idx = 0;
     locker.relock();
-    for (const QString &line : lines) {
-        if (line.length() < 4) continue;
-        QChar x = line[0];
-        QChar y = line[1];
-        QString filePath = line.mid(3).trimmed();
-
-        // Strip quotes if git escaped path
-        if (filePath.startsWith('"') && filePath.endsWith('"')) {
-            filePath = filePath.mid(1, filePath.length() - 2);
-        }
-
-        QString oldPath;
-        if (filePath.contains(" -> ")) {
-            QStringList parts = filePath.split(" -> ");
-            oldPath = parts[0];
-            filePath = parts[1];
-        }
+    for (const StatusRecord &record : statusRecords) {
+        const QChar x = record.x;
+        const QChar y = record.y;
+        const QString &filePath = record.filePath;
+        const QString &oldPath = record.oldFilePath;
 
         FileChange fc;
         fc.id = QString("fc-%1").arg(idx++);
@@ -705,22 +996,36 @@ void GitCliService::setAllFilesSelected(bool selected)
 
 bool GitCliService::discardFileChanges(const QString &filePath)
 {
-    if (m_repoPath.isEmpty() || filePath.isEmpty()) return false;
+    if (m_repoPath.isEmpty() || !isSafeRepositoryPath(filePath)) return false;
 
-    GitResult check = runGit({"status", "--porcelain=v1", "--", filePath}, QString(), 3000);
-    if (check.stdOut.startsWith("??") || check.stdOut.startsWith("A ") || check.stdOut.startsWith("A")) {
-        runGit({"rm", "-f", "--", filePath}, QString(), 3000);
+    GitResult check = runGit({"--no-optional-locks", "status", "--porcelain=v1", "-z", "--", filePath}, QString(), 3000);
+    const bool isUntracked = check.stdOut.startsWith("?? ");
+    const bool isAdded = check.stdOut.startsWith("A ") || check.stdOut.startsWith(" A");
+    if (isUntracked || isAdded) {
+        const GitResult remove = runGit({"rm", "-f", "--ignore-unmatch", "--", filePath}, QString(), 3000);
+        if (!remove.success && !isUntracked) {
+            emit operationFailed(formatGitError(remove.stdErr, "Failed to discard file changes"));
+            return false;
+        }
         QString fullPath = m_repoPath + "/" + filePath;
         QFileInfo fi(fullPath);
         if (fi.exists()) {
-            if (fi.isDir()) {
-                QDir(fullPath).removeRecursively();
-            } else {
-                QFile::remove(fullPath);
+            if (fi.isSymLink() || !fi.isDir()) {
+                if (!QFile::remove(fullPath)) {
+                    emit operationFailed("Failed to remove the selected file");
+                    return false;
+                }
+            } else if (!QDir(fullPath).removeRecursively()) {
+                emit operationFailed("Failed to remove the selected directory");
+                return false;
             }
         }
     } else {
-        runGit({"restore", "--staged", "--worktree", "--", filePath}, QString(), 5000);
+        const GitResult restore = runGit({"restore", "--staged", "--worktree", "--", filePath}, QString(), 5000);
+        if (!restore.success) {
+            emit operationFailed(formatGitError(restore.stdErr, "Failed to discard file changes"));
+            return false;
+        }
     }
 
     invalidateRepositoryCaches();
@@ -733,8 +1038,13 @@ bool GitCliService::discardAllChanges()
 {
     if (m_repoPath.isEmpty()) return false;
 
-    runGit({"restore", "--staged", "--worktree", "."}, QString(), 8000);
-    runGit({"clean", "-fd"}, QString(), 8000);
+    const GitResult restore = runGit({"restore", "--staged", "--worktree", "--", "."}, QString(), 8000);
+    const GitResult clean = runGit({"clean", "-fd", "--", "."}, QString(), 8000);
+    if (!restore.success || !clean.success) {
+        emit operationFailed(formatGitError(!restore.success ? restore.stdErr : clean.stdErr,
+                                            "Failed to discard all changes"));
+        return false;
+    }
 
     invalidateRepositoryCaches();
     emit changedFilesUpdated();
@@ -748,7 +1058,8 @@ QList<DiffLine> GitCliService::parseDiffOutput(const QString &diffText)
     if (diffText.isEmpty()) return lines;
 
     const QStringList rawLines = diffText.split('\n');
-    QRegularExpression hunkRegex(R"(^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@(.*)$)");
+    lines.reserve(rawLines.size());
+    static const QRegularExpression hunkRegex(R"(^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@(.*)$)");
 
     int curOld = 0;
     int curNew = 0;
@@ -803,25 +1114,30 @@ QList<DiffLine> GitCliService::parseDiffOutput(const QString &diffText)
     return lines;
 }
 
-QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath)
+QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath, const QString &oldFilePath)
 {
     QMutexLocker locker(&m_cacheMutex);
-    if (m_fileDiffCacheValid && m_fileDiffCachePath == filePath) return m_fileDiffCache;
-    if (m_repoPath.isEmpty() || filePath.isEmpty()) return {};
+    QString cacheKey = (oldFilePath.isEmpty() || oldFilePath == filePath) ? filePath : QString("%1|%2").arg(oldFilePath, filePath);
+    if (m_fileDiffCacheValid && m_fileDiffCachePath == cacheKey) return m_fileDiffCache;
+    if (m_repoPath.isEmpty() || (filePath.isEmpty() && oldFilePath.isEmpty()) ||
+        (!filePath.isEmpty() && !isSafeRepositoryPath(filePath)) ||
+        (!oldFilePath.isEmpty() && !isSafeRepositoryPath(oldFilePath))) return {};
 
     locker.unlock();
 
+    QString effectivePath = filePath.isEmpty() ? oldFilePath : filePath;
+
     // If untracked file or folder, read safely from disk
-    GitResult statusCheck = runGit({"status", "--porcelain=v1", "--", filePath}, QString(), 2000);
+    GitResult statusCheck = runGit({"--no-optional-locks", "status", "--porcelain=v1", "--", effectivePath}, QString(), 2000);
     if (statusCheck.stdOut.startsWith("??")) {
-        QString fullPath = m_repoPath + "/" + filePath;
+        QString fullPath = m_repoPath + "/" + effectivePath;
         QFileInfo fi(fullPath);
         if (fi.isDir()) {
             DiffLine hunk;
             hunk.oldLineNumber = -1;
             hunk.newLineNumber = -1;
             hunk.type = DiffLineType::HunkHeader;
-            hunk.content = QString("@@ Directory: %1 @@").arg(filePath);
+            hunk.content = QString("@@ Directory: %1 @@").arg(effectivePath);
             DiffLine dl;
             dl.oldLineNumber = -1;
             dl.newLineNumber = 1;
@@ -829,7 +1145,7 @@ QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath)
             dl.content = "Untracked Directory";
             QList<DiffLine> directoryDiff{hunk, dl};
             locker.relock();
-            if (filePath == m_fileDiffCachePath) {
+            if (cacheKey == m_fileDiffCachePath) {
                 m_fileDiffCache = directoryDiff;
                 m_fileDiffCacheValid = true;
             }
@@ -859,24 +1175,34 @@ QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath)
             lines.append(dl);
         }
         locker.relock();
-        if (filePath == m_fileDiffCachePath) {
+        if (cacheKey == m_fileDiffCachePath) {
             m_fileDiffCache = lines;
             m_fileDiffCacheValid = true;
         }
         return lines;
     }
 
-    // Tracked diff against HEAD
-    GitResult res = runGit({"diff", "HEAD", "--", filePath}, QString(), 4000);
+    // Tracked diff against HEAD with rename detection
+    QStringList argsHead = {"diff", "-M", "HEAD", "--"};
+    if (!oldFilePath.isEmpty() && oldFilePath != filePath) argsHead.append(oldFilePath);
+    if (!filePath.isEmpty()) argsHead.append(filePath);
+
+    GitResult res = runGit(argsHead, QString(), 4000);
     if (res.stdOut.isEmpty()) {
-        res = runGit({"diff", "--cached", "--", filePath}, QString(), 4000);
+        QStringList argsCached = {"diff", "-M", "--cached", "--"};
+        if (!oldFilePath.isEmpty() && oldFilePath != filePath) argsCached.append(oldFilePath);
+        if (!filePath.isEmpty()) argsCached.append(filePath);
+        res = runGit(argsCached, QString(), 4000);
         if (res.stdOut.isEmpty()) {
-            res = runGit({"diff", "--", filePath}, QString(), 4000);
+            QStringList argsWorking = {"diff", "-M", "--"};
+            if (!oldFilePath.isEmpty() && oldFilePath != filePath) argsWorking.append(oldFilePath);
+            if (!filePath.isEmpty()) argsWorking.append(filePath);
+            res = runGit(argsWorking, QString(), 4000);
         }
     }
     QList<DiffLine> lines = parseDiffOutput(res.stdOut);
     locker.relock();
-    if (filePath == m_fileDiffCachePath) {
+    if (cacheKey == m_fileDiffCachePath) {
         m_fileDiffCache = lines;
         m_fileDiffCacheValid = true;
     }
@@ -903,31 +1229,54 @@ bool GitCliService::isFileMetadataOnly(const QString &filePath)
     return numstat.success && numstat.stdOut.trimmed().isEmpty();
 }
 
-QList<DiffLine> GitCliService::getDiffForCommitFile(const QString &commitSha, const QString &filePath)
+QList<DiffLine> GitCliService::getDiffForCommitFile(const QString &commitSha, const QString &filePath, const QString &oldFilePath)
 {
-    if (m_repoPath.isEmpty() || commitSha.isEmpty() || filePath.isEmpty()) return {};
+    static const QRegularExpression revisionRegex("^[0-9a-fA-F]{4,64}$");
+    if (m_repoPath.isEmpty() || !revisionRegex.match(commitSha.trimmed()).hasMatch() ||
+        (filePath.isEmpty() && oldFilePath.isEmpty())) return {};
 
-    GitResult res = runGit({"show", commitSha, "--", filePath}, QString(), 4000);
-    return parseDiffOutput(res.stdOut);
-}
-
-QList<DiffLine> GitCliService::getDiffForStashFile(const QString &stashId, const QString &filePath)
-{
-    if (m_repoPath.isEmpty()) return {};
-    QString id = stashId.isEmpty() ? "stash@{0}" : stashId;
-
-    QStringList args = {"stash", "show", "-p", id};
+    QStringList args = {"show", "-M", "--end-of-options", commitSha.trimmed(), "--"};
+    if (!oldFilePath.isEmpty() && oldFilePath != filePath) {
+        args.append(oldFilePath);
+    }
     if (!filePath.isEmpty()) {
-        args.append("--");
         args.append(filePath);
     }
     GitResult res = runGit(args, QString(), 4000);
     return parseDiffOutput(res.stdOut);
 }
 
+QList<DiffLine> GitCliService::getDiffForStashFile(const QString &stashId, const QString &filePath)
+{
+    if (m_repoPath.isEmpty() || (!filePath.isEmpty() && !isSafeRepositoryPath(filePath))) return {};
+    QString id = stashId.isEmpty() ? "stash@{0}" : stashId;
+    if (!isValidStashId(id)) return {};
+    if (!id.startsWith("stash@{")) id = QString("stash@{%1}").arg(id);
+
+    QStringList args = {"diff", "-M", QString("%1^").arg(id), id, "--"};
+    if (!filePath.isEmpty()) {
+        args.append(filePath);
+    }
+    GitResult res = runGit(args, QString(), 4000);
+    if (!res.stdOut.isEmpty()) return parseDiffOutput(res.stdOut);
+
+    // `git stash push -u` stores untracked files in a third parent. The
+    // normal stash^..stash diff cannot see those paths, so inspect that
+    // parent as a root commit when the tracked diff is empty.
+    const GitResult untrackedParent = runGit({"rev-parse", "--verify", QString("%1^3").arg(id)}, QString(), 2000);
+    if (untrackedParent.success) {
+        const QString parent = untrackedParent.stdOut.trimmed();
+        QStringList untrackedArgs = {"show", "-M", "--end-of-options", parent, "--"};
+        if (!filePath.isEmpty()) untrackedArgs.append(filePath);
+        const GitResult untracked = runGit(untrackedArgs, QString(), 4000);
+        return parseDiffOutput(untracked.stdOut);
+    }
+    return {};
+}
+
 QByteArray GitCliService::getFileBlob(const QString &filePath, const QString &ref)
 {
-    if (m_repoPath.isEmpty() || filePath.isEmpty()) return {};
+    if (m_repoPath.isEmpty() || filePath.isEmpty() || !isSafeRepositoryPath(filePath)) return {};
 
     if (ref.isEmpty()) {
         // Read directly from disk (working copy)
@@ -939,6 +1288,8 @@ QByteArray GitCliService::getFileBlob(const QString &filePath, const QString &re
         return {};
     }
 
+    if (ref.startsWith('-')) return {};
+
     // Capture binary output from git show <ref>:<path>
     QProcess process;
     process.setWorkingDirectory(m_repoPath);
@@ -947,7 +1298,7 @@ QByteArray GitCliService::getFileBlob(const QString &filePath, const QString &re
     env.insert("GIT_TERMINAL_PROMPT", "0");
     process.setProcessEnvironment(env);
 
-    process.start("git", {"show", QString("%1:%2").arg(ref, filePath)});
+    process.start("git", {"show", "--end-of-options", QString("%1:%2").arg(ref, filePath)});
     bool finished = process.waitForFinished(5000);
     if (!finished) {
         process.kill();
@@ -975,12 +1326,14 @@ QList<CommitItem> GitCliService::getCommitHistory(int limit)
 {
     QMutexLocker locker(&m_cacheMutex);
     if (m_repoPath.isEmpty()) return {};
-    const int safeLimit = qBound(1, limit, 100);
-    if (m_commitHistoryCacheValid) return m_commitHistoryCache.mid(0, safeLimit);
+    const int fetchCount = std::max(limit > 0 ? limit : 200, 200);
+    if (m_commitHistoryCacheValid) {
+        return (limit > 0) ? m_commitHistoryCache.mid(0, limit) : m_commitHistoryCache;
+    }
 
     // Fast Git CLI query using porcelain record/unit separators
     locker.unlock();
-    GitResult logRes = runGit({"log", QString("-%1").arg(safeLimit), "--format=%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%at%x1e"}, QString(), 4000);
+    GitResult logRes = runGit({"log", QString("-%1").arg(fetchCount), "--format=%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%at%x1e"}, QString(), 4000);
     locker.relock();
     if (logRes.success && !logRes.stdOut.isEmpty()) {
         QList<CommitItem> list;
@@ -999,7 +1352,7 @@ QList<CommitItem> GitCliService::getCommitHistory(int limit)
             item.timestamp = QDateTime::fromSecsSinceEpoch(epoch, QTimeZone::UTC);
             item.relativeTime = formatRelativeTime(item.timestamp);
 
-            QRegularExpression coRegex(R"(Co-authored-by:\s*(.*?)(?:<|$))", QRegularExpression::CaseInsensitiveOption);
+            static const QRegularExpression coRegex(R"(Co-authored-by:\s*(.*?)(?:<|$))", QRegularExpression::CaseInsensitiveOption);
             auto it = coRegex.globalMatch(item.description);
             while (it.hasNext()) {
                 QString ca = it.next().captured(1).trimmed();
@@ -1009,19 +1362,122 @@ QList<CommitItem> GitCliService::getCommitHistory(int limit)
         }
         m_commitHistoryCache = list;
         m_commitHistoryCacheValid = true;
-        return m_commitHistoryCache;
+        return (limit > 0) ? m_commitHistoryCache.mid(0, limit) : m_commitHistoryCache;
     }
 
-    m_commitHistoryCache = m_repositoryReader.commitHistory(safeLimit);
+    m_commitHistoryCache = m_repositoryReader.commitHistory(fetchCount);
     m_commitHistoryCacheValid = true;
-    return m_commitHistoryCache;
+    return (limit > 0) ? m_commitHistoryCache.mid(0, limit) : m_commitHistoryCache;
 }
 
 std::optional<CommitItem> GitCliService::getCommitDetails(const QString &sha)
 {
     QMutexLocker locker(&m_cacheMutex);
-    if (m_repoPath.isEmpty() || sha.isEmpty()) return std::nullopt;
-    return m_repositoryReader.commitDetails(sha);
+    static const QRegularExpression revisionRegex("^[0-9a-fA-F]{4,64}$");
+    if (m_repoPath.isEmpty() || !revisionRegex.match(sha.trimmed()).hasMatch()) return std::nullopt;
+
+    if (m_commitDetailsCache.contains(sha)) {
+        return m_commitDetailsCache.value(sha);
+    }
+
+    locker.unlock();
+    // Fast CLI queries for commit metadata, numstat, and name-status
+    const QString revision = sha.trimmed();
+    GitResult showRes = runGit({"show", "-s", "--format=%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%at", "--end-of-options", revision}, QString(), 4000);
+    GitResult statusRes = runGit({"diff-tree", "--no-commit-id", "--name-status", "-r", "-M", "-z", "--end-of-options", revision}, QString(), 4000);
+    GitResult numstatRes = runGit({"diff-tree", "--no-commit-id", "--numstat", "-r", "-M", "-z", "--end-of-options", revision}, QString(), 4000);
+    locker.relock();
+
+    if (showRes.success && !showRes.stdOut.isEmpty()) {
+        const QStringList fields = showRes.stdOut.split(QChar('\x1f'));
+
+        if (fields.size() >= 7) {
+            CommitItem commit;
+            commit.sha = fields[0].trimmed();
+            commit.shortSha = fields[1].trimmed();
+            commit.summary = fields[2].trimmed();
+            commit.description = fields[3].trimmed();
+            commit.authorName = fields[4].trimmed();
+            commit.authorEmail = fields[5].trimmed();
+            const qint64 epoch = fields[6].trimmed().toLongLong();
+            commit.timestamp = QDateTime::fromSecsSinceEpoch(epoch, QTimeZone::UTC);
+            commit.relativeTime = formatRelativeTime(commit.timestamp);
+
+            static const QRegularExpression coRegex(R"(Co-authored-by:\s*(.*?)(?:<|$))", QRegularExpression::CaseInsensitiveOption);
+            auto it = coRegex.globalMatch(commit.description);
+            while (it.hasNext()) {
+                QString ca = it.next().captured(1).trimmed();
+                if (!ca.isEmpty()) commit.coAuthors.append(ca);
+            }
+
+            // Parse numstat additions/deletions from -z output
+            QHash<QString, QPair<int, int>> statMap;
+            if (numstatRes.success && !numstatRes.stdOut.isEmpty()) {
+                const QStringList tokens = numstatRes.stdOut.split(QChar('\0'));
+                for (int i = 0; i < tokens.size(); ++i) {
+                    const QString &token = tokens[i];
+                    if (token.isEmpty()) continue;
+                    const QStringList parts = token.split('\t');
+                    if (parts.size() >= 3) {
+                        int adds = (parts[0] == "-") ? 0 : parts[0].toInt();
+                        int dels = (parts[1] == "-") ? 0 : parts[1].toInt();
+                        QString path = parts.mid(2).join('\t').trimmed();
+                        statMap[path] = qMakePair(adds, dels);
+                    } else if (parts.size() >= 2 && i + 2 < tokens.size()) {
+                        int adds = (parts[0] == "-") ? 0 : parts[0].toInt();
+                        int dels = (parts[1] == "-") ? 0 : parts[1].toInt();
+                        QString oldPath = tokens[++i].trimmed();
+                        QString newPath = tokens[++i].trimmed();
+                        statMap[newPath] = qMakePair(adds, dels);
+                        statMap[oldPath] = qMakePair(adds, dels);
+                    }
+                }
+            }
+
+            // Parse NUL-delimited name-status for accurate paths and rename types.
+            if (statusRes.success && !statusRes.stdOut.isEmpty()) {
+                const QStringList tokens = statusRes.stdOut.split(QChar('\0'), Qt::KeepEmptyParts);
+                int fcIndex = 0;
+                for (int i = 0; i < tokens.size(); ++i) {
+                    const QString code = tokens.at(i).trimmed();
+                    if (code.isEmpty() || i + 1 >= tokens.size()) continue;
+
+                    FileChange fc;
+                    fc.id = QString("fc-%1").arg(fcIndex++);
+                    if (code.startsWith('R') || code.startsWith('C')) {
+                        fc.status = FileChangeType::Renamed;
+                        fc.filePath = tokens.at(++i);
+                        if (i + 1 < tokens.size()) fc.oldFilePath = tokens.at(++i);
+                    } else {
+                        fc.filePath = tokens.at(++i);
+                        if (code.startsWith('A')) fc.status = FileChangeType::Added;
+                        else if (code.startsWith('D')) {
+                            fc.status = FileChangeType::Deleted;
+                            fc.oldFilePath = fc.filePath;
+                        } else fc.status = FileChangeType::Modified;
+                    }
+
+                    if (statMap.contains(fc.filePath)) {
+                        fc.additions = statMap.value(fc.filePath).first;
+                        fc.deletions = statMap.value(fc.filePath).second;
+                    } else if (!fc.oldFilePath.isEmpty() && statMap.contains(fc.oldFilePath)) {
+                        fc.additions = statMap.value(fc.oldFilePath).first;
+                        fc.deletions = statMap.value(fc.oldFilePath).second;
+                    }
+                    commit.changedFiles.append(fc);
+                }
+            }
+
+            m_commitDetailsCache[sha] = commit;
+            return commit;
+        }
+    }
+
+    auto fallback = m_repositoryReader.commitDetails(sha);
+    if (fallback) {
+        m_commitDetailsCache[sha] = *fallback;
+    }
+    return fallback;
 }
 
 bool GitCliService::createCommit(const QString &summary, const QString &description, const QStringList &coAuthors)
@@ -1043,8 +1499,11 @@ bool GitCliService::createCommit(const QString &summary, const QString &descript
             } else {
                 filesToAdd.append(f.filePath);
             }
-        } else {
+        } else if (f.status != FileChangeType::Untracked) {
             filesToUnstage.append(f.filePath);
+            if (!f.oldFilePath.isEmpty() && f.oldFilePath != f.filePath) {
+                filesToUnstage.append(f.oldFilePath);
+            }
         }
     }
 
@@ -1053,20 +1512,29 @@ bool GitCliService::createCommit(const QString &summary, const QString &descript
         return false;
     }
 
+    auto runStageCommand = [this](const QStringList &args) {
+        const GitResult result = runGit(args, QString(), 10000);
+        if (!result.success) {
+            emit operationFailed(formatGitError(result.stdErr, "Failed to prepare selected files for commit"));
+            return false;
+        }
+        return true;
+    };
+
     if (!filesToAdd.isEmpty()) {
         QStringList addArgs = {"add", "--"};
         addArgs.append(filesToAdd);
-        runGit(addArgs, QString(), 10000);
+        if (!runStageCommand(addArgs)) return false;
     }
     if (!filesToRm.isEmpty()) {
         QStringList rmArgs = {"rm", "--ignore-unmatch", "--"};
         rmArgs.append(filesToRm);
-        runGit(rmArgs, QString(), 10000);
+        if (!runStageCommand(rmArgs)) return false;
     }
     if (!filesToUnstage.isEmpty()) {
         QStringList resetArgs = {"reset", "HEAD", "--"};
         resetArgs.append(filesToUnstage);
-        runGit(resetArgs, QString(), 10000);
+        if (!runStageCommand(resetArgs)) return false;
     }
 
     QString fullBody = description.trimmed();
@@ -1135,6 +1603,11 @@ bool GitCliService::undoLastCommit()
 {
     if (m_repoPath.isEmpty()) {
         emit operationFailed("No repository active");
+        return false;
+    }
+
+    if (!canUndoCommit()) {
+        emit operationFailed("The latest commit is not eligible for undo");
         return false;
     }
 
@@ -1207,9 +1680,10 @@ bool GitCliService::undoLastCommit()
 
 bool GitCliService::revertCommit(const QString &sha)
 {
-    if (m_repoPath.isEmpty() || sha.isEmpty()) return false;
+    static const QRegularExpression revisionRegex("^[0-9a-fA-F]{4,64}$");
+    if (m_repoPath.isEmpty() || !revisionRegex.match(sha.trimmed()).hasMatch()) return false;
 
-    GitResult res = runGit({"revert", "--no-edit", sha}, QString(), 15000);
+    GitResult res = runGit({"revert", "--no-edit", sha.trimmed()}, QString(), 15000);
     if (res.success) {
         invalidateRepositoryCaches();
         emit commitHistoryUpdated();
@@ -1233,7 +1707,9 @@ bool GitCliService::hasRemote() const
 QString GitCliService::getRemoteUrl(const QString &remoteName) const
 {
     if (m_repoPath.isEmpty()) return QString();
-    QString target = remoteName.isEmpty() ? "origin" : remoteName;
+    QString target = remoteName.isEmpty() ? "origin" : remoteName.trimmed();
+    static const QRegularExpression remoteNameRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$");
+    if (!remoteNameRegex.match(target).hasMatch()) return QString();
     GitResult res = const_cast<GitCliService*>(this)->runGit({"remote", "get-url", target}, QString(), 2000);
     if (res.success) {
         return res.stdOut.trimmed();
@@ -1250,6 +1726,11 @@ bool GitCliService::setRemoteUrl(const QString &url, const QString &remoteName)
 
     QString target = remoteName.isEmpty() ? "origin" : remoteName.trimmed();
     QString cleanUrl = url.trimmed();
+    static const QRegularExpression remoteNameRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$");
+    if (!remoteNameRegex.match(target).hasMatch() || cleanUrl.startsWith('-')) {
+        emit operationFailed("Invalid remote name or URL");
+        return false;
+    }
 
     GitResult checkRemote = runGit({"remote"}, QString(), 2000);
     QStringList existingRemotes = checkRemote.stdOut.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
@@ -1262,10 +1743,12 @@ bool GitCliService::setRemoteUrl(const QString &url, const QString &remoteName)
     }
 
     if (res.success) {
+        m_repoRemotes[m_repoPath] = redactRemoteUrl(cleanUrl);
+        saveRepositories();
         invalidateRepositoryCaches();
         getRemoteStatus();
         emit branchListChanged();
-        emit operationSucceeded(QString("Remote '%1' set to %2").arg(target, cleanUrl));
+        emit operationSucceeded(QString("Remote '%1' updated").arg(target));
         return true;
     }
 
@@ -1277,6 +1760,11 @@ bool GitCliService::removeRemote(const QString &remoteName)
 {
     if (m_repoPath.isEmpty()) return false;
     QString target = remoteName.isEmpty() ? "origin" : remoteName.trimmed();
+    static const QRegularExpression remoteNameRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$");
+    if (!remoteNameRegex.match(target).hasMatch()) {
+        emit operationFailed("Invalid remote name");
+        return false;
+    }
 
     GitResult res = runGit({"remote", "remove", target}, QString(), 3000);
     if (res.success) {
@@ -1299,6 +1787,10 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
     }
 
     QString repoName = name.trimmed().isEmpty() ? m_repoName : name.trimmed();
+    if (repoName.startsWith('-')) {
+        emit operationFailed("Invalid repository name");
+        return false;
+    }
 
     // Check if gh CLI is installed
     QString ghExe = QStandardPaths::findExecutable("gh");
@@ -1312,8 +1804,10 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
 
     QString dir = m_repoPath;
     QString desc = description.trimmed();
+    const QString operationRepoPath = m_repoPath;
+    const quint64 operationGeneration = m_repositoryGeneration.load();
 
-    QThread *thread = QThread::create([this, dir, repoName, desc, isPrivate]() {
+    QThread *thread = QThread::create([this, dir, repoName, desc, isPrivate, operationRepoPath, operationGeneration]() {
         QStringList args = {"repo", "create", repoName, isPrivate ? "--private" : "--public", "--source=.", "--remote=origin", "--push"};
         if (!desc.isEmpty()) {
             args << "--description" << desc;
@@ -1324,7 +1818,9 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
         env.insert("LC_ALL", "C");
         env.insert("GIT_TERMINAL_PROMPT", "0");
-        env.insert("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new");
+        if (!env.contains("GIT_SSH_COMMAND")) {
+            env.insert("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
+        }
         process.setProcessEnvironment(env);
         process.start("gh", args);
         bool finished = process.waitForFinished(120000);
@@ -1337,7 +1833,8 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
         QString stdOut = QString::fromUtf8(process.readAllStandardOutput());
         QString stdErr = QString::fromUtf8(process.readAllStandardError());
 
-        QMetaObject::invokeMethod(this, [this, finished, exitCode, stdOut, stdErr, repoName]() {
+        QMetaObject::invokeMethod(this, [this, finished, exitCode, stdOut, stdErr, repoName, operationRepoPath, operationGeneration]() {
+            if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
             m_remoteStatus.isPushing = false;
             if (finished && exitCode == 0) {
                 clearUndoState();
@@ -1381,9 +1878,11 @@ RemoteStatus GitCliService::getRemoteStatus()
     }
 
     locker.unlock();
-    QString remoteUrl = getRemoteUrl("origin");
+    const QString remoteName = preferredRemoteName();
+    QString remoteUrl = getRemoteUrl(remoteName);
     GitResult revRes = runGit({"rev-list", "--left-right", "--count", "HEAD...@{upstream}"}, QString(), 2000);
     locker.relock();
+    m_remoteStatus.remoteName = remoteName;
     m_remoteStatus.remoteUrl = remoteUrl;
 
     if (revRes.success) {
@@ -1395,7 +1894,7 @@ RemoteStatus GitCliService::getRemoteStatus()
     } else {
         // Check if there are unpushed commits on a branch without upstream
         locker.unlock();
-        GitResult unpushedRes = runGit({"rev-list", "--count", "HEAD"}, QString(), 2000);
+        GitResult unpushedRes = runGit({"rev-list", "--count", "HEAD", "--not", "--remotes"}, QString(), 2000);
         locker.relock();
         if (unpushedRes.success) {
             m_remoteStatus.ahead = unpushedRes.stdOut.trimmed().toInt();
@@ -1419,27 +1918,32 @@ RemoteStatus GitCliService::getRemoteStatus()
 
 void GitCliService::fetchOrigin()
 {
-    if (m_repoPath.isEmpty()) return;
+    if (m_repoPath.isEmpty() || m_remoteStatus.isFetching || m_remoteStatus.isPulling || m_remoteStatus.isPushing) return;
 
     if (!hasRemote()) {
         emit operationFailed("No remote repository configured. Set a remote URL in Repository Settings to fetch.");
         return;
     }
 
+    const QString operationRepoPath = m_repoPath;
+    const quint64 operationGeneration = m_repositoryGeneration.load();
+    const QString remoteName = preferredRemoteName();
     m_remoteStatus.isFetching = true;
     emit remoteStatusUpdated(m_remoteStatus);
 
-    runGitAsync({"fetch", "--all", "--prune"}, [this](const GitResult &res) {
+    runGitAsync({"fetch", remoteName, "--prune"}, [this, operationRepoPath, operationGeneration, remoteName](const GitResult &res) {
+        if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
         m_remoteStatus.isFetching = false;
         if (res.success) {
             m_lastFetchTime = QDateTime::currentDateTime();
-            m_repoFetchTimes[m_repoPath] = m_lastFetchTime;
+            m_repoFetchTimes[operationRepoPath] = m_lastFetchTime;
             saveFetchTimes();
             m_remoteStatus.lastFetchedText = "Last fetched just now";
             invalidateRepositoryCaches();
             getRemoteStatus();
             emit branchListChanged();
-            emit operationSucceeded("Fetched latest changes from origin");
+            emit operationSucceeded(QString("Fetched latest changes from '%1'").arg(remoteName));
+
         } else {
             m_remoteStatus.lastFetchedText = "Fetch failed";
             emit remoteStatusUpdated(m_remoteStatus);
@@ -1450,17 +1954,20 @@ void GitCliService::fetchOrigin()
 
 void GitCliService::pullOrigin()
 {
-    if (m_repoPath.isEmpty()) return;
+    if (m_repoPath.isEmpty() || m_remoteStatus.isFetching || m_remoteStatus.isPulling || m_remoteStatus.isPushing) return;
 
     if (!hasRemote()) {
         emit operationFailed("No remote repository configured. Cannot pull.");
         return;
     }
 
+    const QString operationRepoPath = m_repoPath;
+    const quint64 operationGeneration = m_repositoryGeneration.load();
     m_remoteStatus.isPulling = true;
     emit remoteStatusUpdated(m_remoteStatus);
 
-    runGitAsync({"pull"}, [this](const GitResult &res) {
+    runGitAsync({"pull", "--ff-only"}, [this, operationRepoPath, operationGeneration](const GitResult &res) {
+        if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
         m_remoteStatus.isPulling = false;
         if (res.success) {
             clearUndoState();
@@ -1471,7 +1978,7 @@ void GitCliService::pullOrigin()
             emit commitHistoryUpdated();
             emit changedFilesUpdated();
             emit branchListChanged();
-            emit operationSucceeded("Successfully pulled from origin");
+            emit operationSucceeded("Successfully pulled latest changes");
         } else {
             m_remoteStatus.lastFetchedText = "Pull failed";
             emit remoteStatusUpdated(m_remoteStatus);
@@ -1482,7 +1989,7 @@ void GitCliService::pullOrigin()
 
 void GitCliService::pushOrigin()
 {
-    if (m_repoPath.isEmpty()) return;
+    if (m_repoPath.isEmpty() || m_remoteStatus.isFetching || m_remoteStatus.isPulling || m_remoteStatus.isPushing) return;
 
     if (!hasRemote()) {
         emit operationFailed("No remote repository configured. Publish repository or add a remote origin before pushing.");
@@ -1493,27 +2000,37 @@ void GitCliService::pushOrigin()
     emit remoteStatusUpdated(m_remoteStatus);
 
     auto curBranch = getCurrentBranch();
-    QString branchName = curBranch ? curBranch->name : "main";
+    if (!curBranch || curBranch->name == "(detached)") {
+        m_remoteStatus.isPushing = false;
+        emit remoteStatusUpdated(m_remoteStatus);
+        emit operationFailed("Cannot push while HEAD is detached");
+        return;
+    }
+    QString branchName = curBranch->name;
+    const QString remoteName = preferredRemoteName();
     QString dir = m_repoPath;
 
-    QThread *thread = QThread::create([this, dir, branchName]() {
+    const QString operationRepoPath = m_repoPath;
+    const quint64 operationGeneration = m_repositoryGeneration.load();
+    QThread *thread = QThread::create([this, dir, branchName, remoteName, operationRepoPath, operationGeneration]() {
         GitResult upstreamCheck = const_cast<GitCliService*>(this)->runGit({"rev-parse", "--verify", "@{upstream}"}, dir, 3000);
         QStringList pushArgs = {"push"};
         if (!upstreamCheck.success) {
             // Set upstream tracking on initial push
-            pushArgs = {"push", "-u", "origin", branchName};
+            pushArgs = {"push", "-u", remoteName, branchName};
         }
 
         GitResult res = const_cast<GitCliService*>(this)->runGit(pushArgs, dir, 120000);
 
-        QMetaObject::invokeMethod(this, [this, res]() {
+        QMetaObject::invokeMethod(this, [this, res, remoteName, operationRepoPath, operationGeneration]() {
+            if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
             m_remoteStatus.isPushing = false;
             if (res.success) {
                 clearUndoState();
                 invalidateRepositoryCaches();
                 getRemoteStatus();
                 emit commitHistoryUpdated();
-                emit operationSucceeded("Successfully pushed commits to origin");
+                emit operationSucceeded(QString("Successfully pushed commits to '%1'").arg(remoteName));
             } else {
                 emit remoteStatusUpdated(m_remoteStatus);
                 emit operationFailed(formatGitError(res.stdErr, "Push failed"));
@@ -1530,7 +2047,35 @@ QList<StashItem> GitCliService::getStashes()
     if (m_repoPath.isEmpty()) return {};
     if (m_stashesCacheValid) return m_stashesCache;
 
-    m_stashesCache = m_repositoryReader.stashes();
+    if (m_repositoryReader.directReadSupported()) {
+        m_stashesCache = m_repositoryReader.stashes();
+    }
+    if (!m_repositoryReader.directReadSupported() || m_stashesCache.isEmpty()) {
+        locker.unlock();
+        const GitResult listRes = runGit({"stash", "list", "--format=%gd%x1f%gs%x1f%ct%x1e"}, QString(), 3000);
+        locker.relock();
+        if (listRes.success) {
+            QList<StashItem> parsed;
+            const QStringList records = listRes.stdOut.split(QChar('\x1e'), Qt::SkipEmptyParts);
+            static const QRegularExpression branchRegex("(?:On|WIP on) ([^:]+):");
+            static const QRegularExpression prefixRegex("^(?:On|WIP on) [^:]+:\\s*");
+            for (const QString &record : records) {
+                const QStringList fields = record.split(QChar('\x1f'));
+                if (fields.size() < 3) continue;
+                StashItem stash;
+                stash.id = fields[0].trimmed();
+                stash.message = fields[1].trimmed();
+                stash.message.remove(prefixRegex);
+                if (stash.message.isEmpty()) stash.message = "WIP";
+                const auto branchMatch = branchRegex.match(fields[1]);
+                stash.branchName = branchMatch.hasMatch() ? branchMatch.captured(1).trimmed() : "HEAD";
+                stash.timestamp = QDateTime::fromSecsSinceEpoch(fields[2].trimmed().toLongLong(), QTimeZone::UTC);
+                parsed.append(stash);
+            }
+            m_stashesCache = parsed;
+        }
+    }
+
     m_stashesCacheValid = true;
     return m_stashesCache;
 }
@@ -1539,7 +2084,73 @@ std::optional<StashItem> GitCliService::getStashDetails(const QString &stashId)
 {
     QMutexLocker locker(&m_cacheMutex);
     if (m_repoPath.isEmpty()) return std::nullopt;
-    return m_repositoryReader.stashDetails(stashId);
+    locker.unlock();
+
+    const QString requested = stashId.isEmpty() ? "stash@{0}" : stashId;
+    static const QRegularExpression stashIdRegex("^stash@\\{[0-9]+\\}$");
+    if (!stashIdRegex.match(requested).hasMatch()) return std::nullopt;
+
+    auto stashes = getStashes();
+    std::optional<StashItem> result;
+    for (const auto &stash : stashes) {
+        if (stash.id == requested) {
+            result = stash;
+            break;
+        }
+    }
+    if (!result) return std::nullopt;
+
+    const GitResult statusRes = runGit({"stash", "show", "--include-untracked", "--format=", "--name-status", "-z", requested}, QString(), 4000);
+    const GitResult statRes = runGit({"stash", "show", "--include-untracked", "--format=", "--numstat", "-z", requested}, QString(), 4000);
+
+    QHash<QString, QPair<int, int>> stats;
+    if (statRes.success) {
+        const QStringList records = statRes.stdOut.split(QChar('\0'), Qt::KeepEmptyParts);
+        for (int i = 0; i < records.size(); ++i) {
+            const QStringList fields = records.at(i).split('\t');
+            if (fields.size() >= 3 && !fields[2].isEmpty()) {
+                stats[fields[2]] = qMakePair(fields[0] == "-" ? 0 : fields[0].toInt(),
+                                             fields[1] == "-" ? 0 : fields[1].toInt());
+            } else if (fields.size() >= 3 && fields[2].isEmpty() && i + 2 < records.size()) {
+                const auto value = qMakePair(fields[0] == "-" ? 0 : fields[0].toInt(),
+                                             fields[1] == "-" ? 0 : fields[1].toInt());
+                stats[records.at(i + 1)] = value;
+                stats[records.at(i + 2)] = value;
+                i += 2;
+            }
+        }
+    }
+
+    if (statusRes.success) {
+        const QStringList records = statusRes.stdOut.split(QChar('\0'), Qt::KeepEmptyParts);
+        int index = 0;
+        for (int i = 0; i < records.size(); ++i) {
+            const QString code = records.at(i).trimmed();
+            if (code.isEmpty()) continue;
+            FileChange file;
+            file.id = QString("fc-%1").arg(index++);
+            if ((code.startsWith('R') || code.startsWith('C')) && i + 2 < records.size()) {
+                file.status = FileChangeType::Renamed;
+                file.filePath = records.at(++i);
+                file.oldFilePath = records.at(++i);
+            } else {
+                if (i + 1 >= records.size()) break;
+                file.filePath = records.at(++i);
+                if (code.startsWith('A')) file.status = FileChangeType::Added;
+                else if (code.startsWith('D')) file.status = FileChangeType::Deleted;
+                else file.status = FileChangeType::Modified;
+            }
+            if (stats.contains(file.filePath)) {
+                file.additions = stats.value(file.filePath).first;
+                file.deletions = stats.value(file.filePath).second;
+            } else if (stats.contains(file.oldFilePath)) {
+                file.additions = stats.value(file.oldFilePath).first;
+                file.deletions = stats.value(file.oldFilePath).second;
+            }
+            result->files.append(file);
+        }
+    }
+    return result;
 }
 
 bool GitCliService::stashChanges(const QString &message)
@@ -1569,7 +2180,7 @@ bool GitCliService::stashChanges(const QString &message)
 
 bool GitCliService::popStash(const QString &stashId)
 {
-    if (m_repoPath.isEmpty()) return false;
+    if (m_repoPath.isEmpty() || (!stashId.isEmpty() && !isValidStashId(stashId))) return false;
 
     QStringList args = {"stash", "pop"};
     if (!stashId.isEmpty()) {
@@ -1593,7 +2204,7 @@ bool GitCliService::popStash(const QString &stashId)
 
 bool GitCliService::dropStash(const QString &stashId)
 {
-    if (m_repoPath.isEmpty()) return false;
+    if (m_repoPath.isEmpty() || (!stashId.isEmpty() && !isValidStashId(stashId))) return false;
 
     QStringList args = {"stash", "drop"};
     if (!stashId.isEmpty()) {
@@ -1624,9 +2235,46 @@ QString GitCliService::formatRelativeTime(const QDateTime &dt) const
     return QString("%1 days ago").arg(secs / 86400);
 }
 
+bool GitCliService::isValidBranchName(const QString &name)
+{
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty() || trimmed != name || trimmed.startsWith('-')) return false;
+    return runGit({"check-ref-format", "--branch", trimmed}, QString(), 2000).success;
+}
+
+QString GitCliService::preferredRemoteName() const
+{
+    if (!getRemoteUrl("origin").isEmpty()) return "origin";
+    GitResult remotes = const_cast<GitCliService *>(this)->runGit({"remote"}, QString(), 2000);
+    const QStringList names = remotes.stdOut.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+    return names.isEmpty() ? QStringLiteral("origin") : names.first().trimmed();
+}
+
+bool GitCliService::isValidStashId(const QString &stashId) const
+{
+    static const QRegularExpression stashIdRegex("^(?:stash@\\{[0-9]+\\}|[0-9]+)$");
+    return stashIdRegex.match(stashId.trimmed()).hasMatch();
+}
+
+bool GitCliService::isSafeRepositoryPath(const QString &path) const
+{
+    if (m_repoPath.isEmpty() || path.isEmpty() || path.startsWith('/')) return false;
+    const QString root = QDir::cleanPath(QDir(m_repoPath).absolutePath());
+    const QString full = QDir::cleanPath(QDir(root).filePath(path));
+    if (full != root && !full.startsWith(root + '/')) return false;
+
+    const QFileInfo info(full);
+    if (info.exists() && info.isSymLink()) {
+        const QString canonical = QDir::cleanPath(info.canonicalFilePath());
+        if (!canonical.isEmpty() && canonical != root && !canonical.startsWith(root + '/')) return false;
+    }
+    return true;
+}
+
 QString GitCliService::formatGitError(const QString &rawError, const QString &fallbackContext) const
 {
     QString trimmed = rawError.trimmed();
+    trimmed.replace(QRegularExpression(R"((https?://)[^/\s@]+@)"), "\\1***@");
     if (trimmed.isEmpty()) {
         return fallbackContext;
     }

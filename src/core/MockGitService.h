@@ -30,6 +30,9 @@ public:
     bool openRepository(const QString &pathOrId) override;
     bool addRepository(const QString &name, const QString &path) override;
     bool removeRepository(const QString &repoIdOrPath) override;
+    bool relocateRepository(const QString &oldPath, const QString &newPath) override;
+    bool cloneRepository(const QString &url, const QString &targetPath) override;
+    bool recheckRepository(const QString &pathOrId) override;
     void refreshRepository() override;
 
     // Branches
@@ -47,9 +50,9 @@ public:
     bool discardAllChanges() override;
 
     // Diff & Blobs
-    QList<DiffLine> getDiffForFile(const QString &filePath) override;
+    QList<DiffLine> getDiffForFile(const QString &filePath, const QString &oldFilePath = QString()) override;
     bool isFileMetadataOnly(const QString &filePath) override;
-    QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath) override;
+    QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath, const QString &oldFilePath = QString()) override;
     QList<DiffLine> getDiffForStashFile(const QString &stashId, const QString &filePath) override;
     QByteArray getFileBlob(const QString &filePath, const QString &ref = QString()) override;
     bool isImageFile(const QString &filePath) const override;

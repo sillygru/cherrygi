@@ -9,17 +9,6 @@ ColumnLayout {
     id: root
     spacing: 0
 
-    // Generate a stable hue-based avatar color from the author name
-    function avatarColor(name) {
-        if (!name || name.length === 0) return Kirigami.Theme.disabledTextColor;
-        var hash = 0;
-        for (var i = 0; i < name.length; i++) {
-            hash = name.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        var hue = Math.abs(hash % 360);
-        return Qt.hsla(hue / 360.0, 0.55, 0.45, 1.0);
-    }
-
     // Commit Context Menu
     QQC2.Menu {
         id: commitContextMenu
@@ -135,7 +124,10 @@ ColumnLayout {
             id: commitListView
             model: appController.commitHistory
             spacing: 1
-            reuseItems: false
+            reuseItems: true
+            boundsBehavior: Flickable.StopAtBounds
+            highlightFollowsCurrentItem: false
+            currentIndex: -1
 
             delegate: QQC2.ItemDelegate {
                 id: commitDelegate
@@ -156,6 +148,8 @@ ColumnLayout {
                 required property string coAuthorsText
                 required property int changedFilesCount
                 required property bool isLocal
+                required property color authorColor
+                required property string authorInitial
 
                 highlighted: appController.selectedCommitSha === commitDelegate.sha
 
@@ -187,12 +181,12 @@ ColumnLayout {
                         width: 36
                         height: 36
                         radius: 18
-                        color: avatarColor(commitDelegate.authorName)
+                        color: commitDelegate.authorColor
                         Layout.alignment: Qt.AlignVCenter
 
                         QQC2.Label {
                             anchors.centerIn: parent
-                            text: commitDelegate.authorName.length > 0 ? commitDelegate.authorName.charAt(0).toUpperCase() : "G"
+                            text: commitDelegate.authorInitial
                             font.bold: true
                             font.pixelSize: 14
                             color: Kirigami.Theme.highlightedTextColor
