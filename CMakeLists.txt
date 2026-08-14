@@ -18,6 +18,8 @@ include(KDEInstallDirs)
 include(KDECMakeSettings)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 
+find_package(ZLIB REQUIRED)
+
 find_package(Qt6 6.5 REQUIRED COMPONENTS
     Core
     Gui
@@ -45,6 +47,8 @@ set(CHERRYGI_SOURCES
     src/resources.qrc
     src/core/Types.h
     src/core/IGitService.h
+    src/core/GitRepositoryReader.h
+    src/core/GitRepositoryReader.cpp
     src/core/GitCliService.h
     src/core/GitCliService.cpp
     src/core/MockGitService.h
@@ -115,6 +119,7 @@ target_link_libraries(cherrygi PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Widgets
+    ZLIB::ZLIB
     KF6::Kirigami
     KF6::CoreAddons
     KF6::I18n

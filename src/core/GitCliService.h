@@ -1,6 +1,7 @@
 #pragma once
 
 #include "IGitService.h"
+#include "GitRepositoryReader.h"
 #include <QSettings>
 #include <QMap>
 #include <QDateTime>
@@ -137,6 +138,8 @@ private:
 
     QString m_repoPath;
     QString m_repoName;
+    // Native read-only view of .git. Mutating and network operations still use git CLI.
+    GitRepositoryReader m_repositoryReader;
     QMap<QString, QString> m_knownRepos; // path -> name
     QMap<QString, bool> m_fileSelection; // filePath -> isSelected
 

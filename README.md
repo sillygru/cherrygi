@@ -36,7 +36,7 @@
   - **Commit Inspector**: View full commit metadata, copy commit SHA, list changed files in that commit, and view historical diffs.
   - **Stash Inspector**: Click on any stash to view stashed files, browse line-by-line diffs, and restore or discard the stash with 1 click.
 - **Dual Backend Support (Real Git & Mock Demo)**:
-  - **Real Git Backend (`GitCliService`)**: Direct integration with your machine's `git` command. Work on actual local repositories, stage/unstage files, view unified and split diffs, create commits, soft-reset undo, branch, stash, and sync with remotes.
+  - **Real Git Backend (`GitCliService`)**: A hybrid local backend. It reads `.git` directly for repository discovery, `HEAD`, branches, commit history/details, and stash metadata, avoiding a process spawn for frequent read-only work. The existing Git CLI remains in charge of status/index handling, diffs, commits, branch mutations, stash actions, configuration, and remote sync, so behavior stays compatible with normal Git repositories.
   - **Mock Demo Mode (`MockGitService`)**: Explore `cherrygi` with pre-loaded mock repositories (`desktop`, `cherrygi-core`, `plasma-workspace`) without modifying real files.
   - **On-Startup Mode Selection Modal**: Dialog on launch to choose your working mode, with runtime switching via the header bar.
   - **Persistent & Non-Intrusive Storage**: User repository bookmarks and preferences are stored cleanly in XDG user config (`~/.config/KDE/cherrygi.conf`).
@@ -57,17 +57,18 @@
   - `KF6ColorScheme`
   - `KF6Config`
 - **Extra CMake Modules (ECM)**
+- **zlib** (used to read Git's compressed loose and packed objects)
 
 On Arch Linux / Fedora / openSUSE / Ubuntu:
 ```bash
 # Arch Linux
-sudo pacman -S cmake extra-cmake-modules qt6-base qt6-declarative kirigami
+sudo pacman -S cmake extra-cmake-modules qt6-base qt6-declarative kirigami zlib
 
 # Fedora
-sudo dnf install cmake extra-cmake-modules qt6-qtbase-devel qt6-qtdeclarative-devel kf6-kirigami-devel
+sudo dnf install cmake extra-cmake-modules qt6-qtbase-devel qt6-qtdeclarative-devel kf6-kirigami-devel zlib-devel
 
 # Ubuntu 24.04+
-sudo apt install cmake extra-cmake-modules qt6-base-dev qt6-declarative-dev libkf6kirigami-dev
+sudo apt install cmake extra-cmake-modules qt6-base-dev qt6-declarative-dev libkf6kirigami-dev zlib1g-dev
 ```
 
 ---
@@ -103,6 +104,8 @@ cherrygi/
     ├── core/
     │   ├── Types.h                # Core Git data structures
     │   ├── IGitService.h          # Abstract Git service interface
+    │   ├── GitCliService.h/.cpp   # Hybrid CLI operations and direct-read integration
+    │   ├── GitRepositoryReader.h/.cpp # Native .git object/ref reader
     │   ├── MockGitService.h/.cpp  # Stateful in-memory Git simulation
     │   └── AppController.h/.cpp   # Central coordinator for UI and models
     ├── models/

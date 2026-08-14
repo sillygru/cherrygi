@@ -23,13 +23,14 @@ cherrygi/
 ├── docs/
 │   ├── architecture.md            # Deep-dive on C++ architecture, models, and QML integration
 │   ├── ui_guide.md                # Mapping GitHub Desktop components to KDE Plasma / Breeze
-│   └── git_service_transition.md  # Guide for replacing MockGitService with LibGit2 / CLI
+│   └── git_service_transition.md  # Hybrid Git CLI and direct .git reader guide
 └── src/
     ├── main.cpp                   # Application entry point, QML engine initialization
     ├── core/
     │   ├── Types.h                # Data structures: FileChange, CommitItem, DiffLine, StashItem, etc.
     │   ├── IGitService.h          # Abstract interface defining Git backend operations
-    │   ├── GitCliService.h/.cpp   # Native Git CLI backend with QProcess & QSettings
+    │   ├── GitCliService.h/.cpp   # Hybrid backend: CLI mutations plus cached direct reads
+    │   ├── GitRepositoryReader.h/.cpp # Direct .git refs/object/commit reader using zlib
     │   ├── MockGitService.h/.cpp  # Stateful in-memory mock implementation
     │   └── AppController.h/.cpp   # Central QObject coordinating state, models, and actions
     ├── models/

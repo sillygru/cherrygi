@@ -29,8 +29,9 @@ graph TD
 
     subgraph Service ["Backend Service Layer (C++)"]
         IGit["IGitService (Abstract Interface)"]
-        MockGit["MockGitService (Current Implementation)"]
-        LibGit2["LibGit2Service (Future Target)"]
+        GitCli["GitCliService (CLI mutations / status / diffs)"]
+        GitReader["GitRepositoryReader (direct .git reads)"]
+        MockGit["MockGitService (Demo Implementation)"]
     end
 
     Main --> HeaderBar
@@ -67,8 +68,9 @@ graph TD
     DiffMdl --> IGit
     StashMdl --> IGit
 
+    IGit <|-- GitCli
     IGit <|-- MockGit
-    IGit <|-- LibGit2
+    GitCli --> GitReader
 ```
 
 ---
@@ -99,7 +101,16 @@ The `IGitService` interface acts as an abstraction barrier between the backend a
 
 ---
 
-## 3. Mock Service Implementation (`src/core/MockGitService.h` & `.cpp`)
+## 3. Real Git Service and direct repository reads
+
+`GitCliService` intentionally uses a hybrid strategy rather than attempting to reimplement every Git worktree operation:
+
+- `GitRepositoryReader` reads `.git/HEAD`, loose refs, `packed-refs`, loose objects, pack indexes, packed objects/deltas, commit metadata, commit trees, and the stash reflog directly with Qt and zlib.
+- Repository discovery, current branch, branch lists, commit history/details, and stash metadata use that reader and do not spawn a `git` process.
+- Git CLI remains the compatibility boundary for index/worktree status, diffs, staging, commits, checkout/branch mutations, stash mutations, configuration, and fetch/pull/push. This keeps Git's edge-case behavior while removing the process overhead from frequent read-only queries.
+- The reader accepts ordinary repositories, `.git` files used by linked worktrees/submodules, loose objects, and Git packfiles. Its caches are invalidated whenever the service refreshes or mutates repository state.
+
+## 4. Mock Service Implementation (`src/core/MockGitService.h` & `.cpp`)
 
 The mock service provides an in-memory Git simulator with state transitions:
 1. **Interactive Commits**: Calling `createCommit()` removes selected files from `changedFiles`, creates a historical commit, increments `aheadCount`, and pushes a snapshot to an internal `m_undoStack`.
@@ -110,7 +121,7 @@ The mock service provides an in-memory Git simulator with state transitions:
 
 ---
 
-## 4. Models Layer (`src/models/`)
+## 5. Models Layer (`src/models/`)
 
 To provide reactive bindings in QML without overhead, specialized `QAbstractListModel` subclasses are used:
 - `RepositoryListModel`: Exposes repository lists and active repo state.
@@ -122,7 +133,7 @@ To provide reactive bindings in QML without overhead, specialized `QAbstractList
 
 ---
 
-## 5. QML UI Layer (`src/qml/`)
+## 6. QML UI Layer (`src/qml/`)
 
 The QML structure implements GitHub Desktop's workflow using KDE Plasma Breeze design language:
 - `Main.qml`: `Kirigami.ApplicationWindow` containing the top header and split workspace.
