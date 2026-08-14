@@ -46,6 +46,10 @@ public:
 
     static AppSettings* instance();
 
+    // Returns the canonical app-data directory (e.g. ~/.local/share/cherrygi),
+    // creating it if needed. Use this for program-tracked data, not user prefs.
+    static QString dataDir();
+
     // Editor & Terminal Settings
     QString defaultEditor() const { return m_defaultEditor; }
     void setDefaultEditor(const QString &editorId);

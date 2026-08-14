@@ -42,6 +42,7 @@ find_package(KF6 REQUIRED COMPONENTS
 
 set(CHERRYGI_SOURCES
     src/main.cpp
+    src/resources.qrc
     src/core/Types.h
     src/core/IGitService.h
     src/core/GitCliService.h
@@ -123,3 +124,14 @@ target_link_libraries(cherrygi PRIVATE
 )
 
 install(TARGETS cherrygi ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
+
+# Install the desktop entry and the source SVG in the standard hicolor theme.
+# Keeping the icon as SVG lets Plasma and other launchers render it sharply at
+# any taskbar, launcher, or high-DPI size.
+install(FILES org.kde.cherrygi.desktop
+    DESTINATION ${KDE_INSTALL_APPDIR}
+)
+
+install(FILES src/icons/cherrygi.svg
+    DESTINATION ${KDE_INSTALL_ICONDIR}/hicolor/scalable/apps
+)

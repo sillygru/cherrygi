@@ -23,6 +23,16 @@ AppSettings* AppSettings::instance()
     return s_instance;
 }
 
+QString AppSettings::dataDir()
+{
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (dir.isEmpty()) {
+        dir = QDir::homePath() + "/.local/share/cherrygi";
+    }
+    QDir().mkpath(dir);
+    return dir;
+}
+
 void AppSettings::detectTools()
 {
     // Define supported external editors

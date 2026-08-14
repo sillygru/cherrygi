@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=cherrygi
+GenericName=Git Client
+Comment=Native KDE Git client
+Exec=cherrygi
+Icon=cherrygi
+Terminal=false
+Type=Application
+Categories=Development;RevisionControl;Qt;KDE;
+Keywords=git;repository;version control;
+StartupNotify=true
+StartupWMClass=cherrygi

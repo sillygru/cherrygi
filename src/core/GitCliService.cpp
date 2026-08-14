@@ -1,4 +1,5 @@
 #include "GitCliService.h"
+#include "AppSettings.h"
 #include <QProcess>
 #include <QDir>
 #include <QFileInfo>
@@ -30,6 +31,7 @@ GitCliService::GitCliService(QObject *parent)
     });
 
     loadSavedRepositories();
+    loadFetchTimes();
     discoverInitialRepository();
 }
 
@@ -77,12 +79,41 @@ void GitCliService::invalidateRepositoryCaches()
     m_fileDiffCache.clear();
 }
 
+void GitCliService::autoStageChanges()
+{
+    if (m_repoPath.isEmpty()) return;
+
+    // Fast check: look for any untracked or unstaged modifications
+    GitResult statusRes = runGit({"status", "--porcelain=v1", "-unormal"}, QString(), 5000);
+    if (!statusRes.success || statusRes.stdOut.trimmed().isEmpty()) {
+        return;
+    }
+
+    bool needsAdd = false;
+    const QStringList lines = statusRes.stdOut.split('\n', Qt::SkipEmptyParts);
+    for (const QString &line : lines) {
+        if (line.length() < 2) continue;
+        QChar x = line[0];
+        QChar y = line[1];
+        // If untracked (??) or worktree has unstaged modifications/deletions/additions (y != ' ')
+        if (x == '?' || y != ' ') {
+            needsAdd = true;
+            break;
+        }
+    }
+
+    if (needsAdd) {
+        runGit({"add", "."}, QString(), 10000);
+    }
+}
+
 void GitCliService::preloadRepositoryCaches()
 {
     // All expensive Git queries happen before the update signals are posted. Model
     // reloads can therefore return these snapshots without running Git on the UI thread.
     m_suppressRefreshSignals = true;
     invalidateRepositoryCaches();
+    autoStageChanges();
     getRemoteStatus();
     getCurrentBranch();
     getBranches();
@@ -238,6 +269,40 @@ void GitCliService::saveRepositories()
     settings.setValue("General/lastRepository", m_repoPath);
 }
 
+void GitCliService::loadFetchTimes()
+{
+    m_repoFetchTimes.clear();
+    QSettings settings(AppSettings::dataDir() + "/fetchTimes.ini", QSettings::IniFormat);
+    settings.beginGroup("FetchTimes");
+    const QStringList groups = settings.childGroups();
+    for (const QString &group : groups) {
+        settings.beginGroup(group);
+        QString path = settings.value("path").toString();
+        QDateTime dt = QDateTime::fromString(settings.value("time").toString(), Qt::ISODate);
+        settings.endGroup();
+        if (!path.isEmpty() && dt.isValid()) {
+            m_repoFetchTimes.insert(path, dt);
+        }
+    }
+    settings.endGroup();
+}
+
+void GitCliService::saveFetchTimes()
+{
+    QSettings settings(AppSettings::dataDir() + "/fetchTimes.ini", QSettings::IniFormat);
+    settings.remove("FetchTimes");
+    settings.beginGroup("FetchTimes");
+    int idx = 0;
+    for (auto it = m_repoFetchTimes.begin(); it != m_repoFetchTimes.end(); ++it) {
+        settings.beginGroup(QString::number(idx++));
+        settings.setValue("path", it.key());
+        settings.setValue("time", it.value().toString(Qt::ISODate));
+        settings.endGroup();
+    }
+    settings.endGroup();
+    settings.sync();
+}
+
 void GitCliService::discoverInitialRepository()
 {
     QSettings settings("KDE", "cherrygi");
@@ -283,6 +348,10 @@ QList<RepositoryInfo> GitCliService::getRepositories()
             info.lastFetchedTime = m_remoteStatus.lastFetchedText;
         } else {
             info.currentBranch = "main";
+            QDateTime repoFetch = m_repoFetchTimes.value(path);
+            info.lastFetchedTime = repoFetch.isValid()
+                ? QString("Last fetched %1").arg(formatRelativeTime(repoFetch))
+                : "Not fetched in this session";
         }
         list.append(info);
     }
@@ -326,6 +395,9 @@ bool GitCliService::openRepository(const QString &pathOrId)
     m_repoPath = QDir::cleanPath(check.stdOut.trimmed());
     m_repoName = QFileInfo(m_repoPath).fileName();
     if (m_repoName.isEmpty()) m_repoName = "Repository";
+
+    // Restore this repo's persisted last-fetch time so "Last fetched" survives restarts.
+    m_lastFetchTime = m_repoFetchTimes.value(m_repoPath);
 
     m_knownRepos.insert(m_repoPath, m_repoName);
     saveRepositories();
@@ -377,6 +449,9 @@ bool GitCliService::removeRepository(const QString &repoIdOrPath)
 
     if (m_knownRepos.remove(targetPath) > 0) {
         saveRepositories();
+        if (m_repoFetchTimes.remove(targetPath) > 0) {
+            saveFetchTimes();
+        }
         if (m_repoPath == targetPath) {
             if (!m_knownRepos.isEmpty()) {
                 openRepository(m_knownRepos.firstKey());
@@ -534,6 +609,8 @@ QList<FileChange> GitCliService::getChangedFiles()
     if (m_changedFilesCacheValid) return m_changedFilesCache;
     if (m_repoPath.isEmpty()) return {};
 
+    autoStageChanges();
+
     // Avoid recursively enumerating every file in large untracked directories.
     GitResult statusRes = runGit({"status", "--porcelain=v1", "-unormal"}, QString(), 5000);
     if (!statusRes.success || statusRes.stdOut.trimmed().isEmpty()) {
@@ -547,6 +624,9 @@ QList<FileChange> GitCliService::getChangedFiles()
     // spawning two extra Git processes for every refresh.
     QMap<QString, QPair<int, int>> numStats;
     GitResult numRes = runGit({"diff", "HEAD", "--numstat"}, QString(), 4000);
+    if (!numRes.success) {
+        numRes = runGit({"diff", "--cached", "--numstat"}, QString(), 4000);
+    }
     if (numRes.success) {
         for (const QString &line : numRes.stdOut.split('\n', Qt::SkipEmptyParts)) {
             QStringList p = line.split('\t');
@@ -643,13 +723,16 @@ bool GitCliService::discardFileChanges(const QString &filePath)
     if (m_repoPath.isEmpty() || filePath.isEmpty()) return false;
 
     GitResult check = runGit({"status", "--porcelain=v1", "--", filePath}, QString(), 3000);
-    if (check.stdOut.startsWith("??")) {
+    if (check.stdOut.startsWith("??") || check.stdOut.startsWith("A ") || check.stdOut.startsWith("A")) {
+        runGit({"rm", "-f", "--", filePath}, QString(), 3000);
         QString fullPath = m_repoPath + "/" + filePath;
         QFileInfo fi(fullPath);
-        if (fi.isDir()) {
-            QDir(fullPath).removeRecursively();
-        } else {
-            QFile::remove(fullPath);
+        if (fi.exists()) {
+            if (fi.isDir()) {
+                QDir(fullPath).removeRecursively();
+            } else {
+                QFile::remove(fullPath);
+            }
         }
     } else {
         runGit({"restore", "--staged", "--worktree", "--", filePath}, QString(), 5000);
@@ -1342,6 +1425,8 @@ void GitCliService::fetchOrigin()
         m_remoteStatus.isFetching = false;
         if (res.success) {
             m_lastFetchTime = QDateTime::currentDateTime();
+            m_repoFetchTimes[m_repoPath] = m_lastFetchTime;
+            saveFetchTimes();
             m_remoteStatus.lastFetchedText = "Last fetched just now";
             invalidateRepositoryCaches();
             getRemoteStatus();

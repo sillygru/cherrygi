@@ -109,6 +109,10 @@ private:
     QString formatRelativeTime(const QDateTime &dt) const;
     QString formatGitError(const QString &rawError, const QString &fallbackContext) const;
 
+    // Per-repo last-fetch timestamps, persisted to app data.
+    void loadFetchTimes();
+    void saveFetchTimes();
+
     bool m_suppressRefreshSignals{false};
     bool m_refreshInProgress{false};
     bool m_changedFilesCacheValid{false};
@@ -128,6 +132,7 @@ private:
     QList<DiffLine> m_fileDiffCache;
 
     void preloadRepositoryCaches();
+    void autoStageChanges();
     void emitRepositoryRefreshSignals(bool changedFilesChanged = true);
 
     QString m_repoPath;
@@ -137,6 +142,7 @@ private:
 
     RemoteStatus m_remoteStatus;
     QDateTime m_lastFetchTime;
+    QMap<QString, QDateTime> m_repoFetchTimes; // repoPath -> last fetch time
 
     QString m_lastUndoCommitSha;
     QString m_lastUndoCommitSummary;

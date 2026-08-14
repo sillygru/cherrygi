@@ -72,7 +72,13 @@ int main(int argc, char *argv[])
     app.setOrganizationDomain("kde.org");
     app.setApplicationName("cherrygi");
     app.setApplicationDisplayName("cherrygi");
-    app.setWindowIcon(QIcon::fromTheme("vcs-branch"));
+    // Match the desktop file ID so KDE/Wayland can associate the window with
+    // its launcher entry, while the embedded SVG keeps development builds
+    // sharp even before the icon theme is installed.
+    app.setDesktopFileName(QStringLiteral("org.kde.cherrygi"));
+    app.setWindowIcon(QIcon::fromTheme(
+        QStringLiteral("cherrygi"),
+        QIcon(QStringLiteral(":/icons/cherrygi.svg"))));
 
     Cherry::AppController appController;
     qmlRegisterSingletonInstance("org.kde.cherrygi", 1, 0, "AppController", &appController);
