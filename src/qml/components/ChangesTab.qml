@@ -287,10 +287,9 @@ ColumnLayout {
                     appController.selectFileForDiff(fileDelegate.filePath);
                 }
 
-                MouseArea {
-                    anchors.fill: parent
+                TapHandler {
                     acceptedButtons: Qt.RightButton
-                    onClicked: {
+                    onTapped: {
                         fileContextMenu.targetFilePath = fileDelegate.filePath;
                         fileContextMenu.popup();
                     }
@@ -299,17 +298,17 @@ ColumnLayout {
         }
     }
 
-    // Stashed Changes Section (Clean non-overlapping row with quick actions)
+    // Stashed Changes Section (With expandable files view)
     Rectangle {
         id: stashSection
         Layout.fillWidth: true
-        height: 42
+        implicitHeight: stashColumn.implicitHeight + 4
         visible: appController.stashes.count > 0
 
         property bool isSelected: appController.selectedStashId !== ""
-        property bool isHovered: stashMouseArea.containsMouse
+        property bool isExpanded: true
 
-        color: isSelected ? CherryStyle.activeBackground : (isHovered ? CherryStyle.hoverBackground : CherryStyle.surfaceCardElevated)
+        color: isSelected ? CherryStyle.activeBackground : CherryStyle.surfaceCardElevated
 
         // Top separator
         Rectangle {
@@ -320,97 +319,171 @@ ColumnLayout {
             color: CherryStyle.borderColor
         }
 
-        RowLayout {
+        ColumnLayout {
+            id: stashColumn
             anchors.fill: parent
-            anchors.leftMargin: Kirigami.Units.smallSpacing + 2
-            anchors.rightMargin: Kirigami.Units.smallSpacing + 2
-            spacing: Kirigami.Units.smallSpacing
+            anchors.margins: 4
+            spacing: 2
 
-            Kirigami.Icon {
-                source: "document-save"
-                width: 16
-                height: 16
-                color: "#e5a50a"
-            }
-
-            QQC2.Label {
-                text: qsTr("Stashed Changes")
-                font.bold: true
-                font.pixelSize: CherryStyle.smallFont.pixelSize
-                color: stashSection.isSelected ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
-                elide: Text.ElideRight
-                Layout.fillWidth: true
-            }
-
-            // Stash count pill
+            // Main Stash Header Row
             Rectangle {
-                implicitWidth: stashCountLabel.implicitWidth + 10
-                implicitHeight: 18
-                radius: 9
-                color: CherryStyle.modifiedBg
-                border.color: CherryStyle.modifiedColor
-                border.width: 1
+                Layout.fillWidth: true
+                height: 36
+                color: "transparent"
 
-                QQC2.Label {
-                    id: stashCountLabel
-                    anchors.centerIn: parent
-                    text: "" + appController.stashes.count
-                    font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                    font.bold: true
-                    color: CherryStyle.modifiedColor
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Kirigami.Units.smallSpacing
+                    anchors.rightMargin: Kirigami.Units.smallSpacing
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Kirigami.Icon {
+                        source: "document-save"
+                        width: 16
+                        height: 16
+                        color: "#e5a50a"
+                    }
+
+                    QQC2.Label {
+                        text: qsTr("Stashed Changes")
+                        font.bold: true
+                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                        color: stashSection.isSelected ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+
+                    // Stash count pill
+                    Rectangle {
+                        implicitWidth: stashCountLabel.implicitWidth + 10
+                        implicitHeight: 18
+                        radius: 9
+                        color: CherryStyle.modifiedBg
+                        border.color: CherryStyle.modifiedColor
+                        border.width: 1
+
+                        QQC2.Label {
+                            id: stashCountLabel
+                            anchors.centerIn: parent
+                            text: "" + appController.stashes.count
+                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                            font.bold: true
+                            color: CherryStyle.modifiedColor
+                        }
+                    }
+
+                    // Restore & Discard Quick Buttons
+                    QQC2.Button {
+                        text: qsTr("Restore")
+                        icon.name: "edit-undo"
+                        implicitHeight: 26
+                        QQC2.ToolTip.text: qsTr("Restore stashed changes to working directory")
+                        QQC2.ToolTip.visible: hovered
+                        onClicked: appController.popStash("")
+                    }
+
+                    QQC2.ToolButton {
+                        icon.name: "edit-delete"
+                        icon.width: 14
+                        icon.height: 14
+                        implicitHeight: 26
+                        implicitWidth: 26
+                        QQC2.ToolTip.text: qsTr("Discard stash")
+                        QQC2.ToolTip.visible: hovered
+                        onClicked: appController.dropStash("")
+                    }
+
+                    QQC2.ToolButton {
+                        icon.name: stashSection.isExpanded ? "go-up-symbolic" : "go-down-symbolic"
+                        icon.width: 12
+                        icon.height: 12
+                        implicitHeight: 26
+                        implicitWidth: 26
+                        QQC2.ToolTip.text: stashSection.isExpanded ? qsTr("Collapse stashed files") : qsTr("Expand stashed files")
+                        QQC2.ToolTip.visible: hovered
+                        onClicked: {
+                            stashSection.isExpanded = !stashSection.isExpanded;
+                        }
+                    }
                 }
-            }
 
-            // Compact Action Buttons with no text collision
-            QQC2.Button {
-                text: qsTr("Restore")
-                icon.name: "edit-undo"
-                implicitHeight: 28
-                QQC2.ToolTip.text: qsTr("Restore stashed changes to working directory")
-                QQC2.ToolTip.visible: hovered
-                onClicked: appController.popStash("")
-            }
-
-            QQC2.ToolButton {
-                icon.name: "edit-delete"
-                icon.width: 14
-                icon.height: 14
-                implicitHeight: 28
-                implicitWidth: 28
-                QQC2.ToolTip.text: qsTr("Discard stash")
-                QQC2.ToolTip.visible: hovered
-                onClicked: appController.dropStash("")
-            }
-
-            QQC2.ToolButton {
-                icon.name: "go-next-symbolic"
-                icon.width: 12
-                icon.height: 12
-                implicitHeight: 28
-                implicitWidth: 28
-                QQC2.ToolTip.text: qsTr("View stashed changes in detail")
-                QQC2.ToolTip.visible: hovered
-                onClicked: {
-                    if (appController.selectedStashId !== "") {
-                        appController.clearStashSelection();
-                    } else {
-                        appController.selectStash("");
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.rightMargin: 150
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (appController.selectedStashId !== "") {
+                            appController.clearStashSelection();
+                        } else {
+                            appController.selectStash("");
+                        }
                     }
                 }
             }
-        }
 
-        MouseArea {
-            id: stashMouseArea
-            anchors.fill: parent
-            anchors.rightMargin: 150 // leave room for buttons
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-                if (appController.selectedStashId !== "") {
-                    appController.clearStashSelection();
-                } else {
-                    appController.selectStash("");
+            // Stashed files list
+            ListView {
+                id: stashedFilesList
+                Layout.fillWidth: true
+                implicitHeight: Math.min(count * 28, 120)
+                visible: stashSection.isExpanded && appController.selectedStashData && appController.selectedStashData.files && appController.selectedStashData.files.length > 0
+                model: (appController.selectedStashData && appController.selectedStashData.files) ? appController.selectedStashData.files : []
+                clip: true
+                spacing: 1
+
+                delegate: QQC2.ItemDelegate {
+                    width: stashedFilesList.width
+                    height: 26
+
+                    required property int index
+                    required property var modelData
+
+                    background: Rectangle {
+                        color: hovered ? CherryStyle.hoverBackground : "transparent"
+                        radius: CherryStyle.radiusSmall
+                    }
+
+                    contentItem: RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Kirigami.Units.mediumSpacing
+                        anchors.rightMargin: Kirigami.Units.smallSpacing
+                        spacing: 4
+
+                        Kirigami.Icon {
+                            source: "document-edit"
+                            width: 11
+                            height: 11
+                            color: "#e5a50a"
+                        }
+
+                        QQC2.Label {
+                            text: modelData.filePath
+                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                            color: Kirigami.Theme.textColor
+                            elide: Text.ElideMiddle
+                            Layout.fillWidth: true
+                        }
+
+                        QQC2.Label {
+                            text: "+" + modelData.additions
+                            font.pixelSize: CherryStyle.smallFont.pixelSize - 2
+                            color: CherryStyle.additionColor
+                            visible: modelData.additions > 0
+                        }
+
+                        QQC2.Label {
+                            text: "-" + modelData.deletions
+                            font.pixelSize: CherryStyle.smallFont.pixelSize - 2
+                            color: CherryStyle.deletionColor
+                            visible: modelData.deletions > 0
+                        }
+                    }
+
+                    onClicked: {
+                        appController.selectStash(appController.selectedStashId);
+                        appController.diffModel.loadDiffForStash(appController.selectedStashId, modelData.filePath);
+                    }
                 }
             }
         }

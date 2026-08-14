@@ -226,15 +226,24 @@ QQC2.Popup {
 
                     contentItem: RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: Kirigami.Units.smallSpacing
-                        anchors.rightMargin: Kirigami.Units.smallSpacing
+                        anchors.leftMargin: Kirigami.Units.smallSpacing + 4
+                        anchors.rightMargin: Kirigami.Units.smallSpacing + 4
                         spacing: Kirigami.Units.smallSpacing
 
                         Kirigami.Icon {
-                            source: "vcs-branch"
+                            source: {
+                                if (branchDelegate.isRemote) return "network-server";
+                                if (branchDelegate.isDefault) return "favorite";
+                                return "vcs-branch";
+                            }
                             width: 16
                             height: 16
-                            color: branchDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: {
+                                if (branchDelegate.isCurrent) return Kirigami.Theme.highlightColor;
+                                if (branchDelegate.isRemote) return Kirigami.Theme.disabledTextColor;
+                                if (branchDelegate.isDefault) return "#e5a50a";
+                                return Kirigami.Theme.textColor;
+                            }
                         }
 
                         QQC2.Label {
@@ -276,10 +285,10 @@ QQC2.Popup {
                             }
                         }
 
-                        // Default badge
+                        // Remote tag
                         Rectangle {
-                            visible: branchDelegate.isDefault
-                            implicitWidth: defLabel.implicitWidth + 10
+                            visible: branchDelegate.isRemote
+                            implicitWidth: remoteTagLabel.implicitWidth + 10
                             implicitHeight: 18
                             radius: 4
                             color: CherryStyle.surfaceCardElevated
@@ -287,11 +296,31 @@ QQC2.Popup {
                             border.width: 1
 
                             QQC2.Label {
+                                id: remoteTagLabel
+                                anchors.centerIn: parent
+                                text: qsTr("remote")
+                                font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                color: Kirigami.Theme.disabledTextColor
+                            }
+                        }
+
+                        // Default badge
+                        Rectangle {
+                            visible: branchDelegate.isDefault && !branchDelegate.isRemote
+                            implicitWidth: defLabel.implicitWidth + 10
+                            implicitHeight: 18
+                            radius: 4
+                            color: Qt.rgba(0.9, 0.65, 0.04, 0.15)
+                            border.color: Qt.rgba(0.9, 0.65, 0.04, 0.5)
+                            border.width: 1
+
+                            QQC2.Label {
                                 id: defLabel
                                 anchors.centerIn: parent
                                 text: qsTr("default")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                font.bold: true
+                                color: "#e5a50a"
                             }
                         }
 
@@ -307,7 +336,7 @@ QQC2.Popup {
 
                     onClicked: {
                         appController.switchBranch(branchDelegate.name);
-                        ListView.view.requestClose();
+                        branchDropdownPopup.close();
                     }
                 }
             }

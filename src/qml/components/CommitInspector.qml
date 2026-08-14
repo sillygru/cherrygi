@@ -159,12 +159,14 @@ ColumnLayout {
                     }
                 }
 
-                // Actions Menu Button
+                // Actions Menu Button with crystal clear tooltip and iconography
                 QQC2.Button {
                     text: qsTr("Revert Commit")
-                    icon.name: "edit-undo"
+                    icon.name: "vcs-diff"
                     implicitHeight: 28
                     enabled: !appController.isOperating
+                    QQC2.ToolTip.text: qsTr("Create a new commit that reverts the changes introduced in this commit")
+                    QQC2.ToolTip.visible: hovered
                     onClicked: {
                         if (root.commitData && root.commitData.sha) {
                             appController.revertCommit(root.commitData.sha);
@@ -175,17 +177,28 @@ ColumnLayout {
         }
     }
 
-    // Splitter: Changed Files in Commit vs Diff Viewer
+    // Splitter: 3-column layout (Changed Files in Commit Sidebar | Diff Viewer)
     QQC2.SplitView {
         Layout.fillWidth: true
         Layout.fillHeight: true
-        orientation: Qt.Vertical
+        orientation: Qt.Horizontal
 
-        // Changed Files List in this commit
+        // Changed Files List in this commit (Second sidebar)
         Rectangle {
-            QQC2.SplitView.preferredHeight: 120
-            QQC2.SplitView.minimumHeight: 80
+            QQC2.SplitView.preferredWidth: 260
+            QQC2.SplitView.minimumWidth: 180
+            QQC2.SplitView.maximumWidth: 420
+            QQC2.SplitView.fillHeight: true
             color: CherryStyle.surfaceSidebar
+
+            // Right border for the secondary sidebar
+            Rectangle {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 1
+                color: CherryStyle.borderColor
+            }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -194,19 +207,35 @@ ColumnLayout {
                 // Header
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 30
+                    height: 34
                     color: CherryStyle.surfaceCardElevated
+
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: 1
+                        color: CherryStyle.borderColor
+                    }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: Kirigami.Units.smallSpacing + 2
-                        anchors.rightMargin: Kirigami.Units.smallSpacing + 2
+                        anchors.leftMargin: Kirigami.Units.smallSpacing + 4
+                        anchors.rightMargin: Kirigami.Units.smallSpacing + 4
+
+                        Kirigami.Icon {
+                            source: "view-list-details"
+                            width: 14
+                            height: 14
+                            color: Kirigami.Theme.disabledTextColor
+                        }
 
                         QQC2.Label {
-                            text: qsTr("Changed Files (%1)").arg(root.commitData && root.commitData.files ? root.commitData.files.length : 0)
+                            text: qsTr("Files Changed (%1)").arg(root.commitData && root.commitData.files ? root.commitData.files.length : 0)
                             font.bold: true
                             font.pixelSize: CherryStyle.smallFont.pixelSize
-                            color: Kirigami.Theme.disabledTextColor
+                            color: Kirigami.Theme.textColor
+                            Layout.fillWidth: true
                         }
                     }
                 }
@@ -224,7 +253,7 @@ ColumnLayout {
                         delegate: QQC2.ItemDelegate {
                             id: commitFileDelegate
                             width: commitFilesListView.width
-                            height: 32
+                            height: 34
 
                             required property int index
                             required property var modelData
@@ -249,8 +278,8 @@ ColumnLayout {
 
                             contentItem: RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: Kirigami.Units.smallSpacing
-                                anchors.rightMargin: Kirigami.Units.smallSpacing
+                                anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+                                anchors.rightMargin: Kirigami.Units.smallSpacing + 2
                                 spacing: Kirigami.Units.smallSpacing
 
                                 Rectangle {
@@ -336,6 +365,7 @@ ColumnLayout {
 
         // Commit Diff Viewer
         DiffViewer {
+            QQC2.SplitView.fillWidth: true
             QQC2.SplitView.fillHeight: true
             filePath: root.activeFilePath
             isHistorical: true

@@ -37,6 +37,7 @@ QString objectTypeForPackCode(int code)
 
 bool GitRepositoryReader::open(const QString &path)
 {
+    QMutexLocker locker(&m_mutex);
     m_workTree.clear();
     m_gitDir.clear();
     m_headGitDir.clear();
@@ -76,6 +77,7 @@ bool GitRepositoryReader::open(const QString &path)
 
 void GitRepositoryReader::refresh()
 {
+    QMutexLocker locker(&m_mutex);
     m_packedRefsLoaded = false;
     m_packIndexesLoaded = false;
     m_packedRefs.clear();
@@ -340,6 +342,7 @@ std::optional<GitRepositoryReader::GitObject> GitRepositoryReader::readPackEntry
 
 std::optional<BranchInfo> GitRepositoryReader::currentBranch() const
 {
+    QMutexLocker locker(&m_mutex);
     const QString head = readHeadRef();
     const QString headValue = readRef("HEAD");
     if (head.isEmpty() && headValue.isEmpty()) return std::nullopt;
@@ -358,6 +361,7 @@ std::optional<BranchInfo> GitRepositoryReader::currentBranch() const
 
 QList<BranchInfo> GitRepositoryReader::branches() const
 {
+    QMutexLocker locker(&m_mutex);
     QList<BranchInfo> result;
     const auto current = currentBranch();
     QSet<QString> seen;
@@ -410,6 +414,7 @@ QList<BranchInfo> GitRepositoryReader::branches() const
 
 QList<CommitItem> GitRepositoryReader::commitHistory(int limit) const
 {
+    QMutexLocker locker(&m_mutex);
     QList<CommitItem> result;
     QString sha = readRef("HEAD");
     QSet<QString> visited;
@@ -436,6 +441,7 @@ QList<CommitItem> GitRepositoryReader::commitHistory(int limit) const
 
 std::optional<CommitItem> GitRepositoryReader::commitDetails(const QString &sha) const
 {
+    QMutexLocker locker(&m_mutex);
     return parseCommit(sha, true);
 }
 
@@ -615,11 +621,13 @@ QList<StashItem> GitRepositoryReader::readStashReflog() const
 
 QList<StashItem> GitRepositoryReader::stashes() const
 {
+    QMutexLocker locker(&m_mutex);
     return readStashReflog();
 }
 
 std::optional<StashItem> GitRepositoryReader::stashDetails(const QString &stashId) const
 {
+    QMutexLocker locker(&m_mutex);
     const QString requested = stashId.isEmpty() ? "stash@{0}" : stashId;
     const auto all = readStashReflog();
     for (StashItem stash : all) {

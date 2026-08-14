@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QFileSystemWatcher>
 #include <QTimer>
+#include <QRecursiveMutex>
 #include <functional>
 
 namespace Cherry {
@@ -154,6 +155,7 @@ private:
 
     QFileSystemWatcher *m_fsWatcher{nullptr};
     QTimer *m_fsDebounceTimer{nullptr};
+    mutable QRecursiveMutex m_cacheMutex;
 };
 
 } // namespace Cherry

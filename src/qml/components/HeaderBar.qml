@@ -272,7 +272,7 @@ Rectangle {
                         anchors.fill: parent
                         spacing: Kirigami.Units.smallSpacing
 
-                        // Sync Icon with controlled rotation
+                        // Sync Icon with clean status indicator
                         Item {
                             width: 22
                             height: 22
@@ -290,30 +290,13 @@ Rectangle {
                                 width: 18
                                 height: 18
                                 color: (!appController.hasRemote || remoteSegment.isSyncActive) ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
-                                rotation: 0
+                                opacity: 1.0
 
-                                NumberAnimation on rotation {
-                                    id: spinAnim
+                                SequentialAnimation on opacity {
                                     running: remoteSegment.isSyncActive
-                                    from: 0
-                                    to: 360
                                     loops: Animation.Infinite
-                                    duration: 900
-                                    alwaysRunToEnd: false
-                                }
-
-                                Connections {
-                                    target: appController
-                                    function onRemoteStatusChanged() {
-                                        if (!remoteSegment.isSyncActive) {
-                                            syncIcon.rotation = 0;
-                                        }
-                                    }
-                                    function onIsPublishingChanged() {
-                                        if (!remoteSegment.isSyncActive) {
-                                            syncIcon.rotation = 0;
-                                        }
-                                    }
+                                    NumberAnimation { from: 1.0; to: 0.35; duration: 600; easing.type: Easing.InOutQuad }
+                                    NumberAnimation { from: 0.35; to: 1.0; duration: 600; easing.type: Easing.InOutQuad }
                                 }
                             }
                         }

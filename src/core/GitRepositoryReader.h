@@ -5,6 +5,7 @@
 #include <QList>
 #include <QFile>
 #include <QString>
+#include <QRecursiveMutex>
 #include <optional>
 
 namespace Cherry {
@@ -82,6 +83,7 @@ private:
     mutable QHash<QString, QString> m_packedRefs;
     mutable QHash<QString, PackLocation> m_packLocations;
     mutable QHash<QString, GitObject> m_objectCache;
+    mutable QRecursiveMutex m_mutex;
 };
 
 } // namespace Cherry

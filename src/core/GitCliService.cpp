@@ -80,6 +80,7 @@ void GitCliService::clearUndoState()
 
 void GitCliService::invalidateRepositoryCaches()
 {
+    QMutexLocker locker(&m_cacheMutex);
     m_repositoryReader.refresh();
     m_changedFilesCacheValid = false;
     m_branchesCacheValid = false;
@@ -134,10 +135,16 @@ void GitCliService::preloadRepositoryCaches()
     getCommitHistory();
     getStashes();
 
-    if (!m_changedFilesCache.isEmpty()) {
-        m_fileDiffCachePath = m_changedFilesCache.first().filePath;
-        m_fileDiffCache = getDiffForFile(m_fileDiffCachePath);
-        m_fileDiffCacheValid = true;
+    {
+        QMutexLocker locker(&m_cacheMutex);
+        if (!m_changedFilesCache.isEmpty()) {
+            m_fileDiffCachePath = m_changedFilesCache.first().filePath;
+            locker.unlock();
+            auto diff = getDiffForFile(m_fileDiffCachePath);
+            locker.relock();
+            m_fileDiffCache = diff;
+            m_fileDiffCacheValid = true;
+        }
     }
     m_suppressRefreshSignals = false;
 }
@@ -398,16 +405,14 @@ bool GitCliService::openRepository(const QString &pathOrId)
         }
     }
 
-    GitRepositoryReader reader;
-    if (!reader.open(targetPath)) {
+    if (!m_repositoryReader.open(targetPath)) {
         emit operationFailed(QString("Not a valid Git repository: %1").arg(pathOrId));
         return false;
     }
 
-    const QString discoveredPath = reader.workTreePath().isEmpty()
+    const QString discoveredPath = m_repositoryReader.workTreePath().isEmpty()
         ? QDir::cleanPath(targetPath)
-        : reader.workTreePath();
-    m_repositoryReader = std::move(reader);
+        : m_repositoryReader.workTreePath();
     m_repoPath = discoveredPath;
     m_repoName = QFileInfo(m_repoPath).fileName();
     if (m_repoName.isEmpty()) m_repoName = "Repository";
@@ -488,6 +493,7 @@ bool GitCliService::removeRepository(const QString &repoIdOrPath)
 
 QList<BranchInfo> GitCliService::getBranches()
 {
+    QMutexLocker locker(&m_cacheMutex);
     if (m_branchesCacheValid) return m_branchesCache;
     if (m_repoPath.isEmpty()) return {};
 
@@ -498,6 +504,7 @@ QList<BranchInfo> GitCliService::getBranches()
 
 std::optional<BranchInfo> GitCliService::getCurrentBranch()
 {
+    QMutexLocker locker(&m_cacheMutex);
     if (m_currentBranchCacheValid) return m_currentBranchCache;
     if (m_repoPath.isEmpty()) return std::nullopt;
 
@@ -578,14 +585,17 @@ bool GitCliService::deleteBranch(const QString &branchName)
 
 QList<FileChange> GitCliService::getChangedFiles()
 {
+    QMutexLocker locker(&m_cacheMutex);
     if (m_changedFilesCacheValid) return m_changedFilesCache;
     if (m_repoPath.isEmpty()) return {};
 
+    locker.unlock();
     autoStageChanges();
 
     // Avoid recursively enumerating every file in large untracked directories.
     GitResult statusRes = runGit({"status", "--porcelain=v1", "-unormal"}, QString(), 5000);
     if (!statusRes.success || statusRes.stdOut.trimmed().isEmpty()) {
+        locker.relock();
         m_fileSelection.clear();
         m_changedFilesCache.clear();
         m_changedFilesCacheValid = true;
@@ -613,6 +623,7 @@ QList<FileChange> GitCliService::getChangedFiles()
     const QStringList lines = statusRes.stdOut.split('\n', Qt::SkipEmptyParts);
 
     int idx = 0;
+    locker.relock();
     for (const QString &line : lines) {
         if (line.length() < 4) continue;
         QChar x = line[0];
@@ -670,6 +681,7 @@ QList<FileChange> GitCliService::getChangedFiles()
 
 void GitCliService::setFileSelected(const QString &filePath, bool selected)
 {
+    QMutexLocker locker(&m_cacheMutex);
     m_fileSelection.insert(filePath, selected);
     if (m_changedFilesCacheValid) {
         for (auto &file : m_changedFilesCache) {
@@ -681,6 +693,7 @@ void GitCliService::setFileSelected(const QString &filePath, bool selected)
 
 void GitCliService::setAllFilesSelected(bool selected)
 {
+    QMutexLocker locker(&m_cacheMutex);
     for (auto it = m_fileSelection.begin(); it != m_fileSelection.end(); ++it) {
         it.value() = selected;
     }
@@ -792,8 +805,11 @@ QList<DiffLine> GitCliService::parseDiffOutput(const QString &diffText)
 
 QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath)
 {
+    QMutexLocker locker(&m_cacheMutex);
     if (m_fileDiffCacheValid && m_fileDiffCachePath == filePath) return m_fileDiffCache;
     if (m_repoPath.isEmpty() || filePath.isEmpty()) return {};
+
+    locker.unlock();
 
     // If untracked file or folder, read safely from disk
     GitResult statusCheck = runGit({"status", "--porcelain=v1", "--", filePath}, QString(), 2000);
@@ -812,6 +828,7 @@ QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath)
             dl.type = DiffLineType::Context;
             dl.content = "Untracked Directory";
             QList<DiffLine> directoryDiff{hunk, dl};
+            locker.relock();
             if (filePath == m_fileDiffCachePath) {
                 m_fileDiffCache = directoryDiff;
                 m_fileDiffCacheValid = true;
@@ -841,6 +858,7 @@ QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath)
             dl.content = in.readLine();
             lines.append(dl);
         }
+        locker.relock();
         if (filePath == m_fileDiffCachePath) {
             m_fileDiffCache = lines;
             m_fileDiffCacheValid = true;
@@ -857,6 +875,7 @@ QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath)
         }
     }
     QList<DiffLine> lines = parseDiffOutput(res.stdOut);
+    locker.relock();
     if (filePath == m_fileDiffCachePath) {
         m_fileDiffCache = lines;
         m_fileDiffCacheValid = true;
@@ -908,9 +927,44 @@ QList<DiffLine> GitCliService::getDiffForStashFile(const QString &stashId, const
 
 QList<CommitItem> GitCliService::getCommitHistory(int limit)
 {
+    QMutexLocker locker(&m_cacheMutex);
     if (m_repoPath.isEmpty()) return {};
     const int safeLimit = qBound(1, limit, 100);
     if (m_commitHistoryCacheValid) return m_commitHistoryCache.mid(0, safeLimit);
+
+    // Fast Git CLI query using porcelain record/unit separators
+    locker.unlock();
+    GitResult logRes = runGit({"log", QString("-%1").arg(safeLimit), "--format=%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%at%x1e"}, QString(), 4000);
+    locker.relock();
+    if (logRes.success && !logRes.stdOut.isEmpty()) {
+        QList<CommitItem> list;
+        const QStringList records = logRes.stdOut.split(QChar('\x1e'), Qt::SkipEmptyParts);
+        for (const QString &rec : records) {
+            QStringList fields = rec.split(QChar('\x1f'));
+            if (fields.size() < 7) continue;
+            CommitItem item;
+            item.sha = fields[0].trimmed();
+            item.shortSha = fields[1].trimmed();
+            item.summary = fields[2].trimmed();
+            item.description = fields[3].trimmed();
+            item.authorName = fields[4].trimmed();
+            item.authorEmail = fields[5].trimmed();
+            qint64 epoch = fields[6].trimmed().toLongLong();
+            item.timestamp = QDateTime::fromSecsSinceEpoch(epoch, QTimeZone::UTC);
+            item.relativeTime = formatRelativeTime(item.timestamp);
+
+            QRegularExpression coRegex(R"(Co-authored-by:\s*(.*?)(?:<|$))", QRegularExpression::CaseInsensitiveOption);
+            auto it = coRegex.globalMatch(item.description);
+            while (it.hasNext()) {
+                QString ca = it.next().captured(1).trimmed();
+                if (!ca.isEmpty()) item.coAuthors.append(ca);
+            }
+            list.append(item);
+        }
+        m_commitHistoryCache = list;
+        m_commitHistoryCacheValid = true;
+        return m_commitHistoryCache;
+    }
 
     m_commitHistoryCache = m_repositoryReader.commitHistory(safeLimit);
     m_commitHistoryCacheValid = true;
@@ -919,6 +973,7 @@ QList<CommitItem> GitCliService::getCommitHistory(int limit)
 
 std::optional<CommitItem> GitCliService::getCommitDetails(const QString &sha)
 {
+    QMutexLocker locker(&m_cacheMutex);
     if (m_repoPath.isEmpty() || sha.isEmpty()) return std::nullopt;
     return m_repositoryReader.commitDetails(sha);
 }
@@ -1259,11 +1314,14 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
 
 RemoteStatus GitCliService::getRemoteStatus()
 {
+    QMutexLocker locker(&m_cacheMutex);
     if (m_remoteStatusCacheValid) return m_remoteStatus;
     if (m_repoPath.isEmpty()) return m_remoteStatus;
 
+    locker.unlock();
     // First check if any remote is configured
     bool remoteExists = hasRemote();
+    locker.relock();
     m_remoteStatus.hasRemote = remoteExists;
 
     if (!remoteExists) {
@@ -1276,9 +1334,12 @@ RemoteStatus GitCliService::getRemoteStatus()
         return m_remoteStatus;
     }
 
-    m_remoteStatus.remoteUrl = getRemoteUrl("origin");
-
+    locker.unlock();
+    QString remoteUrl = getRemoteUrl("origin");
     GitResult revRes = runGit({"rev-list", "--left-right", "--count", "HEAD...@{upstream}"}, QString(), 2000);
+    locker.relock();
+    m_remoteStatus.remoteUrl = remoteUrl;
+
     if (revRes.success) {
         QStringList parts = revRes.stdOut.trimmed().split('\t');
         if (parts.size() >= 2) {
@@ -1287,7 +1348,9 @@ RemoteStatus GitCliService::getRemoteStatus()
         }
     } else {
         // Check if there are unpushed commits on a branch without upstream
+        locker.unlock();
         GitResult unpushedRes = runGit({"rev-list", "--count", "HEAD"}, QString(), 2000);
+        locker.relock();
         if (unpushedRes.success) {
             m_remoteStatus.ahead = unpushedRes.stdOut.trimmed().toInt();
             m_remoteStatus.behind = 0;
@@ -1417,6 +1480,7 @@ void GitCliService::pushOrigin()
 
 QList<StashItem> GitCliService::getStashes()
 {
+    QMutexLocker locker(&m_cacheMutex);
     if (m_repoPath.isEmpty()) return {};
     if (m_stashesCacheValid) return m_stashesCache;
 
@@ -1427,6 +1491,7 @@ QList<StashItem> GitCliService::getStashes()
 
 std::optional<StashItem> GitCliService::getStashDetails(const QString &stashId)
 {
+    QMutexLocker locker(&m_cacheMutex);
     if (m_repoPath.isEmpty()) return std::nullopt;
     return m_repositoryReader.stashDetails(stashId);
 }

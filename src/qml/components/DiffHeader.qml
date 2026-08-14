@@ -20,18 +20,21 @@ Rectangle {
         QQC2.MenuItem {
             text: qsTr("Discard Changes...")
             icon.name: "edit-delete"
+            enabled: root.filePath.length > 0
             onTriggered: appController.discardFileChanges(root.filePath)
         }
 
         QQC2.MenuItem {
             text: qsTr("Copy Relative Path")
             icon.name: "edit-copy"
+            enabled: root.filePath.length > 0
             onTriggered: appController.showToast(qsTr("Path copied to clipboard"))
         }
 
         QQC2.MenuItem {
             text: qsTr("Open in External Editor")
             icon.name: "accessories-text-editor"
+            enabled: root.filePath.length > 0
             onTriggered: appController.openInEditor(root.filePath)
         }
     }
@@ -57,6 +60,7 @@ Rectangle {
             icon.name: "go-up-symbolic"
             icon.width: 14
             icon.height: 14
+            enabled: root.filePath.length > 0 && appController.changedFiles.count > 1
             QQC2.ToolTip.text: qsTr("Previous changed file")
             QQC2.ToolTip.visible: hovered
             onClicked: {
@@ -77,6 +81,7 @@ Rectangle {
             icon.name: "go-down-symbolic"
             icon.width: 14
             icon.height: 14
+            enabled: root.filePath.length > 0 && appController.changedFiles.count > 1
             QQC2.ToolTip.text: qsTr("Next changed file")
             QQC2.ToolTip.visible: hovered
             onClicked: {

@@ -119,41 +119,63 @@ Rectangle {
         Rectangle {
             id: undoBanner
             Layout.fillWidth: true
-            height: 34
+            implicitHeight: undoRow.implicitHeight + 12
             visible: appController.canUndoCommit
             radius: CherryStyle.radiusMedium
-            color: Qt.rgba(0.2, 0.6, 1.0, 0.18)
-            border.color: Qt.rgba(0.2, 0.6, 1.0, 0.5)
+            color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.15)
+            border.color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.6)
             border.width: 1
 
             RowLayout {
+                id: undoRow
                 anchors.fill: parent
-                anchors.leftMargin: Kirigami.Units.smallSpacing + 2
-                anchors.rightMargin: Kirigami.Units.smallSpacing + 2
+                anchors.leftMargin: Kirigami.Units.smallSpacing + 4
+                anchors.rightMargin: Kirigami.Units.smallSpacing + 4
                 spacing: Kirigami.Units.smallSpacing
 
-                Kirigami.Icon {
-                    source: "edit-undo"
-                    width: 16
-                    height: 16
-                    color: "#4595f6"
+                Rectangle {
+                    width: 24
+                    height: 24
+                    radius: 12
+                    color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.25)
+                    Layout.alignment: Qt.AlignVCenter
+
+                    Kirigami.Icon {
+                        anchors.centerIn: parent
+                        source: "edit-undo"
+                        width: 14
+                        height: 14
+                        color: Kirigami.Theme.highlightColor
+                    }
                 }
 
-                QQC2.Label {
-                    text: appController.lastUndoCommitSummary.length > 0 ?
-                          qsTr("Undo commit: %1").arg(appController.lastUndoCommitSummary) :
-                          qsTr("Unpushed commit available to undo")
-                    font.bold: true
-                    font.pixelSize: CherryStyle.smallFont.pixelSize
-                    color: Kirigami.Theme.textColor
+                ColumnLayout {
                     Layout.fillWidth: true
-                    elide: Text.ElideRight
+                    spacing: 1
+
+                    QQC2.Label {
+                        text: qsTr("Unpushed Commit Available to Undo")
+                        font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                        color: Kirigami.Theme.disabledTextColor
+                    }
+
+                    QQC2.Label {
+                        text: appController.lastUndoCommitSummary.length > 0 ?
+                              appController.lastUndoCommitSummary : qsTr("(No summary)")
+                        font.bold: true
+                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                        color: Kirigami.Theme.textColor
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
                 }
 
                 QQC2.Button {
                     text: qsTr("Undo")
+                    icon.name: "edit-undo"
                     font.bold: true
-                    implicitHeight: 26
+                    highlighted: true
+                    implicitHeight: 28
                     enabled: !appController.isOperating
                     onClicked: {
                         if (appController.undoLastCommit()) {

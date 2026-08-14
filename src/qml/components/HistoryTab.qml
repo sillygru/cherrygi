@@ -35,8 +35,8 @@ ColumnLayout {
         }
 
         QQC2.MenuItem {
-            text: qsTr("Revert Changes in Commit")
-            icon.name: "edit-undo"
+            text: qsTr("Revert Commit (Create new commit undoing changes)")
+            icon.name: "vcs-diff"
             onTriggered: appController.revertCommit(commitContextMenu.targetSha)
         }
 
@@ -285,18 +285,17 @@ ColumnLayout {
                     }
                 }
 
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                    onClicked: function(mouse) {
-                        if (mouse.button === Qt.RightButton) {
-                            commitContextMenu.targetSha = commitDelegate.sha;
-                            commitContextMenu.targetSummary = commitDelegate.summary;
-                            commitContextMenu.targetIsLocal = commitDelegate.isLocal;
-                            commitContextMenu.popup();
-                        } else {
-                            appController.selectCommit(commitDelegate.sha);
-                        }
+                onClicked: {
+                    appController.selectCommit(commitDelegate.sha);
+                }
+
+                TapHandler {
+                    acceptedButtons: Qt.RightButton
+                    onTapped: {
+                        commitContextMenu.targetSha = commitDelegate.sha;
+                        commitContextMenu.targetSummary = commitDelegate.summary;
+                        commitContextMenu.targetIsLocal = commitDelegate.isLocal;
+                        commitContextMenu.popup();
                     }
                 }
             }
