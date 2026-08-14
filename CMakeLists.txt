@@ -23,6 +23,7 @@ find_package(ZLIB REQUIRED)
 find_package(Qt6 6.5 REQUIRED COMPONENTS
     Core
     Gui
+    Network
     Qml
     Quick
     QuickControls2
@@ -58,6 +59,8 @@ set(CHERRYGI_SOURCES
     src/core/AppSettings.cpp
     src/core/AvatarResolver.h
     src/core/AvatarResolver.cpp
+    src/core/GitHubAvatarService.h
+    src/core/GitHubAvatarService.cpp
     src/core/GitImageProvider.h
     src/core/GitImageProvider.cpp
     src/core/AppController.h
@@ -124,6 +127,7 @@ target_include_directories(cherrygi PRIVATE
 target_link_libraries(cherrygi PRIVATE
     Qt6::Core
     Qt6::Gui
+    Qt6::Network
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2

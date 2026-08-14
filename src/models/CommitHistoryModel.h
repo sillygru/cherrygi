@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QHash>
 #include "../core/IGitService.h"
 
 namespace Cherry {
@@ -39,6 +40,7 @@ public:
     void setFilterText(const QString &text);
 
     void setAheadCount(int count);
+    void setAvatarOverrides(const QHash<QString, QString> &overrides);
 
     Q_INVOKABLE QString getSha(int index) const;
     Q_INVOKABLE void reload();
@@ -56,6 +58,10 @@ private:
     QList<CommitItem> m_allCommits;
     QList<CommitItem> m_filteredCommits;
     QString m_filterText;
+    QString m_currentAuthorName;
+    QString m_currentAuthorEmail;
+    QString m_remoteUrl;
+    QHash<QString, QString> m_avatarOverrides;
     int m_aheadCount{0};
 };
 

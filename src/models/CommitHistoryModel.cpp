@@ -54,8 +54,25 @@ QVariant CommitHistoryModel::data(const QModelIndex &index, int role) const
         return commit.authorName;
     case AuthorEmailRole:
         return commit.authorEmail;
-    case AuthorAvatarUrlRole:
+    case AuthorAvatarUrlRole: {
+        const QString emailKey = commit.authorEmail.trimmed().toCaseFolded();
+        if (!emailKey.isEmpty() && m_avatarOverrides.contains(emailKey)) {
+            return m_avatarOverrides.value(emailKey);
+        }
+        const QString nameKey = commit.authorName.trimmed().toCaseFolded();
+        if (!nameKey.isEmpty() && m_avatarOverrides.contains(nameKey)) {
+            return m_avatarOverrides.value(nameKey);
+        }
+
+        const bool sameEmail = !m_currentAuthorEmail.isEmpty() &&
+            commit.authorEmail.compare(m_currentAuthorEmail, Qt::CaseInsensitive) == 0;
+        const bool sameName = !m_currentAuthorName.isEmpty() &&
+            commit.authorName.compare(m_currentAuthorName, Qt::CaseSensitive) == 0;
+        if ((sameEmail || sameName) && !m_remoteUrl.isEmpty()) {
+            return AvatarResolver::resolve(commit.authorName, commit.authorEmail, m_remoteUrl);
+        }
         return !commit.authorAvatarUrl.isEmpty() ? commit.authorAvatarUrl : AvatarResolver::resolve(commit.authorName, commit.authorEmail);
+    }
     case RelativeTimeRole:
         return commit.relativeTime;
     case TimestampRole:
@@ -108,6 +125,15 @@ void CommitHistoryModel::setAheadCount(int count)
     emit aheadCountChanged();
 }
 
+void CommitHistoryModel::setAvatarOverrides(const QHash<QString, QString> &overrides)
+{
+    if (m_avatarOverrides == overrides) return;
+    m_avatarOverrides = overrides;
+    if (!m_filteredCommits.isEmpty()) {
+        emit dataChanged(index(0, 0), index(m_filteredCommits.size() - 1, 0), {AuthorAvatarUrlRole});
+    }
+}
+
 void CommitHistoryModel::setFilterText(const QString &text)
 {
     if (m_filterText == text) return;
@@ -131,6 +157,16 @@ void CommitHistoryModel::reload()
         }
         return;
     }
+    const QString currentAuthorName = m_service->getAuthorName();
+    const QString currentAuthorEmail = m_service->getAuthorEmail();
+    const QString remoteUrl = m_service->getRemoteUrl();
+    const bool identityChanged = currentAuthorName != m_currentAuthorName ||
+        currentAuthorEmail.compare(m_currentAuthorEmail, Qt::CaseInsensitive) != 0 ||
+        remoteUrl != m_remoteUrl;
+    m_currentAuthorName = currentAuthorName;
+    m_currentAuthorEmail = currentAuthorEmail;
+    m_remoteUrl = remoteUrl;
+
     auto newCommits = m_service->getCommitHistory();
     if (newCommits.size() == m_allCommits.size()) {
         bool identical = true;
@@ -142,7 +178,7 @@ void CommitHistoryModel::reload()
                 break;
             }
         }
-        if (identical) {
+        if (identical && !identityChanged) {
             return;
         }
     }

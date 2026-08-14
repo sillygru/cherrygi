@@ -10,6 +10,7 @@
 #include "GitCliService.h"
 #include "MockGitService.h"
 #include "AppSettings.h"
+#include "GitHubAvatarService.h"
 #include "../models/RepositoryListModel.h"
 #include "../models/BranchListModel.h"
 #include "../models/ChangedFilesModel.h"
@@ -352,6 +353,7 @@ private:
     void connectServiceSignals();
 
     std::unique_ptr<AppSettings> m_settings;
+    std::unique_ptr<GitHubAvatarService> m_githubAvatarService;
     std::unique_ptr<GitCliService> m_gitCliService;
     std::unique_ptr<MockGitService> m_mockService;
     IGitService *m_activeService{nullptr};

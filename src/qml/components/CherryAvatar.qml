@@ -57,7 +57,20 @@ Item {
         id: maskRect
         anchors.fill: parent
         radius: width / 2
+        // Rectangle's default opaque fill supplies the mask alpha.
         visible: false
+    }
+
+    // Explicitly render the mask to a texture. This is required for reliable
+    // MultiEffect mask sampling on Qt 6; a hidden plain Rectangle is not a
+    // valid texture source on all scene-graph backends.
+    ShaderEffectSource {
+        id: maskSource
+        anchors.fill: maskRect
+        sourceItem: maskRect
+        hideSource: true
+        live: true
+        z: -1
     }
 
     MultiEffect {
@@ -65,7 +78,7 @@ Item {
         anchors.fill: parent
         source: avatarImage
         maskEnabled: true
-        maskSource: maskRect
+        maskSource: maskSource
         visible: root.source !== "" && avatarImage.status === Image.Ready
     }
 }

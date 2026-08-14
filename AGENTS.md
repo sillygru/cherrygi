@@ -7,7 +7,7 @@ Native KDE Plasma Git client (Kirigami 6 / Qt Quick) mirroring GitHub Desktop's 
 - C++20, Qt 6.5+, KF6 (Kirigami, CoreAddons, I18n, IconThemes, ColorScheme, Config), CMake 3.20+, zlib.
 - QML/Quick module `org.kde.cherrygi`; `CherryStyle.qml` is a QML singleton (see `QT_QML_SINGLETON_TYPE` in CMakeLists).
 - Two interchangeable backends behind `IGitService`: `GitCliService` (default; hybrid — CLI mutations plus direct `.git` reader for reads) and `MockGitService` (in-memory demo).
-- No external services; all Git I/O is local via the `git` CLI or `GitRepositoryReader`.
+- Git I/O is local via the `git` CLI or `GitRepositoryReader`; optional GitHub avatar metadata is fetched from the repository `mentionables/users` API using an in-memory `gh auth token` when available, with anonymous fallback.
 
 ## Commands
 
@@ -48,6 +48,7 @@ QVariant RepositoryListModel::data(const QModelIndex &index, int role) const
 
 ```
 IGitService → AppController → Qt Item Models → QML
+GitHubAvatarService → AppController → Qt Item Models/QML
 ```
 
 - QML never calls `IGitService` or Git directly; only `AppController` talks to the service.
@@ -77,6 +78,7 @@ IGitService → AppController → Qt Item Models → QML
 
 - `src/core/IGitService.h` — service interface; all Git capabilities live here.
 - `src/core/AppController.h` — central QObject; QML-facing state and actions.
+- `src/core/GitHubAvatarService.h` — repository-scoped GitHub identity/avatar lookup and cache.
 - `src/core/GitCliService.cpp` — hybrid backend (CLI + direct `.git` reader).
 - `src/qml/Main.qml` — root `Kirigami.ApplicationWindow`.
 - `docs/architecture.md`, `docs/git_service_transition.md` — deeper context when needed.

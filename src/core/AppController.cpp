@@ -17,6 +17,7 @@ namespace Cherry {
 AppController::AppController(QObject *parent)
     : QObject(parent)
     , m_settings(std::make_unique<AppSettings>(this))
+    , m_githubAvatarService(std::make_unique<GitHubAvatarService>())
     , m_gitCliService(std::make_unique<GitCliService>())
     , m_mockService(std::make_unique<MockGitService>())
 {
@@ -37,6 +38,14 @@ AppController::AppController(QObject *parent)
     m_commitHistoryModel = new CommitHistoryModel(m_activeService, this);
     m_diffModel = new DiffModel(m_activeService, this);
     m_stashModel = new StashModel(m_activeService, this);
+
+    connect(m_githubAvatarService.get(), &GitHubAvatarService::avatarsChanged, this, [this]() {
+        if (m_commitHistoryModel) {
+            m_commitHistoryModel->setAvatarOverrides(m_githubAvatarService->avatarOverrides());
+        }
+        emit currentRepoChanged();
+        emit selectedCommitShaChanged();
+    });
 
     connectServiceSignals();
     updateCurrentState();
@@ -246,6 +255,10 @@ void AppController::updateCurrentState()
         m_commitHistoryModel->setAheadCount(m_remoteStatus.ahead);
     }
 
+    if (m_githubAvatarService && !m_remoteStatus.remoteUrl.isEmpty()) {
+        m_githubAvatarService->fetchForRemote(m_remoteStatus.remoteUrl);
+    }
+
     emit remoteStatusChanged();
     emit currentRepoChanged();
     emit currentBranchChanged();
@@ -353,7 +366,11 @@ QString AppController::currentAuthorInitial() const
 
 QString AppController::currentAuthorAvatarUrl() const
 {
-    return AvatarResolver::resolve(currentAuthorName(), currentAuthorEmail());
+    if (m_githubAvatarService) {
+        const QString avatar = m_githubAvatarService->avatarFor(currentAuthorName(), currentAuthorEmail());
+        if (!avatar.isEmpty()) return avatar;
+    }
+    return AvatarResolver::resolve(currentAuthorName(), currentAuthorEmail(), m_remoteStatus.remoteUrl);
 }
 
 QString AppController::avatarProvider() const
@@ -460,7 +477,12 @@ QVariant AppController::selectedCommitData() const
     map["description"] = c->description;
     map["authorName"] = c->authorName;
     map["authorEmail"] = c->authorEmail;
-    map["authorAvatarUrl"] = c->authorAvatarUrl;
+    QString authorAvatarUrl = c->authorAvatarUrl;
+    if (m_githubAvatarService) {
+        const QString githubAvatar = m_githubAvatarService->avatarFor(c->authorName, c->authorEmail);
+        if (!githubAvatar.isEmpty()) authorAvatarUrl = githubAvatar;
+    }
+    map["authorAvatarUrl"] = authorAvatarUrl;
     map["relativeTime"] = c->relativeTime;
     map["timestamp"] = c->timestamp.toString("yyyy-MM-dd hh:mm");
     map["coAuthors"] = c->coAuthors;
@@ -760,7 +782,7 @@ void AppController::saveAvatarSettings(const QString &provider)
 
 QString AppController::resolveAvatarUrl(const QString &name, const QString &email) const
 {
-    return AvatarResolver::resolve(name, email);
+    return AvatarResolver::resolve(name, email, m_remoteStatus.remoteUrl);
 }
 
 void AppController::openLocalRepositoryDialog()
