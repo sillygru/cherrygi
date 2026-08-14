@@ -11,7 +11,7 @@ QString AvatarResolver::gravatarUrl(const QString &email, int size)
     if (clean.isEmpty() || !clean.contains('@')) return QString();
 
     const QByteArray hash = QCryptographicHash::hash(clean.toUtf8(), QCryptographicHash::Md5).toHex();
-    return QStringLiteral("https://www.gravatar.com/avatar/%1?s=%2&d=404").arg(QString::fromLatin1(hash)).arg(size);
+    return QStringLiteral("https://www.gravatar.com/avatar/%1?s=%2&d=identicon").arg(QString::fromLatin1(hash)).arg(size);
 }
 
 QString AvatarResolver::libravatarUrl(const QString &email, int size)
@@ -20,7 +20,7 @@ QString AvatarResolver::libravatarUrl(const QString &email, int size)
     if (clean.isEmpty() || !clean.contains('@')) return QString();
 
     const QByteArray hash = QCryptographicHash::hash(clean.toUtf8(), QCryptographicHash::Sha256).toHex();
-    return QStringLiteral("https://seccdn.libravatar.org/avatar/%1?s=%2&d=404").arg(QString::fromLatin1(hash)).arg(size);
+    return QStringLiteral("https://seccdn.libravatar.org/avatar/%1?s=%2&d=identicon").arg(QString::fromLatin1(hash)).arg(size);
 }
 
 QString AvatarResolver::resolve(const QString &authorName, const QString &authorEmail, const QString &repoRemoteUrl)

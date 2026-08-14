@@ -1003,7 +1003,7 @@ QQC2.Popup {
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: 1
-                        color: CherryStyle.separatorColor
+                        color: CherryStyle.subtleBorderColor
                         Layout.topMargin: Kirigami.Units.smallSpacing
                         Layout.bottomMargin: Kirigami.Units.smallSpacing
                     }
