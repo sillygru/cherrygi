@@ -46,7 +46,7 @@ Rectangle {
                         anchors.rightMargin: 16
                         height: 2
                         radius: 1.0
-                        color: appController.activeTab === "changes" ? Kirigami.Theme.highlightColor : "transparent"
+                        color: appController.activeTab === "changes" ? CherryStyle.accentColor : "transparent"
                     }
 
                     RowLayout {
@@ -56,7 +56,7 @@ Rectangle {
                         QQC2.Label {
                             text: qsTr("Changes")
                             font.bold: appController.activeTab === "changes"
-                            color: appController.activeTab === "changes" ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
+                            color: appController.activeTab === "changes" ? Kirigami.Theme.textColor : CherryStyle.secondaryTextColor
                         }
 
                         // Badge count
@@ -66,7 +66,7 @@ Rectangle {
                             implicitHeight: 18
                             radius: 9
                             color: appController.activeTab === "changes" ? CherryStyle.activeBackground : CherryStyle.surfaceCard
-                            border.color: appController.activeTab === "changes" ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                            border.color: appController.activeTab === "changes" ? CherryStyle.accentColor : CherryStyle.borderColor
                             border.width: 1
 
                             QQC2.Label {
@@ -75,7 +75,7 @@ Rectangle {
                                 text: "" + appController.changedFiles.count
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                 font.bold: true
-                                color: appController.activeTab === "changes" ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                                color: appController.activeTab === "changes" ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
                             }
                         }
                     }
@@ -118,7 +118,7 @@ Rectangle {
                         anchors.rightMargin: 16
                         height: 2
                         radius: 1.0
-                        color: appController.activeTab === "history" ? Kirigami.Theme.highlightColor : "transparent"
+                        color: appController.activeTab === "history" ? CherryStyle.accentColor : "transparent"
                     }
 
                     RowLayout {
@@ -128,7 +128,7 @@ Rectangle {
                         QQC2.Label {
                             text: qsTr("History")
                             font.bold: appController.activeTab === "history"
-                            color: appController.activeTab === "history" ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
+                            color: appController.activeTab === "history" ? Kirigami.Theme.textColor : CherryStyle.secondaryTextColor
                         }
                     }
 

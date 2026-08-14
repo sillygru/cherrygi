@@ -1,5 +1,6 @@
 <!DOCTYPE RCC><RCC version="1.0">
   <qresource prefix="/">
     <file alias="icons/cherrygi.svg">icons/cherrygi.svg</file>
+    <file alias="icons/github-mark.svg">icons/github-mark.svg</file>
   </qresource>
 </RCC>

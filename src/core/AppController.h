@@ -53,6 +53,11 @@ class AppController : public QObject {
 
     // Remote Sync State & Capabilities
     Q_PROPERTY(bool hasRemote READ hasRemote NOTIFY remoteStatusChanged)
+    Q_PROPERTY(bool isGitHubRemote READ isGitHubRemote NOTIFY remoteStatusChanged)
+    Q_PROPERTY(QString remoteName READ remoteName NOTIFY remoteStatusChanged)
+    Q_PROPERTY(QString remoteHost READ remoteHost NOTIFY remoteStatusChanged)
+    Q_PROPERTY(QString remoteProvider READ remoteProvider NOTIFY remoteStatusChanged)
+    Q_PROPERTY(QString remoteProviderIcon READ remoteProviderIcon NOTIFY remoteStatusChanged)
     Q_PROPERTY(QString remoteUrl READ remoteUrl NOTIFY remoteStatusChanged)
     Q_PROPERTY(int aheadCount READ aheadCount NOTIFY remoteStatusChanged)
     Q_PROPERTY(int behindCount READ behindCount NOTIFY remoteStatusChanged)
@@ -146,6 +151,11 @@ public:
     QString currentAuthorInitial() const;
 
     bool hasRemote() const { return m_remoteStatus.hasRemote; }
+    bool isGitHubRemote() const;
+    QString remoteName() const;
+    QString remoteHost() const;
+    QString remoteProvider() const;
+    QString remoteProviderIcon() const;
     QString remoteUrl() const { return m_remoteStatus.remoteUrl; }
     int aheadCount() const { return m_remoteStatus.ahead; }
     int behindCount() const { return m_remoteStatus.behind; }

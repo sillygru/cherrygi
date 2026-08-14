@@ -34,8 +34,8 @@ Rectangle {
                         width: 72
                         height: 72
                         radius: 36
-                        color: Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.12)
-                        border.color: Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.3)
+                        color: Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.12)
+                        border.color: Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.3)
                         border.width: 1
 
                         Kirigami.Icon {
@@ -43,7 +43,7 @@ Rectangle {
                             width: 40
                             height: 40
                             source: "folder-missing"
-                            color: Kirigami.Theme.negativeTextColor
+                            color: CherryStyle.deletionColor
                         }
                     }
 
@@ -64,7 +64,7 @@ Rectangle {
                         font.pixelSize: CherryStyle.defaultFont.pixelSize
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.Wrap
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                     }
                 }
 
@@ -85,7 +85,7 @@ Rectangle {
                         implicitHeight: locateRow.implicitHeight + Kirigami.Units.largeSpacing * 2
                         radius: CherryStyle.radiusMedium
                         color: locateMouse.containsMouse ? CherryStyle.hoverBackground : CherryStyle.surfaceCard
-                        border.color: locateMouse.containsMouse ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                        border.color: locateMouse.containsMouse ? CherryStyle.accentColor : CherryStyle.borderColor
                         border.width: 1
 
                         RowLayout {
@@ -98,7 +98,7 @@ Rectangle {
                                 source: "folder-open"
                                 width: 28
                                 height: 28
-                                color: Kirigami.Theme.highlightColor
+                                color: CherryStyle.accentColor
                             }
 
                             ColumnLayout {
@@ -115,7 +115,7 @@ Rectangle {
                                 QQC2.Label {
                                     text: qsTr("Browse to select the new folder location if this repository was moved or renamed.")
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
-                                    color: Kirigami.Theme.disabledTextColor
+                                    color: CherryStyle.secondaryTextColor
                                     wrapMode: Text.Wrap
                                     Layout.fillWidth: true
                                 }
@@ -144,7 +144,7 @@ Rectangle {
                         implicitHeight: cloneRow.implicitHeight + Kirigami.Units.largeSpacing * 2
                         radius: CherryStyle.radiusMedium
                         color: cloneMouse.containsMouse ? CherryStyle.hoverBackground : CherryStyle.surfaceCard
-                        border.color: cloneMouse.containsMouse ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                        border.color: cloneMouse.containsMouse ? CherryStyle.accentColor : CherryStyle.borderColor
                         border.width: 1
 
                         RowLayout {
@@ -157,7 +157,7 @@ Rectangle {
                                 source: "download"
                                 width: 28
                                 height: 28
-                                color: Kirigami.Theme.highlightColor
+                                color: CherryStyle.accentColor
                             }
 
                             ColumnLayout {
@@ -176,7 +176,7 @@ Rectangle {
                                           qsTr("Clone a fresh copy from '%1' into a new directory.").arg(appController.missingRepoRemoteUrl) :
                                           qsTr("Clone a fresh copy of this repository from its remote URL into a new directory.")
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
-                                    color: Kirigami.Theme.disabledTextColor
+                                    color: CherryStyle.secondaryTextColor
                                     wrapMode: Text.Wrap
                                     Layout.fillWidth: true
                                 }
@@ -204,7 +204,7 @@ Rectangle {
                         implicitHeight: recheckRow.implicitHeight + Kirigami.Units.largeSpacing * 2
                         radius: CherryStyle.radiusMedium
                         color: recheckMouse.containsMouse ? CherryStyle.hoverBackground : CherryStyle.surfaceCard
-                        border.color: recheckMouse.containsMouse ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                        border.color: recheckMouse.containsMouse ? CherryStyle.accentColor : CherryStyle.borderColor
                         border.width: 1
 
                         RowLayout {
@@ -234,7 +234,7 @@ Rectangle {
                                 QQC2.Label {
                                     text: qsTr("Test if the repository folder is now accessible (e.g. external drive reconnected).")
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
-                                    color: Kirigami.Theme.disabledTextColor
+                                    color: CherryStyle.secondaryTextColor
                                     wrapMode: Text.Wrap
                                     Layout.fillWidth: true
                                 }
@@ -261,8 +261,8 @@ Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: removeRow.implicitHeight + Kirigami.Units.largeSpacing * 2
                         radius: CherryStyle.radiusMedium
-                        color: removeMouse.containsMouse ? Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.08) : CherryStyle.surfaceCard
-                        border.color: removeMouse.containsMouse ? Kirigami.Theme.negativeTextColor : CherryStyle.subtleBorderColor
+                        color: removeMouse.containsMouse ? Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.08) : CherryStyle.surfaceCard
+                        border.color: removeMouse.containsMouse ? CherryStyle.deletionColor : CherryStyle.subtleBorderColor
                         border.width: 1
 
                         RowLayout {
@@ -275,7 +275,7 @@ Rectangle {
                                 source: "edit-delete"
                                 width: 28
                                 height: 28
-                                color: Kirigami.Theme.negativeTextColor
+                                color: CherryStyle.deletionColor
                             }
 
                             ColumnLayout {
@@ -292,7 +292,7 @@ Rectangle {
                                 QQC2.Label {
                                     text: qsTr("Remove this entry from the repository list without altering any remaining files.")
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
-                                    color: Kirigami.Theme.disabledTextColor
+                                    color: CherryStyle.secondaryTextColor
                                     wrapMode: Text.Wrap
                                     Layout.fillWidth: true
                                 }

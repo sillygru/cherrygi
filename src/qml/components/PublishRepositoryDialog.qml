@@ -63,7 +63,7 @@ QQC2.Popup {
                 source: "cloud-upload"
                 width: 24
                 height: 24
-                color: Kirigami.Theme.highlightColor
+                color: CherryStyle.accentColor
             }
 
             ColumnLayout {
@@ -80,7 +80,7 @@ QQC2.Popup {
                 QQC2.Label {
                     text: qsTr("Publish this local repository to a remote server or GitHub")
                     font.pixelSize: CherryStyle.smallFont.pixelSize
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                 }
             }
 
@@ -98,8 +98,8 @@ QQC2.Popup {
             Layout.fillWidth: true
             implicitHeight: publishingRow.implicitHeight + 16
             radius: CherryStyle.radiusMedium
-            color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.12)
-            border.color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.35)
+            color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.12)
+            border.color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.35)
             border.width: 1
             visible: appController.isPublishing
 
@@ -133,14 +133,14 @@ QQC2.Popup {
                     height: 4
                     radius: 2
                     clip: true
-                    color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.25)
+                    color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.25)
 
                     Rectangle {
                         id: dialogProgressBarThumb
                         height: parent.height
                         width: parent.width * 0.35
                         radius: 2
-                        color: Kirigami.Theme.highlightColor
+                        color: CherryStyle.accentColor
 
                         SequentialAnimation on x {
                             running: appController.isPublishing
@@ -158,7 +158,7 @@ QQC2.Popup {
                 QQC2.Label {
                     text: qsTr("Creating GitHub repository and pushing branch commits. This runs in background without freezing.")
                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                     elide: Text.ElideRight
                     Layout.fillWidth: true
                 }
@@ -185,7 +185,7 @@ QQC2.Popup {
                     source: "dialog-error"
                     width: 18
                     height: 18
-                    color: "#e01b24"
+                    color: CherryStyle.deletionColor
                 }
 
                 ColumnLayout {
@@ -195,7 +195,7 @@ QQC2.Popup {
                     QQC2.Label {
                         text: qsTr("Publish Failed")
                         font.bold: true
-                        color: "#e01b24"
+                        color: CherryStyle.deletionColor
                     }
 
                     QQC2.Label {
@@ -238,14 +238,14 @@ QQC2.Popup {
                             source: "globe"
                             width: 14
                             height: 14
-                            color: root.activeTab === 0 ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                            color: root.activeTab === 0 ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
                         }
 
                         QQC2.Label {
                             text: qsTr("Publish to GitHub")
                             font.bold: root.activeTab === 0
                             font.pixelSize: CherryStyle.smallFont.pixelSize
-                            color: root.activeTab === 0 ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.activeTab === 0 ? CherryStyle.accentColor : Kirigami.Theme.textColor
                         }
                     }
 
@@ -271,14 +271,14 @@ QQC2.Popup {
                             source: "folder-git"
                             width: 14
                             height: 14
-                            color: root.activeTab === 1 ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                            color: root.activeTab === 1 ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
                         }
 
                         QQC2.Label {
                             text: qsTr("Custom Git Remote URL")
                             font.bold: root.activeTab === 1
                             font.pixelSize: CherryStyle.smallFont.pixelSize
-                            color: root.activeTab === 1 ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.activeTab === 1 ? CherryStyle.accentColor : Kirigami.Theme.textColor
                         }
                     }
 
@@ -324,7 +324,7 @@ QQC2.Popup {
                         placeholderText: qsTr("e.g. my-awesome-project")
                         background: Rectangle {
                             color: CherryStyle.inputBackground
-                            border.color: repoNameField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                            border.color: repoNameField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                             border.width: repoNameField.activeFocus ? 2 : 1
                             radius: CherryStyle.radiusSmall
                         }
@@ -350,7 +350,7 @@ QQC2.Popup {
                         placeholderText: qsTr("Short description of this repository...")
                         background: Rectangle {
                             color: CherryStyle.inputBackground
-                            border.color: descField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                            border.color: descField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                             border.width: descField.activeFocus ? 2 : 1
                             radius: CherryStyle.radiusSmall
                         }
@@ -382,7 +382,7 @@ QQC2.Popup {
                         QQC2.Label {
                             text: qsTr("Only you and selected collaborators can access this repository.")
                             font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                            color: Kirigami.Theme.disabledTextColor
+                            color: CherryStyle.secondaryTextColor
                         }
                     }
                 }
@@ -394,8 +394,8 @@ QQC2.Popup {
                     Layout.fillWidth: true
                     implicitHeight: 32
                     radius: CherryStyle.radiusSmall
-                    color: appController.isGhAvailable ? Qt.rgba(0.2, 0.7, 0.3, 0.12) : Qt.rgba(0.9, 0.6, 0.1, 0.12)
-                    border.color: appController.isGhAvailable ? "#2ec27e" : "#e5a50a"
+                    color: appController.isGhAvailable ? CherryStyle.additionBg : CherryStyle.warningBg
+                    border.color: appController.isGhAvailable ? CherryStyle.additionColor : CherryStyle.warningColor
                     border.width: 1
 
                     RowLayout {
@@ -407,7 +407,7 @@ QQC2.Popup {
                             source: appController.isGhAvailable ? "dialog-ok" : "dialog-information"
                             width: 14
                             height: 14
-                            color: appController.isGhAvailable ? "#2ec27e" : "#e5a50a"
+                            color: appController.isGhAvailable ? CherryStyle.additionColor : CherryStyle.warningColor
                         }
 
                         QQC2.Label {
@@ -449,7 +449,7 @@ QQC2.Popup {
                         enabled: !appController.isPublishing
                         background: Rectangle {
                             color: CherryStyle.inputBackground
-                            border.color: remoteNameField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                            border.color: remoteNameField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                             border.width: remoteNameField.activeFocus ? 2 : 1
                             radius: CherryStyle.radiusSmall
                         }
@@ -474,7 +474,7 @@ QQC2.Popup {
                         placeholderText: qsTr("https://github.com/user/repo.git or git@github.com:user/repo.git")
                         background: Rectangle {
                             color: CherryStyle.inputBackground
-                            border.color: remoteUrlField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                            border.color: remoteUrlField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                             border.width: remoteUrlField.activeFocus ? 2 : 1
                             radius: CherryStyle.radiusSmall
                         }
@@ -482,9 +482,9 @@ QQC2.Popup {
                 }
 
                 QQC2.Label {
-                    text: qsTr("After saving, 'cherrygi' will link the local repository to this remote and track origin branches.")
+                    text: qsTr("After saving, 'cherrygi' will link the local repository to this remote and track its remote branches.")
                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                     wrapMode: Text.Wrap
                     Layout.fillWidth: true
                 }

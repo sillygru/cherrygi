@@ -48,7 +48,8 @@ ColumnLayout {
                     source: "document-save"
                     width: 20
                     height: 20
-                    color: "#e5a50a"
+                    Layout.alignment: Qt.AlignVCenter
+                    color: CherryStyle.warningColor
                 }
 
                 QQC2.Label {
@@ -79,25 +80,26 @@ ColumnLayout {
                         source: "vcs-branch"
                         width: 14
                         height: 14
-                        color: Kirigami.Theme.disabledTextColor
+                        Layout.alignment: Qt.AlignVCenter
+                        color: CherryStyle.secondaryTextColor
                     }
                     QQC2.Label {
                         text: qsTr("On %1").arg((root.stashData && root.stashData.branchName) ? root.stashData.branchName : appController.currentBranchName)
                         font.pixelSize: CherryStyle.smallFont.pixelSize
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                     }
                 }
 
                 QQC2.Label {
                     text: "•"
                     font.pixelSize: CherryStyle.smallFont.pixelSize
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                 }
 
                 QQC2.Label {
                     text: qsTr("Created %1").arg((root.stashData && root.stashData.timestamp) ? root.stashData.timestamp : "")
                     font.pixelSize: CherryStyle.smallFont.pixelSize
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                 }
 
                 Item { Layout.fillWidth: true }
@@ -166,7 +168,7 @@ ColumnLayout {
                             text: qsTr("Stashed Files (%1)").arg(root.stashData && root.stashData.files ? root.stashData.files.length : 0)
                             font.bold: true
                             font.pixelSize: CherryStyle.smallFont.pixelSize
-                            color: Kirigami.Theme.disabledTextColor
+                            color: CherryStyle.secondaryTextColor
                         }
                     }
                 }
@@ -204,7 +206,7 @@ ColumnLayout {
                                     anchors.margins: 2
                                     width: 2
                                     radius: 1.5
-                                    color: Kirigami.Theme.highlightColor
+                                    color: CherryStyle.accentColor
                                 }
                             }
 
@@ -217,6 +219,7 @@ ColumnLayout {
                                 Rectangle {
                                     width: 18
                                     height: 18
+                                    Layout.alignment: Qt.AlignVCenter
                                     radius: 3
                                     color: {
                                         var isPathChange = Boolean(stashFileDelegate.modelData.oldFilePath && stashFileDelegate.modelData.oldFilePath !== stashFileDelegate.modelData.filePath);
@@ -265,7 +268,7 @@ ColumnLayout {
                                         : stashFileDelegate.modelData.filePath
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
                                     font.bold: stashFileDelegate.highlighted
-                                    color: stashFileDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                    color: stashFileDelegate.highlighted ? CherryStyle.accentColor : Kirigami.Theme.textColor
                                     Layout.fillWidth: true
                                     elide: Text.ElideMiddle
                                 }

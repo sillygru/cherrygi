@@ -11,7 +11,7 @@ ColumnLayout {
 
     // Generate a stable hue-based avatar color from the author name
     function avatarColor(name) {
-        if (!name || name.length === 0) return Kirigami.Theme.disabledTextColor;
+        if (!name || name.length === 0) return CherryStyle.secondaryTextColor;
         var hash = 0;
         for (var i = 0; i < name.length; i++) {
             hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -114,14 +114,14 @@ ColumnLayout {
                         QQC2.Label {
                             text: "<" + ((root.commitData && root.commitData.authorEmail) ? root.commitData.authorEmail : "") + ">"
                             font.pixelSize: CherryStyle.smallFont.pixelSize
-                            color: Kirigami.Theme.disabledTextColor
+                            color: CherryStyle.secondaryTextColor
                         }
                     }
 
                     QQC2.Label {
                         text: qsTr("Committed %1 (%2)").arg((root.commitData && root.commitData.relativeTime) ? root.commitData.relativeTime : "").arg((root.commitData && root.commitData.timestamp) ? root.commitData.timestamp : "")
                         font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                     }
                 }
 
@@ -149,7 +149,7 @@ ColumnLayout {
                             source: "edit-copy"
                             width: 14
                             height: 14
-                            color: Kirigami.Theme.disabledTextColor
+                            color: CherryStyle.secondaryTextColor
 
                             MouseArea {
                                 anchors.fill: parent
@@ -230,7 +230,7 @@ ColumnLayout {
                             source: "view-list-details"
                             width: 14
                             height: 14
-                            color: Kirigami.Theme.disabledTextColor
+                            color: CherryStyle.secondaryTextColor
                         }
 
                         QQC2.Label {
@@ -276,7 +276,7 @@ ColumnLayout {
                                     anchors.margins: 2
                                     width: 2
                                     radius: 1.5
-                                    color: Kirigami.Theme.highlightColor
+                                    color: CherryStyle.accentColor
                                 }
                             }
 
@@ -289,6 +289,7 @@ ColumnLayout {
                                 Rectangle {
                                     width: 18
                                     height: 18
+                                    Layout.alignment: Qt.AlignVCenter
                                     radius: 3
                                     color: {
                                         var isPathChange = Boolean(commitFileDelegate.modelData.oldFilePath && commitFileDelegate.modelData.oldFilePath !== commitFileDelegate.modelData.filePath);
@@ -337,7 +338,7 @@ ColumnLayout {
                                         : commitFileDelegate.modelData.filePath
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
                                     font.bold: commitFileDelegate.highlighted
-                                    color: commitFileDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                    color: commitFileDelegate.highlighted ? CherryStyle.accentColor : Kirigami.Theme.textColor
                                     Layout.fillWidth: true
                                     elide: Text.ElideMiddle
                                 }

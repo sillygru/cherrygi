@@ -19,10 +19,10 @@ Rectangle {
     radius: CherryStyle.radiusMedium
 
     color: appController.toastIsError ?
-           Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.96) :
+           Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.96) :
            CherryStyle.surfacePopup
 
-    border.color: appController.toastIsError ? Kirigami.Theme.negativeTextColor : CherryStyle.popupBorderColor
+    border.color: appController.toastIsError ? CherryStyle.deletionColor : CherryStyle.popupBorderColor
     border.width: 1
 
     // Layered floating shadow
@@ -63,14 +63,14 @@ Rectangle {
             source: appController.toastIsError ? "dialog-error" : "dialog-information"
             width: 16
             height: 16
-            color: appController.toastIsError ? "#ffffff" : Kirigami.Theme.highlightColor
+            color: appController.toastIsError ? CherryStyle.errorTextColor : CherryStyle.accentColor
         }
 
         QQC2.Label {
             text: appController.toastMessage
             font.bold: true
             font.pixelSize: CherryStyle.smallFont.pixelSize
-            color: appController.toastIsError ? "#ffffff" : Kirigami.Theme.textColor
+            color: appController.toastIsError ? CherryStyle.errorTextColor : Kirigami.Theme.textColor
             Layout.fillWidth: true
             elide: Text.ElideRight
         }
@@ -79,7 +79,7 @@ Rectangle {
             source: "window-close"
             width: 14
             height: 14
-            color: appController.toastIsError ? "#ffffff" : Kirigami.Theme.disabledTextColor
+            color: appController.toastIsError ? CherryStyle.errorTextColor : CherryStyle.secondaryTextColor
 
             MouseArea {
                 anchors.fill: parent

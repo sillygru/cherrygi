@@ -240,6 +240,50 @@ void AppController::updateCurrentState()
     emit currentBranchChanged();
     emit undoStateChanged();
     emit authorInfoChanged();
+    emit gitConfigChanged();
+}
+
+bool AppController::isGitHubRemote() const
+{
+    static const QRegularExpression githubHostRegex(R"((^|[@/:])github\.com([/:]|$))", QRegularExpression::CaseInsensitiveOption);
+    return githubHostRegex.match(m_remoteStatus.remoteUrl.trimmed()).hasMatch();
+}
+
+QString AppController::remoteName() const
+{
+    return m_remoteStatus.hasRemote ? m_remoteStatus.remoteName : QString();
+}
+
+QString AppController::remoteHost() const
+{
+    const QString url = m_remoteStatus.remoteUrl.trimmed();
+    if (url.isEmpty()) return QString();
+
+    // Git's scp-style SSH syntax is not parsed as a normal QUrl.
+    static const QRegularExpression scpStyleRegex(R"(^[^/@\s]+@([^:/\s]+):)");
+    const auto scpMatch = scpStyleRegex.match(url);
+    if (scpMatch.hasMatch()) return scpMatch.captured(1);
+
+    const QString host = QUrl(url).host();
+    return host.isEmpty() ? QStringLiteral("local path") : host;
+}
+
+QString AppController::remoteProvider() const
+{
+    const QString host = remoteHost().toLower();
+    if (host == QStringLiteral("github.com")) return QStringLiteral("GitHub");
+    if (host == QStringLiteral("gitlab.com")) return QStringLiteral("GitLab");
+    if (host == QStringLiteral("invent.kde.org")) return QStringLiteral("KDE Invent");
+    return m_remoteStatus.hasRemote ? QStringLiteral("Other Git remote") : QString();
+}
+
+QString AppController::remoteProviderIcon() const
+{
+    const QString provider = remoteProvider();
+    if (provider == QStringLiteral("GitHub")) return QStringLiteral("qrc:/icons/github-mark.svg");
+    if (provider == QStringLiteral("GitLab")) return QStringLiteral("vcs-merge-request");
+    if (provider == QStringLiteral("KDE Invent")) return QStringLiteral("folder-git");
+    return QStringLiteral("network-server");
 }
 
 QString AppController::currentRepoName() const
@@ -584,6 +628,11 @@ void AppController::hideSettingsDialog()
 
 void AppController::showPublishDialog()
 {
+    if (m_activeService && m_activeService->hasRemote()) {
+        showToast(tr("This repository already has a Git remote configured"), true);
+        return;
+    }
+
     m_publishErrorMessage.clear();
     emit publishErrorMessageChanged();
     setPublishDialogVisible(true);
@@ -618,6 +667,7 @@ bool AppController::saveRemoteUrl(const QString &url, const QString &remoteName)
     bool res = m_activeService->setRemoteUrl(url, remoteName);
     if (res) {
         updateCurrentState();
+        fetchOrigin();
     }
     return res;
 }
@@ -638,6 +688,9 @@ bool AppController::setIgnoreFileModeChanges(bool ignored, bool global)
     const bool result = m_activeService->setIgnoreFileModeChanges(ignored, global);
     if (result) {
         emit gitConfigChanged();
+        if (!m_selectedFilePath.isEmpty()) {
+            m_diffModel->loadDiffForFile(m_selectedFilePath);
+        }
     }
     return result;
 }
@@ -1199,6 +1252,11 @@ void AppController::openInFileManager(const QString &path)
 
 void AppController::openOnGitHub()
 {
+    if (!isGitHubRemote()) {
+        showToast("The configured remote is not hosted on GitHub", true);
+        return;
+    }
+
     QString url;
     if (m_activeService) {
         url = m_activeService->getRemoteUrl();
@@ -1225,6 +1283,11 @@ void AppController::openOnGitHub()
 
 void AppController::createPullRequest()
 {
+    if (!isGitHubRemote()) {
+        showToast("Pull requests are only available for GitHub remotes", true);
+        return;
+    }
+
     QString url;
     if (m_activeService) {
         url = m_activeService->getRemoteUrl();

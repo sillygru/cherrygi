@@ -69,7 +69,7 @@ QQC2.Popup {
 
                 background: Rectangle {
                     color: CherryStyle.inputBackground
-                    border.color: searchField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                    border.color: searchField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                     border.width: searchField.activeFocus ? 2 : 1
                     radius: CherryStyle.radiusSmall
                 }
@@ -81,7 +81,7 @@ QQC2.Popup {
                     anchors.left: parent.left
                     anchors.leftMargin: Kirigami.Units.smallSpacing + 2
                     anchors.verticalCenter: parent.verticalCenter
-                    color: searchField.activeFocus ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                    color: searchField.activeFocus ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
                 }
 
                 QQC2.ToolButton {
@@ -140,7 +140,7 @@ QQC2.Popup {
                     placeholderText: qsTr("Name")
                     background: Rectangle {
                         color: CherryStyle.inputBackground
-                        border.color: newBranchField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                        border.color: newBranchField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                         border.width: newBranchField.activeFocus ? 2 : 1
                         radius: CherryStyle.radiusSmall
                     }
@@ -184,7 +184,7 @@ QQC2.Popup {
                 text: qsTr("Branches (%1)").arg(appController.branches.count)
                 font.bold: true
                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                color: Kirigami.Theme.disabledTextColor
+                color: CherryStyle.secondaryTextColor
             }
         }
 
@@ -238,10 +238,11 @@ QQC2.Popup {
                             }
                             width: 16
                             height: 16
+                            Layout.alignment: Qt.AlignVCenter
                             color: {
-                                if (branchDelegate.isCurrent) return Kirigami.Theme.highlightColor;
-                                if (branchDelegate.isRemote) return Kirigami.Theme.disabledTextColor;
-                                if (branchDelegate.isDefault) return "#e5a50a";
+                                if (branchDelegate.isCurrent) return CherryStyle.accentColor;
+                                if (branchDelegate.isRemote) return CherryStyle.secondaryTextColor;
+                                if (branchDelegate.isDefault) return CherryStyle.warningColor;
                                 return Kirigami.Theme.textColor;
                             }
                         }
@@ -249,7 +250,7 @@ QQC2.Popup {
                         QQC2.Label {
                             text: branchDelegate.name
                             font.bold: branchDelegate.isCurrent
-                            color: branchDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: branchDelegate.isCurrent ? CherryStyle.accentColor : Kirigami.Theme.textColor
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
@@ -260,7 +261,7 @@ QQC2.Popup {
                             implicitWidth: prBadgeInner.implicitWidth + 12
                             implicitHeight: 20
                             radius: 10
-                            color: Qt.rgba(0.2, 0.6, 1.0, 0.18)
+                            color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.18)
 
                             RowLayout {
                                 id: prBadgeInner
@@ -272,14 +273,15 @@ QQC2.Popup {
                                     text: branchDelegate.prNumber
                                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                     font.bold: true
-                                    color: "#4595f6"
+                                    color: CherryStyle.accentColor
                                 }
 
                                 Kirigami.Icon {
                                     source: "dialog-ok"
-                                    width: 11
-                                    height: 11
-                                    color: "#2ec27e"
+                            width: 11
+                            height: 11
+                            Layout.alignment: Qt.AlignVCenter
+                            color: CherryStyle.additionColor
                                     visible: branchDelegate.prMergedOrActive
                                 }
                             }
@@ -300,7 +302,7 @@ QQC2.Popup {
                                 anchors.centerIn: parent
                                 text: qsTr("remote")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
                         }
 
@@ -310,8 +312,8 @@ QQC2.Popup {
                             implicitWidth: defLabel.implicitWidth + 10
                             implicitHeight: 18
                             radius: 4
-                            color: Qt.rgba(0.9, 0.65, 0.04, 0.15)
-                            border.color: Qt.rgba(0.9, 0.65, 0.04, 0.5)
+                            color: CherryStyle.warningBg
+                            border.color: CherryStyle.warningColor
                             border.width: 1
 
                             QQC2.Label {
@@ -320,7 +322,7 @@ QQC2.Popup {
                                 text: qsTr("default")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                 font.bold: true
-                                color: "#e5a50a"
+                                color: CherryStyle.warningColor
                             }
                         }
 
@@ -330,7 +332,8 @@ QQC2.Popup {
                             source: "checkmark"
                             width: 16
                             height: 16
-                            color: Kirigami.Theme.highlightColor
+                            Layout.alignment: Qt.AlignVCenter
+                            color: CherryStyle.accentColor
                         }
                     }
 

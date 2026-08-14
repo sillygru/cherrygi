@@ -69,7 +69,7 @@ QQC2.Popup {
                 source: "download"
                 width: 22
                 height: 22
-                color: Kirigami.Theme.highlightColor
+                color: CherryStyle.accentColor
             }
 
             QQC2.Label {
@@ -110,7 +110,7 @@ QQC2.Popup {
                 enabled: !appController.isCloning
                 background: Rectangle {
                     color: CherryStyle.inputBackground
-                    border.color: urlField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                    border.color: urlField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                     border.width: urlField.activeFocus ? 2 : 1
                     radius: CherryStyle.radiusSmall
                 }
@@ -154,7 +154,7 @@ QQC2.Popup {
                     enabled: !appController.isCloning
                     background: Rectangle {
                         color: CherryStyle.inputBackground
-                        border.color: localPathField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                        border.color: localPathField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                         border.width: localPathField.activeFocus ? 2 : 1
                         radius: CherryStyle.radiusSmall
                     }
@@ -183,7 +183,7 @@ QQC2.Popup {
             QQC2.Label {
                 text: appController.cloneProgressMessage !== "" ? appController.cloneProgressMessage : qsTr("Cloning repository...")
                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                color: Kirigami.Theme.disabledTextColor
+                color: CherryStyle.secondaryTextColor
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }

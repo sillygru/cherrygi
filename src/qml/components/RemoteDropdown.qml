@@ -40,14 +40,15 @@ QQC2.Menu {
     QQC2.MenuItem {
         text: qsTr("Create Pull Request")
         icon.name: "vcs-merge-request"
-        enabled: appController.hasRemote
+        enabled: appController.hasRemote && appController.isGitHubRemote
         onTriggered: appController.createPullRequest()
     }
 
     QQC2.MenuItem {
         text: qsTr("View on GitHub")
         icon.name: "globe"
-        enabled: appController.hasRemote
+        visible: appController.isGitHubRemote
+        enabled: appController.hasRemote && appController.isGitHubRemote
         onTriggered: appController.openOnGitHub()
     }
 

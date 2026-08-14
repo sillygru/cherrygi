@@ -507,8 +507,10 @@ bool GitCliService::openRepository(const QString &pathOrId)
     m_repoName = QFileInfo(m_repoPath).fileName();
     if (m_repoName.isEmpty()) m_repoName = "Repository";
 
-    // Cache remote URL if available
-    QString remote = getRemoteUrl("origin");
+    // Cache the URL for the remote used by sync operations. It may not be named
+    // "origin" (for example, repositories commonly use "upstream").
+    const QString remoteName = preferredRemoteName();
+    const QString remote = getRemoteUrl(remoteName);
     if (!remote.isEmpty()) {
         m_repoRemotes.insert(m_repoPath, redactRemoteUrl(remote));
     }
@@ -611,6 +613,13 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
     if (!res.success) {
         emit operationFailed(formatGitError(res.stdErr.isEmpty() ? res.stdOut : res.stdErr, tr("Git clone failed")));
         return false;
+    }
+
+    // Git clone on POSIX systems automatically writes core.filemode=true to .git/config.
+    // If the user has global ignore file mode enabled, remove the local override so the
+    // global preference takes effect immediately.
+    if (ignoreFileModeChanges(true)) {
+        runGit({"config", "--local", "--unset", "core.filemode"}, cleanPath, 2000);
     }
 
     QString repoName = QFileInfo(cleanPath).fileName();
@@ -1700,8 +1709,15 @@ bool GitCliService::revertCommit(const QString &sha)
 bool GitCliService::hasRemote() const
 {
     if (m_repoPath.isEmpty()) return false;
+
     GitResult res = const_cast<GitCliService*>(this)->runGit({"remote"}, QString(), 2000);
-    return res.success && !res.stdOut.trimmed().isEmpty();
+    if (!res.success) return false;
+
+    const QStringList names = res.stdOut.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+    for (const QString &name : names) {
+        if (!getRemoteUrl(name.trimmed()).isEmpty()) return true;
+    }
+    return false;
 }
 
 QString GitCliService::getRemoteUrl(const QString &remoteName) const
@@ -1743,10 +1759,14 @@ bool GitCliService::setRemoteUrl(const QString &url, const QString &remoteName)
     }
 
     if (res.success) {
-        m_repoRemotes[m_repoPath] = redactRemoteUrl(cleanUrl);
-        saveRepositories();
         invalidateRepositoryCaches();
-        getRemoteStatus();
+        const RemoteStatus status = getRemoteStatus();
+        if (status.hasRemote && !status.remoteUrl.isEmpty()) {
+            m_repoRemotes[m_repoPath] = redactRemoteUrl(status.remoteUrl);
+        } else {
+            m_repoRemotes.remove(m_repoPath);
+        }
+        saveRepositories();
         emit branchListChanged();
         emit operationSucceeded(QString("Remote '%1' updated").arg(target));
         return true;
@@ -1769,7 +1789,13 @@ bool GitCliService::removeRemote(const QString &remoteName)
     GitResult res = runGit({"remote", "remove", target}, QString(), 3000);
     if (res.success) {
         invalidateRepositoryCaches();
-        getRemoteStatus();
+        const RemoteStatus status = getRemoteStatus();
+        if (status.hasRemote && !status.remoteUrl.isEmpty()) {
+            m_repoRemotes[m_repoPath] = redactRemoteUrl(status.remoteUrl);
+        } else {
+            m_repoRemotes.remove(m_repoPath);
+        }
+        saveRepositories();
         emit branchListChanged();
         emit operationSucceeded(QString("Removed remote '%1'").arg(target));
         return true;
@@ -1783,6 +1809,11 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
 {
     if (m_repoPath.isEmpty()) {
         emit operationFailed("No active repository to publish");
+        return false;
+    }
+
+    if (hasRemote()) {
+        emit operationFailed("A Git remote is already configured for this repository");
         return false;
     }
 
@@ -1868,6 +1899,7 @@ RemoteStatus GitCliService::getRemoteStatus()
     m_remoteStatus.hasRemote = remoteExists;
 
     if (!remoteExists) {
+        m_remoteStatus.remoteName = "origin";
         m_remoteStatus.remoteUrl.clear();
         m_remoteStatus.ahead = 0;
         m_remoteStatus.behind = 0;
@@ -2244,10 +2276,15 @@ bool GitCliService::isValidBranchName(const QString &name)
 
 QString GitCliService::preferredRemoteName() const
 {
-    if (!getRemoteUrl("origin").isEmpty()) return "origin";
+    if (!getRemoteUrl("origin").isEmpty()) return QStringLiteral("origin");
+
     GitResult remotes = const_cast<GitCliService *>(this)->runGit({"remote"}, QString(), 2000);
     const QStringList names = remotes.stdOut.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
-    return names.isEmpty() ? QStringLiteral("origin") : names.first().trimmed();
+    for (const QString &name : names) {
+        const QString trimmedName = name.trimmed();
+        if (!getRemoteUrl(trimmedName).isEmpty()) return trimmedName;
+    }
+    return QStringLiteral("origin");
 }
 
 bool GitCliService::isValidStashId(const QString &stashId) const
@@ -2333,8 +2370,12 @@ QString GitCliService::formatGitError(const QString &rawError, const QString &fa
 bool GitCliService::ignoreFileModeChanges(bool global)
 {
     if (!global && m_repoPath.isEmpty()) return false;
-    const QString scope = global ? "--global" : "--local";
-    GitResult res = runGit({"config", scope, "--get", "core.filemode"}, QString(), 1000);
+    QStringList args = {"config"};
+    if (global) {
+        args << "--global";
+    }
+    args << "--get" << "core.filemode";
+    GitResult res = runGit(args, QString(), 1000);
     return res.success && res.stdOut.trimmed().compare("false", Qt::CaseInsensitive) == 0;
 }
 
@@ -2343,23 +2384,15 @@ bool GitCliService::setIgnoreFileModeChanges(bool ignored, bool global)
     if (!global && m_repoPath.isEmpty()) return false;
 
     const QString scope = global ? "--global" : "--local";
-    GitResult res;
-    if (ignored) {
-        res = runGit({"config", scope, "core.filemode", "false"}, QString(), 2000);
-    } else {
-        res = runGit({"config", scope, "--unset", "core.filemode"}, QString(), 2000);
-        // --unset exits with code 5 when the key does not exist; that is already
-        // the desired state.
-        if (!res.success && res.exitCode == 5) res.success = true;
-    }
+    GitResult res = runGit({"config", scope, "core.filemode", ignored ? "false" : "true"}, QString(), 2000);
 
     if (!res.success) {
         emit operationFailed(formatGitError(res.stdErr, "Failed to update Git file metadata settings"));
         return false;
     }
 
-    // Re-scan asynchronously so changing Git config never blocks the UI on a
-    // large worktree. The refresh emits model updates once its snapshot is ready.
+    // Invalidate caches and re-scan so UI updates immediately
+    invalidateRepositoryCaches();
     refreshRepository();
     emit operationSucceeded(QString("File metadata changes are now %1 (%2)")
                                 .arg(ignored ? "ignored" : "tracked", global ? "global" : "this repository"));

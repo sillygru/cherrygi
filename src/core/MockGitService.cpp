@@ -971,14 +971,14 @@ bool MockGitService::dropStash(const QString &stashId)
 bool MockGitService::hasRemote() const
 {
     auto *state = const_cast<MockGitService*>(this)->activeState();
-    return state ? state->remoteStatus.hasRemote : true;
+    return state ? state->remoteStatus.hasRemote && !state->remoteStatus.remoteUrl.trimmed().isEmpty() : false;
 }
 
 QString MockGitService::getRemoteUrl(const QString &remoteName) const
 {
     Q_UNUSED(remoteName);
     auto *state = const_cast<MockGitService*>(this)->activeState();
-    return state ? state->remoteStatus.remoteUrl : QString("https://github.com/desktop/desktop.git");
+    return state ? state->remoteStatus.remoteUrl : QString();
 }
 
 bool MockGitService::setRemoteUrl(const QString &url, const QString &remoteName)
@@ -1012,6 +1012,10 @@ bool MockGitService::publishRepository(const QString &name, const QString &descr
     if (!state) return false;
     Q_UNUSED(description);
     Q_UNUSED(isPrivate);
+    if (hasRemote()) {
+        emit operationFailed("A Git remote is already configured for this repository");
+        return false;
+    }
     QString repoName = name.isEmpty() ? state->info.name : name;
     state->remoteStatus.hasRemote = true;
     state->remoteStatus.remoteUrl = QString("https://github.com/mock-user/%1.git").arg(repoName);
@@ -1027,7 +1031,11 @@ bool MockGitService::ignoreFileModeChanges(bool global)
 {
     if (global) return m_globalIgnoreFileModeChanges;
     auto *state = activeState();
-    return state ? state->ignoreFileModeChanges : false;
+    if (!state) return false;
+    if (state->localIgnoreFileModeChanges.has_value()) {
+        return *state->localIgnoreFileModeChanges;
+    }
+    return m_globalIgnoreFileModeChanges;
 }
 
 bool MockGitService::setIgnoreFileModeChanges(bool ignored, bool global)
@@ -1037,7 +1045,7 @@ bool MockGitService::setIgnoreFileModeChanges(bool ignored, bool global)
     } else {
         auto *state = activeState();
         if (!state) return false;
-        state->ignoreFileModeChanges = ignored;
+        state->localIgnoreFileModeChanges = ignored;
     }
     emit changedFilesUpdated();
     emit operationSucceeded(QString("File metadata changes are now %1 (%2)")

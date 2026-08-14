@@ -161,7 +161,7 @@ Kirigami.ApplicationWindow {
             id: globalProgressThumb
             height: parent.height
             width: parent.width * 0.35
-            color: Kirigami.Theme.highlightColor
+            color: CherryStyle.accentColor
 
             SequentialAnimation on x {
                 running: globalProgressStrip.visible
@@ -251,7 +251,7 @@ Kirigami.ApplicationWindow {
                         text: (appController.loadingRepositoryMessage && appController.loadingRepositoryMessage !== "") ?
                               appController.loadingRepositoryMessage : qsTr("Scanning repository files...")
                         font.pixelSize: CherryStyle.smallFont.pixelSize
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                     }
 
                     // Indeterminate progress bar: repository size is unknown, but
@@ -262,9 +262,9 @@ Kirigami.ApplicationWindow {
                         Layout.topMargin: Kirigami.Units.smallSpacing
                         height: 4
                         radius: 2
-                        color: Qt.rgba(Kirigami.Theme.highlightColor.r,
-                                       Kirigami.Theme.highlightColor.g,
-                                       Kirigami.Theme.highlightColor.b, 0.18)
+                        color: Qt.rgba(CherryStyle.accentColor.r,
+                                       CherryStyle.accentColor.g,
+                                       CherryStyle.accentColor.b, 0.18)
                         clip: true
 
                         Rectangle {
@@ -272,7 +272,7 @@ Kirigami.ApplicationWindow {
                             width: progressTrack.width * 0.32
                             height: parent.height
                             radius: parent.radius
-                            color: Kirigami.Theme.highlightColor
+                            color: CherryStyle.accentColor
 
                             SequentialAnimation on x {
                                 running: appController.isLoadingRepository

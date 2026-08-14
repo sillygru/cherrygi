@@ -15,7 +15,7 @@ struct RepoState {
     QList<CommitItem> commitHistory;
     QList<StashItem> stashes;
     RemoteStatus remoteStatus;
-    bool ignoreFileModeChanges{false};
+    std::optional<bool> localIgnoreFileModeChanges;
 };
 
 class MockGitService : public IGitService {

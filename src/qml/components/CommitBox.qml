@@ -12,7 +12,7 @@ Rectangle {
 
     // Generate a stable hue-based avatar color from the author name
     function avatarColor(name) {
-        if (!name || name.length === 0) return Kirigami.Theme.disabledTextColor;
+        if (!name || name.length === 0) return CherryStyle.secondaryTextColor;
         var hash = 0;
         for (var i = 0; i < name.length; i++) {
             hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -76,7 +76,7 @@ Rectangle {
                 placeholderText: "@username or Name <email>"
                 background: Rectangle {
                     color: CherryStyle.inputBackground
-                    border.color: coAuthorInput.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                    border.color: coAuthorInput.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                     border.width: coAuthorInput.activeFocus ? 2 : 1
                     radius: CherryStyle.radiusSmall
                 }
@@ -122,8 +122,8 @@ Rectangle {
             implicitHeight: undoRow.implicitHeight + 12
             visible: appController.canUndoCommit
             radius: CherryStyle.radiusMedium
-            color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.15)
-            border.color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.6)
+            color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.15)
+            border.color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.6)
             border.width: 1
 
             RowLayout {
@@ -137,7 +137,7 @@ Rectangle {
                     width: 24
                     height: 24
                     radius: 12
-                    color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.25)
+                    color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.25)
                     Layout.alignment: Qt.AlignVCenter
 
                     Kirigami.Icon {
@@ -145,7 +145,7 @@ Rectangle {
                         source: "edit-undo"
                         width: 14
                         height: 14
-                        color: Kirigami.Theme.highlightColor
+                        color: CherryStyle.accentColor
                     }
                 }
 
@@ -156,7 +156,7 @@ Rectangle {
                     QQC2.Label {
                         text: qsTr("Unpushed Commit Available to Undo")
                         font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                     }
 
                     QQC2.Label {
@@ -229,7 +229,7 @@ Rectangle {
 
                 background: Rectangle {
                     color: CherryStyle.inputBackground
-                    border.color: summaryField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                    border.color: summaryField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                     border.width: summaryField.activeFocus ? 2 : 1
                     radius: CherryStyle.radiusMedium
                 }
@@ -242,7 +242,7 @@ Rectangle {
             Layout.preferredHeight: 60
             Layout.minimumHeight: 45
             color: CherryStyle.inputBackground
-            border.color: descArea.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+            border.color: descArea.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
             border.width: descArea.activeFocus ? 2 : 1
             radius: CherryStyle.radiusMedium
 
@@ -310,7 +310,7 @@ Rectangle {
                             source: "window-close"
                             width: 10
                             height: 10
-                            color: Kirigami.Theme.disabledTextColor
+                            color: CherryStyle.secondaryTextColor
 
                             MouseArea {
                                 anchors.fill: parent
@@ -354,19 +354,19 @@ Rectangle {
                     width: 14
                     height: 14
                     visible: !appController.isCommitting
-                    color: commitBtn.enabled ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
+                    color: commitBtn.enabled ? Kirigami.Theme.highlightedTextColor : CherryStyle.secondaryTextColor
                 }
 
                 QQC2.Label {
                     text: appController.isCommitting ? qsTr("Committing to") : qsTr("Commit to")
                     font.bold: true
-                    color: commitBtn.enabled ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
+                    color: commitBtn.enabled ? Kirigami.Theme.highlightedTextColor : CherryStyle.secondaryTextColor
                 }
 
                 QQC2.Label {
                     text: appController.currentBranchName
                     font.bold: true
-                    color: commitBtn.enabled ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
+                    color: commitBtn.enabled ? Kirigami.Theme.highlightedTextColor : CherryStyle.secondaryTextColor
                     elide: Text.ElideRight
                     Layout.maximumWidth: 160
                 }

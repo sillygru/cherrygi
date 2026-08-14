@@ -10,8 +10,40 @@ QtObject {
     readonly property color alternateBackground: Kirigami.Theme.alternateBackgroundColor
     readonly property color textColor: Kirigami.Theme.textColor
     readonly property color disabledTextColor: Kirigami.Theme.disabledTextColor
-    readonly property color highlightColor: Kirigami.Theme.highlightColor
+    // Theme accents are not always readable on custom Plasma palettes.  Keep the
+    // original hue where possible, but move it toward a contrasting endpoint
+    // when it would otherwise be too dark/light for the app surface.
+    function relativeLuminance(c) {
+        return 0.2126 * Math.pow(c.r, 2.2) + 0.7152 * Math.pow(c.g, 2.2) + 0.0722 * Math.pow(c.b, 2.2);
+    }
+
+    function contrastRatio(a, b) {
+        var aLum = relativeLuminance(a);
+        var bLum = relativeLuminance(b);
+        var lighter = Math.max(aLum, bLum);
+        var darker = Math.min(aLum, bLum);
+        return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    function contrastSafeColor(candidate, surface, minimumRatio) {
+        if (contrastRatio(candidate, surface) >= minimumRatio) return candidate;
+
+        var target = relativeLuminance(surface) > 0.45 ? Qt.rgba(0, 0, 0, 1) : Qt.rgba(1, 1, 1, 1);
+        var result = candidate;
+        for (var step = 1; step <= 20; ++step) {
+            var amount = step / 20.0;
+            result = Qt.rgba(candidate.r + (target.r - candidate.r) * amount,
+                             candidate.g + (target.g - candidate.g) * amount,
+                             candidate.b + (target.b - candidate.b) * amount, 1.0);
+            if (contrastRatio(result, surface) >= minimumRatio) return result;
+        }
+        return target;
+    }
+
+    readonly property color highlightColor: contrastSafeColor(Kirigami.Theme.highlightColor, Qt.tint(background, activeBackground), 4.5)
+    readonly property color accentColor: highlightColor
     readonly property color highlightedTextColor: Kirigami.Theme.highlightedTextColor
+    readonly property color secondaryTextColor: contrastSafeColor(Kirigami.Theme.disabledTextColor, background, 3.0)
 
     // Surface elevation levels for hierarchy and visual weight
     readonly property color surfaceBackground: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.04))
@@ -24,7 +56,9 @@ QtObject {
     // Interactive states
     readonly property color cardBackground: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
     readonly property color hoverBackground: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.12)
-    readonly property color activeBackground: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.24)
+    // A neutral selection surface keeps the text readable even when the
+    // desktop highlight color is a dark custom accent.
+    readonly property color activeBackground: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.14)
     readonly property color inputBackground: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
 
     // Borders with distinct physical weight & contrast
@@ -34,23 +68,27 @@ QtObject {
     readonly property color popupBorderColor: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.28)
     readonly property color shadowColor: Qt.rgba(0, 0, 0, 0.50)
 
-    // Git specific semantic colors (vibrant & accessible)
-    readonly property color additionColor: Kirigami.Theme.positiveTextColor
-    readonly property color additionBg: Qt.rgba(Kirigami.Theme.positiveTextColor.r, Kirigami.Theme.positiveTextColor.g, Kirigami.Theme.positiveTextColor.b, 0.22)
-    readonly property color additionGutterBg: Qt.rgba(Kirigami.Theme.positiveTextColor.r, Kirigami.Theme.positiveTextColor.g, Kirigami.Theme.positiveTextColor.b, 0.35)
+    // Git-specific semantic colors. The minimum contrast guard is especially
+    // important for status icons and badges on dark Plasma themes.
+    readonly property color additionColor: contrastSafeColor(Kirigami.Theme.positiveTextColor, background, 3.0)
+    readonly property color additionBg: Qt.rgba(additionColor.r, additionColor.g, additionColor.b, 0.24)
+    readonly property color additionGutterBg: Qt.rgba(additionColor.r, additionColor.g, additionColor.b, 0.35)
 
-    readonly property color deletionColor: Kirigami.Theme.negativeTextColor
-    readonly property color deletionBg: Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.22)
-    readonly property color deletionGutterBg: Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.35)
+    readonly property color deletionColor: contrastSafeColor(Kirigami.Theme.negativeTextColor, background, 3.0)
+    readonly property color deletionBg: Qt.rgba(deletionColor.r, deletionColor.g, deletionColor.b, 0.24)
+    readonly property color deletionGutterBg: Qt.rgba(deletionColor.r, deletionColor.g, deletionColor.b, 0.35)
 
-    readonly property color modifiedColor: Kirigami.Theme.neutralTextColor
-    readonly property color modifiedBg: Qt.rgba(Kirigami.Theme.neutralTextColor.r, Kirigami.Theme.neutralTextColor.g, Kirigami.Theme.neutralTextColor.b, 0.22)
+    readonly property color modifiedColor: contrastSafeColor(Kirigami.Theme.neutralTextColor, background, 3.0)
+    readonly property color modifiedBg: Qt.rgba(modifiedColor.r, modifiedColor.g, modifiedColor.b, 0.24)
 
-    readonly property color renamedColor: Kirigami.Theme.highlightColor
-    readonly property color renamedBg: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.22)
+    readonly property color renamedColor: accentColor
+    readonly property color renamedBg: Qt.rgba(renamedColor.r, renamedColor.g, renamedColor.b, 0.24)
+    readonly property color warningColor: contrastSafeColor(Kirigami.Theme.neutralTextColor, background, 3.0)
+    readonly property color warningBg: Qt.rgba(warningColor.r, warningColor.g, warningColor.b, 0.18)
+    readonly property color errorTextColor: contrastSafeColor(Kirigami.Theme.textColor, deletionColor, 4.5)
 
-    readonly property color hunkHeaderBg: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.20)
-    readonly property color hunkHeaderColor: Kirigami.Theme.highlightColor
+    readonly property color hunkHeaderBg: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.20)
+    readonly property color hunkHeaderColor: accentColor
     readonly property color gutterBg: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
 
     // Line height for diff lines

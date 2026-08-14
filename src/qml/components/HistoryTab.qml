@@ -54,7 +54,7 @@ ColumnLayout {
         QQC2.MenuItem {
             text: qsTr("View on GitHub")
             icon.name: "globe"
-            visible: appController.hasRemote
+            visible: appController.isGitHubRemote
             onTriggered: appController.openOnGitHub()
         }
     }
@@ -79,7 +79,7 @@ ColumnLayout {
 
                 background: Rectangle {
                     color: CherryStyle.inputBackground
-                    border.color: searchInput.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                    border.color: searchInput.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                     border.width: searchInput.activeFocus ? 2 : 1
                     radius: CherryStyle.radiusMedium
                 }
@@ -91,7 +91,7 @@ ColumnLayout {
                     anchors.left: parent.left
                     anchors.leftMargin: Kirigami.Units.smallSpacing + 2
                     anchors.verticalCenter: parent.verticalCenter
-                    color: searchInput.activeFocus ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                    color: searchInput.activeFocus ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
                 }
 
                 QQC2.ToolButton {
@@ -166,7 +166,7 @@ ColumnLayout {
                         anchors.margins: 2
                         width: 2
                         radius: 1.5
-                        color: Kirigami.Theme.highlightColor
+                        color: CherryStyle.accentColor
                     }
                 }
 
@@ -205,7 +205,7 @@ ColumnLayout {
                             QQC2.Label {
                                 text: commitDelegate.summary
                                 font.bold: true
-                                color: commitDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                color: commitDelegate.highlighted ? CherryStyle.accentColor : Kirigami.Theme.textColor
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
                             }
@@ -224,7 +224,7 @@ ColumnLayout {
                                     font.family: CherryStyle.codeFont.family
                                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                     font.bold: true
-                                    color: commitDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                                    color: commitDelegate.highlighted ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
                                 }
                             }
                         }
@@ -236,20 +236,20 @@ ColumnLayout {
                             QQC2.Label {
                                 text: commitDelegate.authorName
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                                 elide: Text.ElideRight
                             }
 
                             QQC2.Label {
                                 text: "•"
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
 
                             QQC2.Label {
                                 text: commitDelegate.relativeTime
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
 
                             // Unpushed commit indicator
@@ -258,7 +258,7 @@ ColumnLayout {
                                 implicitWidth: localRow.implicitWidth + 8
                                 implicitHeight: 16
                                 radius: 8
-                                color: Qt.rgba(Kirigami.Theme.positiveTextColor.r, Kirigami.Theme.positiveTextColor.g, Kirigami.Theme.positiveTextColor.b, 0.15)
+                                color: Qt.rgba(CherryStyle.additionColor.r, CherryStyle.additionColor.g, CherryStyle.additionColor.b, 0.15)
 
                                 RowLayout {
                                     id: localRow
@@ -269,7 +269,7 @@ ColumnLayout {
                                         source: "vcs-push-symbolic"
                                         width: 10
                                         height: 10
-                                        color: Kirigami.Theme.positiveTextColor
+                                        color: CherryStyle.additionColor
                                     }
                                 }
                             }

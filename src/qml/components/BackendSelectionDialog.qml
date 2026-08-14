@@ -57,7 +57,7 @@ QQC2.Popup {
                     source: "vcs-branch"
                     width: 28
                     height: 28
-                    color: Kirigami.Theme.highlightColor
+                    color: CherryStyle.accentColor
                 }
 
                 QQC2.Label {
@@ -71,7 +71,7 @@ QQC2.Popup {
             QQC2.Label {
                 text: qsTr("Select a backend mode to start your session:")
                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                color: Kirigami.Theme.disabledTextColor
+                color: CherryStyle.secondaryTextColor
             }
         }
 
@@ -90,7 +90,7 @@ QQC2.Popup {
                 Layout.fillHeight: true
                 radius: CherryStyle.radiusMedium
                 color: realMouse.containsMouse ? CherryStyle.hoverBackground : CherryStyle.surfaceCard
-                border.color: realMouse.containsMouse ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                border.color: realMouse.containsMouse ? CherryStyle.accentColor : CherryStyle.borderColor
                 border.width: realMouse.containsMouse ? 2 : 1
 
                 MouseArea {
@@ -116,7 +116,7 @@ QQC2.Popup {
                             source: "folder-git"
                             width: 24
                             height: 24
-                            color: Kirigami.Theme.highlightColor
+                            color: CherryStyle.accentColor
                         }
 
                         QQC2.Label {
@@ -131,8 +131,8 @@ QQC2.Popup {
                             implicitWidth: realPill.implicitWidth + 8
                             implicitHeight: 18
                             radius: 9
-                            color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.2)
-                            border.color: Kirigami.Theme.highlightColor
+                            color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.2)
+                            border.color: CherryStyle.accentColor
                             border.width: 1
 
                             QQC2.Label {
@@ -141,7 +141,7 @@ QQC2.Popup {
                                 text: qsTr("Live")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                 font.bold: true
-                                color: Kirigami.Theme.highlightColor
+                                color: CherryStyle.accentColor
                             }
                         }
                     }
@@ -174,7 +174,7 @@ QQC2.Popup {
                 Layout.fillHeight: true
                 radius: CherryStyle.radiusMedium
                 color: mockMouse.containsMouse ? CherryStyle.hoverBackground : CherryStyle.surfaceCard
-                border.color: mockMouse.containsMouse ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                border.color: mockMouse.containsMouse ? CherryStyle.accentColor : CherryStyle.borderColor
                 border.width: mockMouse.containsMouse ? 2 : 1
 
                 MouseArea {
@@ -200,7 +200,7 @@ QQC2.Popup {
                             source: "system-run"
                             width: 24
                             height: 24
-                            color: "#e5a50a"
+                            color: CherryStyle.warningColor
                         }
 
                         QQC2.Label {
@@ -215,8 +215,8 @@ QQC2.Popup {
                             implicitWidth: mockPill.implicitWidth + 8
                             implicitHeight: 18
                             radius: 9
-                            color: Qt.rgba(0.9, 0.65, 0.04, 0.2)
-                            border.color: "#e5a50a"
+                            color: CherryStyle.warningBg
+                            border.color: CherryStyle.warningColor
                             border.width: 1
 
                             QQC2.Label {
@@ -225,7 +225,7 @@ QQC2.Popup {
                                 text: qsTr("Sandbox")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                 font.bold: true
-                                color: "#e5a50a"
+                                color: CherryStyle.warningColor
                             }
                         }
                     }
@@ -258,13 +258,13 @@ QQC2.Popup {
                 source: "dialog-information"
                 width: 14
                 height: 14
-                color: Kirigami.Theme.disabledTextColor
+                color: CherryStyle.secondaryTextColor
             }
 
             QQC2.Label {
                 text: qsTr("Saved repositories are stored cleanly in ~/.config/cherrygi/cherrygi.ini.")
                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                color: Kirigami.Theme.disabledTextColor
+                color: CherryStyle.secondaryTextColor
                 Layout.fillWidth: true
             }
         }

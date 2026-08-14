@@ -67,7 +67,7 @@ Rectangle {
                 QQC2.Label {
                     text: qsTr("Current repository")
                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                 }
 
                 RowLayout {
@@ -78,13 +78,14 @@ Rectangle {
                         source: appController.isCurrentRepoMissing ? "dialog-warning" : "folder-git"
                         width: 16
                         height: 16
-                        color: appController.isCurrentRepoMissing ? Kirigami.Theme.negativeTextColor : (repoDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor)
+                        Layout.alignment: Qt.AlignVCenter
+                        color: appController.isCurrentRepoMissing ? CherryStyle.deletionColor : (repoDropdown.visible ? CherryStyle.accentColor : Kirigami.Theme.textColor)
                     }
 
                     QQC2.Label {
                         text: appController.isCurrentRepoMissing ? (appController.missingRepoName !== "" ? appController.missingRepoName : appController.currentRepoName) : appController.currentRepoName
                         font.bold: true
-                        color: appController.isCurrentRepoMissing ? Kirigami.Theme.negativeTextColor : (repoDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor)
+                        color: appController.isCurrentRepoMissing ? CherryStyle.deletionColor : (repoDropdown.visible ? CherryStyle.accentColor : Kirigami.Theme.textColor)
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -93,7 +94,7 @@ Rectangle {
                         source: "go-down-symbolic"
                         width: 12
                         height: 12
-                        color: repoDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                        color: repoDropdown.visible ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
                     }
                 }
             }
@@ -152,7 +153,7 @@ Rectangle {
                 QQC2.Label {
                     text: qsTr("Current branch")
                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                 }
 
                 RowLayout {
@@ -163,13 +164,14 @@ Rectangle {
                         source: "vcs-branch"
                         width: 16
                         height: 16
-                        color: branchDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                        Layout.alignment: Qt.AlignVCenter
+                        color: branchDropdown.visible ? CherryStyle.accentColor : Kirigami.Theme.textColor
                     }
 
                     QQC2.Label {
                         text: appController.currentBranchName
                         font.bold: true
-                        color: branchDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                        color: branchDropdown.visible ? CherryStyle.accentColor : Kirigami.Theme.textColor
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -180,7 +182,7 @@ Rectangle {
                         implicitWidth: prRow.implicitWidth + 12
                         implicitHeight: 20
                         radius: 10
-                        color: Qt.rgba(0.2, 0.6, 1.0, 0.18)
+                        color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.18)
 
                         RowLayout {
                             id: prRow
@@ -192,14 +194,15 @@ Rectangle {
                                 text: appController.currentBranchPr
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
                                 font.bold: true
-                                color: "#4595f6"
+                                color: CherryStyle.accentColor
                             }
 
                             Kirigami.Icon {
                                 source: "dialog-ok"
                                 width: 11
                                 height: 11
-                                color: "#2ec27e"
+                                Layout.alignment: Qt.AlignVCenter
+                                color: CherryStyle.additionColor
                                 visible: appController.currentBranchPrActive
                             }
                         }
@@ -209,7 +212,7 @@ Rectangle {
                         source: "go-down-symbolic"
                         width: 12
                         height: 12
-                        color: branchDropdown.visible ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                        color: branchDropdown.visible ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
                     }
                 }
             }
@@ -293,7 +296,7 @@ Rectangle {
                                 }
                                 width: 18
                                 height: 18
-                                color: (!appController.hasRemote || remoteSegment.isSyncActive) ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                color: (!appController.hasRemote || remoteSegment.isSyncActive) ? CherryStyle.accentColor : Kirigami.Theme.textColor
                                 opacity: 1.0
 
                                 SequentialAnimation on opacity {
@@ -336,7 +339,7 @@ Rectangle {
                                         return qsTr("Fetch origin");
                                     }
                                     font.bold: true
-                                    color: (!appController.hasRemote || remoteSegment.isSyncActive) ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                    color: (!appController.hasRemote || remoteSegment.isSyncActive) ? CherryStyle.accentColor : Kirigami.Theme.textColor
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
                                 }
@@ -382,7 +385,7 @@ Rectangle {
                                     return appController.lastFetchedText;
                                 }
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
                             }
@@ -422,7 +425,7 @@ Rectangle {
                         source: "go-down-symbolic"
                         width: 12
                         height: 12
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                     }
 
                     MouseArea {
@@ -446,7 +449,7 @@ Rectangle {
                 height: 3
                 radius: 1.5
                 clip: true
-                color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.2)
+                color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.2)
                 visible: remoteSegment.isSyncActive
 
                 Rectangle {
@@ -454,7 +457,7 @@ Rectangle {
                     height: parent.height
                     width: parent.width * 0.4
                     radius: 1.5
-                    color: Kirigami.Theme.highlightColor
+                    color: CherryStyle.accentColor
 
                     SequentialAnimation on x {
                         running: syncProgressBarContainer.visible
@@ -530,8 +533,8 @@ Rectangle {
             implicitHeight: 28
             implicitWidth: modeRow.implicitWidth + 14
             radius: 14
-            color: appController.backendMode === "mock" ? Qt.rgba(0.9, 0.65, 0.04, 0.18) : Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.15)
-            border.color: appController.backendMode === "mock" ? "#e5a50a" : Kirigami.Theme.highlightColor
+            color: appController.backendMode === "mock" ? CherryStyle.warningBg : Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.15)
+            border.color: appController.backendMode === "mock" ? CherryStyle.warningColor : CherryStyle.accentColor
             border.width: 1
 
             RowLayout {
@@ -543,21 +546,21 @@ Rectangle {
                     source: appController.backendMode === "mock" ? "system-run" : "folder-git"
                     width: 12
                     height: 12
-                    color: appController.backendMode === "mock" ? "#e5a50a" : Kirigami.Theme.highlightColor
+                    color: appController.backendMode === "mock" ? CherryStyle.warningColor : CherryStyle.accentColor
                 }
 
                 QQC2.Label {
                     text: appController.backendMode === "mock" ? qsTr("Mock Demo") : qsTr("Real Git")
                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                     font.bold: true
-                    color: appController.backendMode === "mock" ? "#e5a50a" : Kirigami.Theme.highlightColor
+                    color: appController.backendMode === "mock" ? CherryStyle.warningColor : CherryStyle.accentColor
                 }
 
                 Kirigami.Icon {
                     source: "view-refresh"
                     width: 10
                     height: 10
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                 }
             }
 

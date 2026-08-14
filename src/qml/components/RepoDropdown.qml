@@ -114,7 +114,7 @@ QQC2.Popup {
 
             background: Rectangle {
                 color: CherryStyle.inputBackground
-                border.color: searchField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                border.color: searchField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                 border.width: searchField.activeFocus ? 2 : 1
                 radius: CherryStyle.radiusSmall
             }
@@ -126,7 +126,7 @@ QQC2.Popup {
                 anchors.left: parent.left
                 anchors.leftMargin: Kirigami.Units.smallSpacing + 2
                 anchors.verticalCenter: parent.verticalCenter
-                color: searchField.activeFocus ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                color: searchField.activeFocus ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
             }
 
             QQC2.ToolButton {
@@ -158,7 +158,7 @@ QQC2.Popup {
                 text: qsTr("Repositories (%1)").arg(appController.repositories.count)
                 font.bold: true
                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                color: Kirigami.Theme.disabledTextColor
+                color: CherryStyle.secondaryTextColor
             }
         }
 
@@ -205,7 +205,7 @@ QQC2.Popup {
                     background: Rectangle {
                         color: repoDelegate.highlighted ? CherryStyle.activeBackground : (repoDelegate.hovered ? CherryStyle.hoverBackground : CherryStyle.surfaceCard)
                         radius: CherryStyle.radiusSmall
-                        border.color: repoDelegate.isMissing ? Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.5) : (repoDelegate.highlighted ? Kirigami.Theme.highlightColor : (repoDelegate.hovered ? CherryStyle.borderColor : CherryStyle.subtleBorderColor))
+                        border.color: repoDelegate.isMissing ? Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.5) : (repoDelegate.highlighted ? CherryStyle.accentColor : (repoDelegate.hovered ? CherryStyle.borderColor : CherryStyle.subtleBorderColor))
                         border.width: 1
                     }
 
@@ -219,7 +219,8 @@ QQC2.Popup {
                             source: repoDelegate.isMissing ? "dialog-warning" : "folder-git"
                             width: 20
                             height: 20
-                            color: repoDelegate.isMissing ? Kirigami.Theme.negativeTextColor : (repoDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor)
+                            Layout.alignment: Qt.AlignVCenter
+                            color: repoDelegate.isMissing ? CherryStyle.deletionColor : (repoDelegate.isCurrent ? CherryStyle.accentColor : Kirigami.Theme.textColor)
                         }
 
                         ColumnLayout {
@@ -230,7 +231,7 @@ QQC2.Popup {
                                 QQC2.Label {
                                     text: repoDelegate.name
                                     font.bold: repoDelegate.isCurrent
-                                    color: repoDelegate.isMissing ? Kirigami.Theme.negativeTextColor : (repoDelegate.isCurrent ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor)
+                                    color: repoDelegate.isMissing ? CherryStyle.deletionColor : (repoDelegate.isCurrent ? CherryStyle.accentColor : Kirigami.Theme.textColor)
                                     elide: Text.ElideRight
                                 }
 
@@ -240,8 +241,8 @@ QQC2.Popup {
                                     width: missingLabel.width + 10
                                     height: 18
                                     radius: 9
-                                    color: Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.15)
-                                    border.color: Kirigami.Theme.negativeTextColor
+                                    color: Qt.rgba(CherryStyle.deletionColor.r, CherryStyle.deletionColor.g, CherryStyle.deletionColor.b, 0.15)
+                                    border.color: CherryStyle.deletionColor
                                     border.width: 1
 
                                     QQC2.Label {
@@ -250,7 +251,7 @@ QQC2.Popup {
                                         text: qsTr("Missing")
                                         font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                         font.bold: true
-                                        color: Kirigami.Theme.negativeTextColor
+                                        color: CherryStyle.deletionColor
                                     }
                                 }
 
@@ -280,7 +281,7 @@ QQC2.Popup {
                             QQC2.Label {
                                 text: repoDelegate.path
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                                 elide: Text.ElideMiddle
                                 Layout.fillWidth: true
                             }

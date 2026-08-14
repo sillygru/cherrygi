@@ -99,7 +99,7 @@ Item {
                             QQC2.Label {
                                 text: root.hasOld ? formatFileSize(root.oldSize) : qsTr("No previous version")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
                         }
                     }
@@ -153,13 +153,13 @@ Item {
                                 width: 40
                                 height: 40
                                 Layout.alignment: Qt.AlignHCenter
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
 
                             QQC2.Label {
                                 text: qsTr("No previous version (Added file)")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                                 Layout.alignment: Qt.AlignHCenter
                             }
                         }
@@ -181,7 +181,7 @@ Item {
                             QQC2.Label {
                                 text: (root.hasOld && root.oldDimensions.length > 0) ? root.oldDimensions : qsTr("No dimension data")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
 
                             Item { Layout.fillWidth: true }
@@ -236,7 +236,7 @@ Item {
                             QQC2.Label {
                                 text: root.hasNew ? formatFileSize(root.newSize) : qsTr("Deleted file")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
                         }
                     }
@@ -290,13 +290,13 @@ Item {
                                 width: 40
                                 height: 40
                                 Layout.alignment: Qt.AlignHCenter
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
 
                             QQC2.Label {
                                 text: qsTr("File was removed (Deleted)")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                                 Layout.alignment: Qt.AlignHCenter
                             }
                         }
@@ -318,7 +318,7 @@ Item {
                             QQC2.Label {
                                 text: (root.hasNew && root.newDimensions.length > 0) ? root.newDimensions : qsTr("No dimension data")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
 
                             Item { Layout.fillWidth: true }
@@ -327,7 +327,7 @@ Item {
                                 visible: root.hasOld && root.hasNew
                                 text: formatSizeDiff()
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: (root.newSize > root.oldSize) ? CherryStyle.additionColor : ((root.newSize < root.oldSize) ? CherryStyle.deletionColor : Kirigami.Theme.disabledTextColor)
+                                color: (root.newSize > root.oldSize) ? CherryStyle.additionColor : ((root.newSize < root.oldSize) ? CherryStyle.deletionColor : CherryStyle.secondaryTextColor)
                             }
                         }
                     }
@@ -453,7 +453,7 @@ Item {
                     y: 0
                     width: 3
                     height: parent.height
-                    color: Kirigami.Theme.highlightColor
+                    color: CherryStyle.accentColor
                     z: 5
 
                     // Drag Pill Handle
@@ -462,7 +462,7 @@ Item {
                         width: 28
                         height: 28
                         radius: 14
-                        color: Kirigami.Theme.highlightColor
+                        color: CherryStyle.accentColor
                         border.color: Kirigami.Theme.highlightedTextColor
                         border.width: 2
 
@@ -684,7 +684,7 @@ Item {
                     QQC2.Label {
                         text: Math.round(onionContainer.opacityLevel * 100) + "%"
                         font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                         Layout.minimumWidth: 35
                     }
                 }

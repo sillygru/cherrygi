@@ -53,7 +53,7 @@ ColumnLayout {
                     text: qsTr("Computing line changes and hunk diffs...")
                     font.pixelSize: CherryStyle.smallFont.pixelSize
                     Layout.alignment: Qt.AlignHCenter
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                 }
             }
         }
@@ -75,7 +75,7 @@ ColumnLayout {
                     width: 48
                     height: 48
                     Layout.alignment: Qt.AlignHCenter
-                    color: Kirigami.Theme.highlightColor
+                    color: CherryStyle.accentColor
                 }
 
                 QQC2.Label {
@@ -90,7 +90,7 @@ ColumnLayout {
                     text: qsTr("Only file permissions changed; there is no content diff to display.")
                     font.pixelSize: CherryStyle.smallFont.pixelSize
                     Layout.alignment: Qt.AlignHCenter
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                     wrapMode: Text.Wrap
                     horizontalAlignment: Text.AlignHCenter
                     Layout.maximumWidth: 420
@@ -122,7 +122,7 @@ ColumnLayout {
                     width: 56
                     height: 56
                     Layout.alignment: Qt.AlignHCenter
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                 }
 
                 QQC2.Label {
@@ -137,7 +137,7 @@ ColumnLayout {
                     text: (root.filePath && root.filePath.length > 0) ? qsTr("This file has no uncommitted changes or difference to display.") : qsTr("Select a modified file from the changes list to view the diff.")
                     font.pixelSize: CherryStyle.smallFont.pixelSize
                     Layout.alignment: Qt.AlignHCenter
-                    color: Kirigami.Theme.disabledTextColor
+                    color: CherryStyle.secondaryTextColor
                 }
             }
         }
@@ -204,7 +204,7 @@ ColumnLayout {
                                 anchors.centerIn: parent
                                 text: unifiedLineDelegate.oldLineNumStr
                                 font: CherryStyle.codeFont
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
                         }
 
@@ -223,7 +223,7 @@ ColumnLayout {
                                 anchors.centerIn: parent
                                 text: unifiedLineDelegate.newLineNumStr
                                 font: CherryStyle.codeFont
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
                         }
 
@@ -248,7 +248,7 @@ ColumnLayout {
                                     if (unifiedLineDelegate.lineType === 1) return CherryStyle.additionColor;
                                     if (unifiedLineDelegate.lineType === 2) return CherryStyle.deletionColor;
                                     if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderColor;
-                                    return Kirigami.Theme.disabledTextColor;
+                                    return CherryStyle.secondaryTextColor;
                                 }
                             }
                         }
@@ -267,7 +267,7 @@ ColumnLayout {
                                 color: {
                                     if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderColor;
                                     if (unifiedLineDelegate.content.trim().startsWith("//") || unifiedLineDelegate.content.trim().startsWith("/*") || unifiedLineDelegate.content.trim().startsWith("*")) {
-                                        return "#2ec27e"; // comment styling
+                                        return CherryStyle.additionColor; // comment styling
                                     }
                                     if (unifiedLineDelegate.lineType === 1) return Kirigami.Theme.textColor;
                                     if (unifiedLineDelegate.lineType === 2) return Kirigami.Theme.textColor;
@@ -327,7 +327,7 @@ ColumnLayout {
                                     anchors.centerIn: parent
                                     text: splitLeftDelegate.oldLineNumStr
                                     font: CherryStyle.codeFont
-                                    color: Kirigami.Theme.disabledTextColor
+                                    color: CherryStyle.secondaryTextColor
                                 }
                             }
 
@@ -390,7 +390,7 @@ ColumnLayout {
                                     anchors.centerIn: parent
                                     text: splitRightDelegate.newLineNumStr
                                     font: CherryStyle.codeFont
-                                    color: Kirigami.Theme.disabledTextColor
+                                    color: CherryStyle.secondaryTextColor
                                 }
                             }
 

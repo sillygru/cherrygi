@@ -17,16 +17,148 @@ QQC2.Popup {
     closePolicy: QQC2.Popup.CloseOnEscape | QQC2.Popup.CloseOnPressOutside
 
     property string currentTab: appController.settingsTab
+    property bool remoteFieldsUpdating: false
+    property string pendingDiffViewMode: "unified"
+    property string pendingBackendMode: "real"
+
+    function updateRemoteUrlFromParts() {
+        if (remoteFieldsUpdating || remotePresetCombo.currentIndex < 0) return;
+        var preset = remotePresetCombo.model[remotePresetCombo.currentIndex].split("|");
+        if (preset[0] === "custom") return;
+
+        var owner = remoteOwnerField.text.trim();
+        var repository = remoteRepositoryField.text.trim();
+        while (owner.startsWith("/")) owner = owner.substring(1);
+        while (owner.endsWith("/")) owner = owner.substring(0, owner.length - 1);
+        while (repository.startsWith("/")) repository = repository.substring(1);
+        while (repository.endsWith("/")) repository = repository.substring(0, repository.length - 1);
+        if (owner.length === 0 || repository.length === 0) return;
+        repoUrlField.text = preset[2] + owner + "/" + repository;
+    }
+
+    function populateRemoteParts(url) {
+        var cleanUrl = url.trim();
+        if (cleanUrl.length === 0) {
+            remoteOwnerField.text = "";
+            remoteRepositoryField.text = "";
+            return;
+        }
+
+        if (cleanUrl.toLowerCase().endsWith(".git")) {
+            cleanUrl = cleanUrl.substring(0, cleanUrl.length - 4);
+        }
+
+        var path = "";
+        var schemeIndex = cleanUrl.indexOf("://");
+        if (schemeIndex >= 0) {
+            var pathStart = cleanUrl.indexOf("/", schemeIndex + 3);
+            if (pathStart >= 0) path = cleanUrl.substring(pathStart + 1);
+        } else {
+            var separator = cleanUrl.indexOf(":");
+            if (separator >= 0) path = cleanUrl.substring(separator + 1);
+        }
+
+        var pieces = path.split("/").filter(function(piece) { return piece.length > 0; });
+        if (pieces.length >= 2) {
+            remoteOwnerField.text = pieces.slice(0, pieces.length - 1).join("/");
+            remoteRepositoryField.text = pieces[pieces.length - 1];
+        } else {
+            remoteOwnerField.text = "";
+            remoteRepositoryField.text = "";
+        }
+    }
+
+    function selectRemotePreset() {
+        var host = appController.remoteHost.toLowerCase();
+        remotePresetCombo.currentIndex = 3;
+        for (var i = 0; i < remotePresetCombo.count; ++i) {
+            var preset = remotePresetCombo.model[i].split("|");
+            var presetHost = preset[2].replace("https://", "").replace("http://", "");
+            while (presetHost.endsWith("/")) presetHost = presetHost.substring(0, presetHost.length - 1);
+            if (host !== "" && host === presetHost) {
+                remotePresetCombo.currentIndex = i;
+                break;
+            }
+        }
+        if (!appController.hasRemote) remotePresetCombo.currentIndex = 0;
+    }
+
+    function saveSettingsAndClose() {
+        var url = repoUrlField.text.trim();
+        if (url.length > 0 && url !== appController.remoteUrl) {
+            if (!appController.saveRemoteUrl(url)) return;
+        } else if (url.length === 0 && appController.hasRemote) {
+            if (!appController.removeRemoteUrl()) return;
+        }
+
+        var localName = localNameField.text.trim();
+        var localEmail = localEmailField.text.trim();
+        if (localName !== appController.localAuthorName || localEmail !== appController.localAuthorEmail) {
+            appController.saveAuthorInfo(localName, localEmail, false);
+        }
+
+        if (localFileModeCheckBox.checked !== appController.ignoreFileModeChanges) {
+            appController.setIgnoreFileModeChanges(localFileModeCheckBox.checked, false);
+        }
+        if (globalFileModeCheckBox.checked !== appController.globalIgnoreFileModeChanges) {
+            appController.setIgnoreFileModeChanges(globalFileModeCheckBox.checked, true);
+        }
+
+        var globalName = globalNameField.text.trim();
+        var globalEmail = globalEmailField.text.trim();
+        if (globalName !== appController.globalAuthorName || globalEmail !== appController.globalAuthorEmail) {
+            appController.saveAuthorInfo(globalName, globalEmail, true);
+        }
+
+        if (editorCombo.currentIndex >= 0 && editorCombo.currentIndex < editorCombo.count) {
+            var editorId = editorCombo.model[editorCombo.currentIndex].split("|")[0];
+            var customEd = customEditorField.text.trim();
+            if (editorId !== appController.defaultEditor || customEd !== appController.customEditorCommand) {
+                appController.saveEditorSettings(editorId, customEd);
+            }
+        }
+        if (terminalCombo.currentIndex >= 0 && terminalCombo.currentIndex < terminalCombo.count) {
+            var terminalId = terminalCombo.model[terminalCombo.currentIndex].split("|")[0];
+            var customTerm = customTermField.text.trim();
+            if (terminalId !== appController.defaultTerminal || customTerm !== appController.customTerminalCommand) {
+                appController.saveTerminalSettings(terminalId, customTerm);
+            }
+        }
+
+        if (pendingDiffViewMode !== appController.diffViewMode) {
+            appController.diffViewMode = pendingDiffViewMode;
+        }
+        if (showWhitespaceCheckBox.checked !== appController.showWhitespace) {
+            appController.showWhitespace = showWhitespaceCheckBox.checked;
+        }
+
+        if (pendingBackendMode !== appController.backendMode) {
+            appController.setBackendMode(pendingBackendMode);
+        }
+
+        root.close();
+    }
 
     onAboutToShow: {
+        remoteFieldsUpdating = true;
         currentTab = appController.settingsTab;
         repoUrlField.text = appController.remoteUrl;
+        selectRemotePreset();
+        populateRemoteParts(appController.remoteUrl);
+        remoteFieldsUpdating = false;
         localNameField.text = appController.localAuthorName;
         localEmailField.text = appController.localAuthorEmail;
         globalNameField.text = appController.globalAuthorName;
         globalEmailField.text = appController.globalAuthorEmail;
         customEditorField.text = appController.customEditorCommand;
         customTermField.text = appController.customTerminalCommand;
+
+        localFileModeCheckBox.checked = appController.ignoreFileModeChanges;
+        globalFileModeCheckBox.checked = appController.globalIgnoreFileModeChanges;
+
+        pendingDiffViewMode = appController.diffViewMode;
+        showWhitespaceCheckBox.checked = appController.showWhitespace;
+        pendingBackendMode = appController.backendMode;
 
         // Select active editor in combo
         for (var i = 0; i < editorCombo.count; ++i) {
@@ -116,7 +248,7 @@ QQC2.Popup {
                         source: "settings-configure"
                         width: 20
                         height: 20
-                        color: Kirigami.Theme.highlightColor
+                        color: CherryStyle.accentColor
                     }
 
                     QQC2.Label {
@@ -144,13 +276,13 @@ QQC2.Popup {
                             source: "folder-git"
                             width: 16
                             height: 16
-                            color: root.currentTab === "repository" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.currentTab === "repository" ? CherryStyle.accentColor : Kirigami.Theme.textColor
                         }
 
                         QQC2.Label {
                             text: qsTr("Repository & Remote")
                             font.bold: root.currentTab === "repository"
-                            color: root.currentTab === "repository" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.currentTab === "repository" ? CherryStyle.accentColor : Kirigami.Theme.textColor
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                         }
@@ -182,13 +314,13 @@ QQC2.Popup {
                             source: "vcs-branch"
                             width: 16
                             height: 16
-                            color: root.currentTab === "git" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.currentTab === "git" ? CherryStyle.accentColor : Kirigami.Theme.textColor
                         }
 
                         QQC2.Label {
                             text: qsTr("Git Settings")
                             font.bold: root.currentTab === "git"
-                            color: root.currentTab === "git" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.currentTab === "git" ? CherryStyle.accentColor : Kirigami.Theme.textColor
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                         }
@@ -220,13 +352,13 @@ QQC2.Popup {
                             source: "user-identity"
                             width: 16
                             height: 16
-                            color: root.currentTab === "identity" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.currentTab === "identity" ? CherryStyle.accentColor : Kirigami.Theme.textColor
                         }
 
                         QQC2.Label {
                             text: qsTr("Git Identity")
                             font.bold: root.currentTab === "identity"
-                            color: root.currentTab === "identity" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.currentTab === "identity" ? CherryStyle.accentColor : Kirigami.Theme.textColor
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                         }
@@ -258,13 +390,13 @@ QQC2.Popup {
                             source: "accessories-text-editor"
                             width: 16
                             height: 16
-                            color: root.currentTab === "editor" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.currentTab === "editor" ? CherryStyle.accentColor : Kirigami.Theme.textColor
                         }
 
                         QQC2.Label {
                             text: qsTr("Editor & Terminal")
                             font.bold: root.currentTab === "editor"
-                            color: root.currentTab === "editor" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.currentTab === "editor" ? CherryStyle.accentColor : Kirigami.Theme.textColor
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                         }
@@ -296,13 +428,13 @@ QQC2.Popup {
                             source: "preferences-desktop-theme"
                             width: 16
                             height: 16
-                            color: root.currentTab === "appearance" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.currentTab === "appearance" ? CherryStyle.accentColor : Kirigami.Theme.textColor
                         }
 
                         QQC2.Label {
                             text: qsTr("Appearance & Diff")
                             font.bold: root.currentTab === "appearance"
-                            color: root.currentTab === "appearance" ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                            color: root.currentTab === "appearance" ? CherryStyle.accentColor : Kirigami.Theme.textColor
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                         }
@@ -406,7 +538,7 @@ QQC2.Popup {
                                 QQC2.Label {
                                     text: appController.currentRepoName
                                     font.bold: true
-                                    color: Kirigami.Theme.highlightColor
+                                    color: CherryStyle.accentColor
                                     Layout.fillWidth: true
                                 }
                             }
@@ -418,13 +550,13 @@ QQC2.Popup {
                                 QQC2.Label {
                                     text: qsTr("Path:")
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
-                                    color: Kirigami.Theme.disabledTextColor
+                                    color: CherryStyle.secondaryTextColor
                                 }
 
                                 QQC2.Label {
                                     text: appController.currentRepoPath
                                     font.pixelSize: CherryStyle.smallFont.pixelSize
-                                    color: Kirigami.Theme.disabledTextColor
+                                    color: CherryStyle.secondaryTextColor
                                     elide: Text.ElideMiddle
                                     Layout.fillWidth: true
                                 }
@@ -451,7 +583,7 @@ QQC2.Popup {
                             spacing: Kirigami.Units.smallSpacing
 
                             QQC2.Label {
-                                text: qsTr("Primary Git Remote (origin)")
+                                text: qsTr("Configured Git Remote")
                                 font.bold: true
                                 color: Kirigami.Theme.textColor
                             }
@@ -460,8 +592,8 @@ QQC2.Popup {
                                 implicitWidth: remoteBadge.implicitWidth + 8
                                 implicitHeight: 18
                                 radius: 9
-                                color: appController.hasRemote ? Qt.rgba(0.2, 0.7, 0.3, 0.15) : Qt.rgba(0.9, 0.6, 0.1, 0.15)
-                                border.color: appController.hasRemote ? "#2ec27e" : "#e5a50a"
+                                color: appController.hasRemote ? CherryStyle.additionBg : CherryStyle.warningBg
+                                border.color: appController.hasRemote ? CherryStyle.additionColor : CherryStyle.warningColor
                                 border.width: 1
 
                                 QQC2.Label {
@@ -470,8 +602,135 @@ QQC2.Popup {
                                     text: appController.hasRemote ? qsTr("Configured") : qsTr("No Remote")
                                     font.pixelSize: CherryStyle.smallFont.pixelSize - 1
                                     font.bold: true
-                                    color: appController.hasRemote ? "#2ec27e" : "#e5a50a"
+                                    color: appController.hasRemote ? CherryStyle.additionColor : CherryStyle.warningColor
                                 }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+
+                            QQC2.Label {
+                                text: qsTr("Quick setup:")
+                                font.pixelSize: CherryStyle.smallFont.pixelSize
+                                color: CherryStyle.secondaryTextColor
+                            }
+
+                            QQC2.ComboBox {
+                                id: remotePresetCombo
+                                Layout.preferredWidth: 150
+                                model: [
+                                    "github|GitHub|https://github.com/",
+                                    "gitlab|GitLab|https://gitlab.com/",
+                                    "invent|KDE Invent|https://invent.kde.org/",
+                                    "custom|Custom host|"
+                                ]
+                                displayText: currentIndex >= 0 ? model[currentIndex].split("|")[1] : qsTr("Select host")
+                                delegate: QQC2.ItemDelegate {
+                                    width: remotePresetCombo.width
+                                    text: modelData.split("|")[1]
+                                    highlighted: remotePresetCombo.currentIndex === index
+                                }
+                                onActivated: {
+                                    if (currentIndex < 3) {
+                                        remoteOwnerField.forceActiveFocus();
+                                        root.updateRemoteUrlFromParts();
+                                    }
+                                }
+                            }
+
+                            QQC2.TextField {
+                                id: remoteOwnerField
+                                Layout.fillWidth: true
+                                placeholderText: qsTr("Owner or group")
+                                enabled: remotePresetCombo.currentIndex < 3
+                                background: Rectangle {
+                                    color: CherryStyle.inputBackground
+                                    border.color: remoteOwnerField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
+                                    border.width: remoteOwnerField.activeFocus ? 2 : 1
+                                    radius: CherryStyle.radiusSmall
+                                }
+                                onTextChanged: root.updateRemoteUrlFromParts()
+                            }
+
+                            QQC2.TextField {
+                                id: remoteRepositoryField
+                                Layout.fillWidth: true
+                                placeholderText: qsTr("Repository (.git optional)")
+                                enabled: remotePresetCombo.currentIndex < 3
+                                background: Rectangle {
+                                    color: CherryStyle.inputBackground
+                                    border.color: remoteRepositoryField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
+                                    border.width: remoteRepositoryField.activeFocus ? 2 : 1
+                                    radius: CherryStyle.radiusSmall
+                                }
+                                onTextChanged: root.updateRemoteUrlFromParts()
+                            }
+                        }
+
+                        QQC2.Label {
+                            text: qsTr("Choose a host, then enter the owner/group and repository name. The URL below is updated automatically; .git is optional.")
+                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                            color: CherryStyle.secondaryTextColor
+                            wrapMode: Text.Wrap
+                            Layout.fillWidth: true
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+
+                            QQC2.Label {
+                                text: qsTr("Provider:")
+                                font.pixelSize: CherryStyle.smallFont.pixelSize
+                                color: CherryStyle.secondaryTextColor
+                            }
+
+                            Kirigami.Icon {
+                                source: appController.hasRemote ? appController.remoteProviderIcon : "network-server"
+                                width: 16
+                                height: 16
+                                isMask: appController.hasRemote && appController.remoteProvider === "GitHub"
+                                color: appController.hasRemote ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
+                            }
+
+                            QQC2.Label {
+                                text: appController.hasRemote ? appController.remoteProvider : qsTr("None")
+                                font.bold: appController.hasRemote
+                                color: appController.hasRemote ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.mediumSpacing
+
+                            QQC2.Label {
+                                text: qsTr("Name:")
+                                font.pixelSize: CherryStyle.smallFont.pixelSize
+                                color: CherryStyle.secondaryTextColor
+                            }
+
+                            QQC2.Label {
+                                text: appController.hasRemote ? appController.remoteName : qsTr("None")
+                                font.bold: appController.hasRemote
+                                color: appController.hasRemote ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
+                            }
+
+                            QQC2.Label {
+                                text: qsTr("Host:")
+                                font.pixelSize: CherryStyle.smallFont.pixelSize
+                                color: CherryStyle.secondaryTextColor
+                            }
+
+                            QQC2.Label {
+                                text: appController.hasRemote ? appController.remoteHost : qsTr("None")
+                                font.bold: appController.hasRemote
+                                color: appController.hasRemote ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
                             }
                         }
 
@@ -481,7 +740,7 @@ QQC2.Popup {
                             placeholderText: qsTr("e.g. https://github.com/owner/repository.git or git@github.com:owner/repository.git")
                             background: Rectangle {
                                 color: CherryStyle.inputBackground
-                                border.color: repoUrlField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                                border.color: repoUrlField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                                 border.width: repoUrlField.activeFocus ? 2 : 1
                                 radius: CherryStyle.radiusSmall
                             }
@@ -492,16 +751,9 @@ QQC2.Popup {
                             spacing: Kirigami.Units.smallSpacing
 
                             QQC2.Button {
-                                text: qsTr("Save Remote URL")
-                                icon.name: "document-save"
-                                highlighted: true
-                                enabled: repoUrlField.text.trim().length > 0
-                                onClicked: appController.saveRemoteUrl(repoUrlField.text.trim())
-                            }
-
-                            QQC2.Button {
                                 text: qsTr("Publish with gh...")
                                 icon.name: "cloud-upload"
+                                visible: !appController.hasRemote
                                 onClicked: {
                                     root.close();
                                     appController.showPublishDialog();
@@ -511,11 +763,12 @@ QQC2.Popup {
                             QQC2.Button {
                                 text: qsTr("Remove Remote")
                                 icon.name: "edit-delete"
-                                visible: appController.hasRemote
+                                visible: repoUrlField.text.trim().length > 0 || appController.hasRemote
                                 onClicked: {
-                                    if (appController.removeRemoteUrl()) {
-                                        repoUrlField.text = "";
-                                    }
+                                    repoUrlField.text = "";
+                                    remotePresetCombo.currentIndex = 0;
+                                    remoteOwnerField.text = "";
+                                    remoteRepositoryField.text = "";
                                 }
                             }
                         }
@@ -536,7 +789,7 @@ QQC2.Popup {
                         QQC2.Label {
                             text: qsTr("Override your global Git name and email specifically for this repository.")
                             font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                            color: Kirigami.Theme.disabledTextColor
+                            color: CherryStyle.secondaryTextColor
                         }
 
                         RowLayout {
@@ -549,7 +802,7 @@ QQC2.Popup {
                                 placeholderText: qsTr("Local Author Name")
                                 background: Rectangle {
                                     color: CherryStyle.inputBackground
-                                    border.color: localNameField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                                    border.color: localNameField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                                     border.width: localNameField.activeFocus ? 2 : 1
                                     radius: CherryStyle.radiusSmall
                                 }
@@ -561,16 +814,10 @@ QQC2.Popup {
                                 placeholderText: qsTr("local@example.com")
                                 background: Rectangle {
                                     color: CherryStyle.inputBackground
-                                    border.color: localEmailField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                                    border.color: localEmailField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                                     border.width: localEmailField.activeFocus ? 2 : 1
                                     radius: CherryStyle.radiusSmall
                                 }
-                            }
-
-                            QQC2.Button {
-                                text: qsTr("Save")
-                                icon.name: "document-save"
-                                onClicked: appController.saveAuthorInfo(localNameField.text.trim(), localEmailField.text.trim(), false)
                             }
                         }
                     }
@@ -593,7 +840,7 @@ QQC2.Popup {
                     QQC2.Label {
                         text: qsTr("Control whether Git reports executable-bit and file permission changes as repository changes.")
                         font.pixelSize: CherryStyle.smallFont.pixelSize
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
@@ -613,15 +860,14 @@ QQC2.Popup {
                             spacing: Kirigami.Units.smallSpacing
 
                             QQC2.CheckBox {
+                                id: localFileModeCheckBox
                                 text: qsTr("Ignore file metadata changes in this repository")
-                                checked: appController.ignoreFileModeChanges
-                                onClicked: appController.setIgnoreFileModeChanges(checked, false)
                             }
 
                             QQC2.Label {
                                 text: qsTr("Writes core.filemode=false to this repository's .git/config.")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                                 wrapMode: Text.Wrap
                                 Layout.fillWidth: true
                             }
@@ -643,15 +889,14 @@ QQC2.Popup {
                             spacing: Kirigami.Units.smallSpacing
 
                             QQC2.CheckBox {
+                                id: globalFileModeCheckBox
                                 text: qsTr("Ignore file metadata changes globally")
-                                checked: appController.globalIgnoreFileModeChanges
-                                onClicked: appController.setIgnoreFileModeChanges(checked, true)
                             }
 
                             QQC2.Label {
                                 text: qsTr("Writes core.filemode=false to your global Git configuration and applies to repositories without a local override.")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                                 wrapMode: Text.Wrap
                                 Layout.fillWidth: true
                             }
@@ -661,7 +906,7 @@ QQC2.Popup {
                     QQC2.Label {
                         text: qsTr("The repository setting takes precedence over the global setting.")
                         font.pixelSize: CherryStyle.smallFont.pixelSize
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
@@ -685,7 +930,7 @@ QQC2.Popup {
                     QQC2.Label {
                         text: qsTr("These credentials are used by default for all Git commits across all repositories on your system (git config --global).")
                         font.pixelSize: CherryStyle.smallFont.pixelSize
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
@@ -707,7 +952,7 @@ QQC2.Popup {
                             placeholderText: qsTr("Your Full Name")
                             background: Rectangle {
                                 color: CherryStyle.inputBackground
-                                border.color: globalNameField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                                border.color: globalNameField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                                 border.width: globalNameField.activeFocus ? 2 : 1
                                 radius: CherryStyle.radiusSmall
                             }
@@ -731,19 +976,11 @@ QQC2.Popup {
                             placeholderText: qsTr("user@example.com")
                             background: Rectangle {
                                 color: CherryStyle.inputBackground
-                                border.color: globalEmailField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                                border.color: globalEmailField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                                 border.width: globalEmailField.activeFocus ? 2 : 1
                                 radius: CherryStyle.radiusSmall
                             }
                         }
-                    }
-
-                    QQC2.Button {
-                        text: qsTr("Save Global Identity")
-                        icon.name: "document-save"
-                        highlighted: true
-                        enabled: globalNameField.text.trim().length > 0 && globalEmailField.text.trim().length > 0
-                        onClicked: appController.saveAuthorInfo(globalNameField.text.trim(), globalEmailField.text.trim(), true)
                     }
                 }
 
@@ -806,7 +1043,7 @@ QQC2.Popup {
                             QQC2.Label {
                                 text: qsTr("Custom Editor Command (%f = file, %l = line, %d = repo dir):")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
 
                             QQC2.TextField {
@@ -815,7 +1052,7 @@ QQC2.Popup {
                                 placeholderText: qsTr("e.g. gedit %f or /opt/editor/bin %f:%l")
                                 background: Rectangle {
                                     color: CherryStyle.inputBackground
-                                    border.color: customEditorField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                                    border.color: customEditorField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                                     border.width: customEditorField.activeFocus ? 2 : 1
                                     radius: CherryStyle.radiusSmall
                                 }
@@ -825,15 +1062,6 @@ QQC2.Popup {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: Kirigami.Units.smallSpacing
-
-                            QQC2.Button {
-                                text: qsTr("Save Editor")
-                                icon.name: "document-save"
-                                onClicked: {
-                                    var edId = editorCombo.model[editorCombo.currentIndex].split("|")[0];
-                                    appController.saveEditorSettings(edId, customEditorField.text.trim());
-                                }
-                            }
 
                             QQC2.Button {
                                 text: qsTr("Open Repo in Editor")
@@ -891,7 +1119,7 @@ QQC2.Popup {
                             QQC2.Label {
                                 text: qsTr("Custom Terminal Command (%d = directory):")
                                 font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                color: Kirigami.Theme.disabledTextColor
+                                color: CherryStyle.secondaryTextColor
                             }
 
                             QQC2.TextField {
@@ -900,19 +1128,10 @@ QQC2.Popup {
                                 placeholderText: qsTr("e.g. alacritty --working-directory %d")
                                 background: Rectangle {
                                     color: CherryStyle.inputBackground
-                                    border.color: customTermField.activeFocus ? Kirigami.Theme.highlightColor : CherryStyle.borderColor
+                                    border.color: customTermField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
                                     border.width: customTermField.activeFocus ? 2 : 1
                                     radius: CherryStyle.radiusSmall
                                 }
-                            }
-                        }
-
-                        QQC2.Button {
-                            text: qsTr("Save Terminal")
-                            icon.name: "document-save"
-                            onClicked: {
-                                var termId = terminalCombo.model[terminalCombo.currentIndex].split("|")[0];
-                                appController.saveTerminalSettings(termId, customTermField.text.trim());
                             }
                         }
                     }
@@ -943,21 +1162,20 @@ QQC2.Popup {
 
                         QQC2.RadioButton {
                             text: qsTr("Unified Diff")
-                            checked: appController.diffViewMode === "unified"
-                            onClicked: appController.diffViewMode = "unified"
+                            checked: root.pendingDiffViewMode === "unified"
+                            onClicked: root.pendingDiffViewMode = "unified"
                         }
 
                         QQC2.RadioButton {
                             text: qsTr("Split (Side-by-Side)")
-                            checked: appController.diffViewMode === "split"
-                            onClicked: appController.diffViewMode = "split"
+                            checked: root.pendingDiffViewMode === "split"
+                            onClicked: root.pendingDiffViewMode = "split"
                         }
                     }
 
                     QQC2.CheckBox {
+                        id: showWhitespaceCheckBox
                         text: qsTr("Show whitespace changes by default")
-                        checked: appController.showWhitespace
-                        onClicked: appController.showWhitespace = checked
                     }
 
                     Rectangle {
@@ -975,7 +1193,7 @@ QQC2.Popup {
                     QQC2.Label {
                         text: qsTr("Configure how cherrygi starts up by default:")
                         font.pixelSize: CherryStyle.smallFont.pixelSize
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                     }
 
                     RowLayout {
@@ -985,21 +1203,15 @@ QQC2.Popup {
                         QQC2.Button {
                             text: qsTr("Use Real Git Backend")
                             icon.name: "folder-git"
-                            highlighted: appController.backendMode === "real"
-                            onClicked: {
-                                appController.setBackendMode("real");
-                                appController.showToast("Default backend: Real Git");
-                            }
+                            highlighted: root.pendingBackendMode === "real"
+                            onClicked: root.pendingBackendMode = "real"
                         }
 
                         QQC2.Button {
                             text: qsTr("Use Mock Sandbox")
                             icon.name: "system-run"
-                            highlighted: appController.backendMode === "mock"
-                            onClicked: {
-                                appController.setBackendMode("mock");
-                                appController.showToast("Default backend: Mock Demo");
-                            }
+                            highlighted: root.pendingBackendMode === "mock"
+                            onClicked: root.pendingBackendMode = "mock"
                         }
 
                         QQC2.Button {
@@ -1014,7 +1226,7 @@ QQC2.Popup {
                 }
             }
 
-            // Bottom Done button
+            // Save settings and close
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing
@@ -1022,9 +1234,16 @@ QQC2.Popup {
                 Item { Layout.fillWidth: true }
 
                 QQC2.Button {
-                    text: qsTr("Done")
-                    highlighted: true
+                    text: qsTr("Cancel")
+                    icon.name: "dialog-cancel"
                     onClicked: root.close()
+                }
+
+                QQC2.Button {
+                    text: qsTr("Save")
+                    icon.name: "document-save"
+                    highlighted: true
+                    onClicked: root.saveSettingsAndClose()
                 }
             }
         }

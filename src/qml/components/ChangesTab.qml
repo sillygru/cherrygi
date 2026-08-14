@@ -179,7 +179,7 @@ ColumnLayout {
                         width: 40
                         height: 40
                         Layout.alignment: Qt.AlignHCenter
-                        color: Kirigami.Theme.positiveTextColor
+                        color: CherryStyle.additionColor
                     }
 
                     QQC2.Label {
@@ -194,7 +194,7 @@ ColumnLayout {
                         text: qsTr("Your working directory is clean.")
                         font.pixelSize: CherryStyle.smallFont.pixelSize
                         Layout.alignment: Qt.AlignHCenter
-                        color: Kirigami.Theme.disabledTextColor
+                        color: CherryStyle.secondaryTextColor
                     }
                 }
             }
@@ -233,7 +233,7 @@ ColumnLayout {
                         anchors.margins: 2
                         width: 2
                         radius: 1.5
-                        color: Kirigami.Theme.highlightColor
+                        color: CherryStyle.accentColor
                     }
                 }
 
@@ -255,6 +255,7 @@ ColumnLayout {
                     Rectangle {
                         width: 20
                         height: 20
+                        Layout.alignment: Qt.AlignVCenter
                         radius: 4
                         color: Qt.rgba(fileDelegate.statusColor.r, fileDelegate.statusColor.g, fileDelegate.statusColor.b, 0.15)
                         border.color: Qt.rgba(fileDelegate.statusColor.r, fileDelegate.statusColor.g, fileDelegate.statusColor.b, 0.5)
@@ -276,7 +277,7 @@ ColumnLayout {
                             : fileDelegate.filePath
                         font.pixelSize: CherryStyle.smallFont.pixelSize
                         font.bold: fileDelegate.highlighted
-                        color: fileDelegate.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                        color: fileDelegate.highlighted ? CherryStyle.accentColor : Kirigami.Theme.textColor
                         elide: Text.ElideMiddle
                         Layout.fillWidth: true
                     }
@@ -384,14 +385,15 @@ ColumnLayout {
                         source: "document-save"
                         width: 16
                         height: 16
-                        color: "#e5a50a"
+                        Layout.alignment: Qt.AlignVCenter
+                        color: CherryStyle.warningColor
                     }
 
                     QQC2.Label {
                         text: qsTr("Stashed Changes")
                         font.bold: true
                         font.pixelSize: CherryStyle.smallFont.pixelSize
-                        color: stashSection.isSelected ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                        color: stashSection.isSelected ? CherryStyle.accentColor : Kirigami.Theme.textColor
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -504,6 +506,7 @@ ColumnLayout {
                             }
                             width: 11
                             height: 11
+                            Layout.alignment: Qt.AlignVCenter
                             color: {
                                 var isPathChange = Boolean(modelData.oldFilePath && modelData.oldFilePath !== modelData.filePath);
                                 var st = modelData.status;
