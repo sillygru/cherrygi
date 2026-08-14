@@ -52,6 +52,7 @@ class AppController : public QObject {
     Q_PROPERTY(QString missingRepoRemoteUrl READ missingRepoRemoteUrl NOTIFY currentRepoChanged)
     Q_PROPERTY(bool isCloneDialogVisible READ isCloneDialogVisible WRITE setCloneDialogVisible NOTIFY cloneDialogVisibleChanged)
     Q_PROPERTY(QString clonePrefillUrl READ clonePrefillUrl NOTIFY cloneDialogVisibleChanged)
+    Q_PROPERTY(QString clonePrefillPath READ clonePrefillPath NOTIFY cloneDialogVisibleChanged)
     Q_PROPERTY(bool isCloning READ isCloning NOTIFY isCloningChanged)
     Q_PROPERTY(QString cloneProgressMessage READ cloneProgressMessage NOTIFY cloneProgressMessageChanged)
 
@@ -238,6 +239,7 @@ public:
     bool isCloneDialogVisible() const { return m_isCloneDialogVisible; }
     void setCloneDialogVisible(bool visible);
     QString clonePrefillUrl() const { return m_clonePrefillUrl; }
+    QString clonePrefillPath() const { return m_clonePrefillPath; }
     bool isCloning() const { return m_isCloning; }
     QString cloneProgressMessage() const { return m_cloneProgressMessage; }
 
@@ -257,7 +259,7 @@ public:
     Q_INVOKABLE void hidePublishDialog();
     Q_INVOKABLE bool publishRepository(const QString &name, const QString &description, bool isPrivate);
 
-    Q_INVOKABLE void showCloneDialog(const QString &prefillUrl = QString());
+    Q_INVOKABLE void showCloneDialog(const QString &prefillUrl = QString(), const QString &prefillPath = QString());
     Q_INVOKABLE void hideCloneDialog();
     Q_INVOKABLE void cloneRepository(const QString &url, const QString &targetDir);
     Q_INVOKABLE void cloneMissingRepository(const QString &targetDir = QString());
@@ -371,6 +373,7 @@ private:
     QString m_loadingRepositoryName;
     bool m_isCloneDialogVisible{false};
     QString m_clonePrefillUrl;
+    QString m_clonePrefillPath;
     bool m_isCloning{false};
     QString m_cloneProgressMessage;
     bool m_isCurrentRepoMissing{false};

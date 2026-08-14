@@ -50,7 +50,11 @@ QQC2.Popup {
         } else {
             urlField.text = "";
         }
-        localPathField.text = "";
+        if (appController.clonePrefillPath !== "") {
+            localPathField.text = appController.clonePrefillPath;
+        } else {
+            localPathField.text = "";
+        }
         urlField.forceActiveFocus();
     }
 

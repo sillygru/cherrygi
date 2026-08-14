@@ -185,7 +185,7 @@ Rectangle {
                             QQC2.Button {
                                 text: qsTr("Clone Again...")
                                 icon.name: "download"
-                                onClicked: appController.showCloneDialog(appController.missingRepoRemoteUrl)
+                                onClicked: appController.showCloneDialog(appController.missingRepoRemoteUrl, appController.missingRepoPath)
                             }
                         }
 
@@ -194,7 +194,7 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: appController.showCloneDialog(appController.missingRepoRemoteUrl)
+                            onClicked: appController.showCloneDialog(appController.missingRepoRemoteUrl, appController.missingRepoPath)
                         }
                     }
 

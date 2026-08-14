@@ -150,7 +150,6 @@ void AppController::selectBackend(const QString &mode)
 {
     setBackendMode(mode);
     hideBackendSelectionDialog();
-    showToast(QString("Active Mode: %1").arg(m_backendMode == "mock" ? "Mock Demo" : "Real Git Backend"));
 }
 
 void AppController::connectServiceSignals()
@@ -761,7 +760,6 @@ void AppController::saveEditorSettings(const QString &editor, const QString &cus
     m_settings->setDefaultEditor(editor);
     m_settings->setCustomEditorCommand(customCmd);
     emit editorSettingsChanged();
-    showToast(QString("Saved editor settings"));
 }
 
 void AppController::saveTerminalSettings(const QString &terminal, const QString &customCmd)
@@ -770,14 +768,12 @@ void AppController::saveTerminalSettings(const QString &terminal, const QString 
     m_settings->setDefaultTerminal(terminal);
     m_settings->setCustomTerminalCommand(customCmd);
     emit terminalSettingsChanged();
-    showToast(QString("Saved terminal settings"));
 }
 
 void AppController::saveAvatarSettings(const QString &provider)
 {
     if (!m_settings) return;
     m_settings->setAvatarProvider(provider);
-    showToast(QString("Saved avatar settings"));
 }
 
 QString AppController::resolveAvatarUrl(const QString &name, const QString &email) const
@@ -808,6 +804,12 @@ void AppController::switchRepository(const QString &repoIdOrPath)
     QString cleanName = QFileInfo(repoIdOrPath).fileName();
     if (cleanName.isEmpty()) cleanName = repoIdOrPath;
 
+    m_selectedFilePath.clear();
+    m_selectedCommitSha.clear();
+    emit selectedFilePathChanged();
+    emit selectedCommitShaChanged();
+    m_diffModel->clear();
+
     m_isLoadingRepository = true;
     m_loadingRepositoryName = cleanName;
     m_loadingRepositoryMessage = tr("Opening repository...");
@@ -829,22 +831,10 @@ void AppController::switchRepository(const QString &repoIdOrPath)
             emit self->operatingStateChanged();
 
             if (ok) {
+                // The service publishes lightweight metadata first and fills
+                // the models from its background refresh. Avoid querying status
+                // or history synchronously on this GUI callback.
                 self->updateCurrentState();
-                auto files = self->m_activeService->getChangedFiles();
-                if (!files.isEmpty()) {
-                    self->setSelectedFilePath(files.first().filePath);
-                } else {
-                    self->m_selectedFilePath.clear();
-                    emit self->selectedFilePathChanged();
-                    self->m_diffModel->clear();
-                }
-                auto commits = self->m_activeService->getCommitHistory(1);
-                if (!commits.isEmpty()) {
-                    self->setSelectedCommitSha(commits.first().sha);
-                } else {
-                    self->m_selectedCommitSha.clear();
-                    emit self->selectedCommitShaChanged();
-                }
             }
         }, Qt::QueuedConnection);
     });
@@ -859,6 +849,12 @@ void AppController::addRepository(const QString &name, const QString &path)
     quint64 seq = ++m_currentLoadSequence;
 
     QString cleanName = name.trimmed().isEmpty() ? QFileInfo(path).fileName() : name.trimmed();
+
+    m_selectedFilePath.clear();
+    m_selectedCommitSha.clear();
+    emit selectedFilePathChanged();
+    emit selectedCommitShaChanged();
+    m_diffModel->clear();
 
     m_isLoadingRepository = true;
     m_loadingRepositoryName = cleanName;
@@ -882,22 +878,10 @@ void AppController::addRepository(const QString &name, const QString &path)
             emit self->operatingStateChanged();
 
             if (ok) {
+                // The service publishes lightweight metadata first and fills
+                // the models from its background refresh. Avoid querying status
+                // or history synchronously on this GUI callback.
                 self->updateCurrentState();
-                auto files = self->m_activeService->getChangedFiles();
-                if (!files.isEmpty()) {
-                    self->setSelectedFilePath(files.first().filePath);
-                } else {
-                    self->m_selectedFilePath.clear();
-                    emit self->selectedFilePathChanged();
-                    self->m_diffModel->clear();
-                }
-                auto commits = self->m_activeService->getCommitHistory(1);
-                if (!commits.isEmpty()) {
-                    self->setSelectedCommitSha(commits.first().sha);
-                } else {
-                    self->m_selectedCommitSha.clear();
-                    emit self->selectedCommitShaChanged();
-                }
             }
         }, Qt::QueuedConnection);
     });
@@ -919,9 +903,10 @@ void AppController::setCloneDialogVisible(bool visible)
     emit cloneDialogVisibleChanged();
 }
 
-void AppController::showCloneDialog(const QString &prefillUrl)
+void AppController::showCloneDialog(const QString &prefillUrl, const QString &prefillPath)
 {
-    m_clonePrefillUrl = prefillUrl.isEmpty() ? m_missingRepoRemoteUrl : prefillUrl;
+    m_clonePrefillUrl = !prefillUrl.isEmpty() ? prefillUrl : (m_isCurrentRepoMissing ? m_missingRepoRemoteUrl : QString());
+    m_clonePrefillPath = !prefillPath.isEmpty() ? prefillPath : (m_isCurrentRepoMissing ? m_missingRepoPath : QString());
     emit cloneDialogVisibleChanged();
     setCloneDialogVisible(true);
 }
@@ -1268,9 +1253,7 @@ void AppController::openInEditor(const QString &filePath)
 {
     if (!m_settings) return;
     bool ok = m_settings->openInEditor(filePath, currentRepoPath());
-    if (ok) {
-        showToast(QString("Opened %1 in %2").arg(filePath.isEmpty() ? currentRepoName() : QFileInfo(filePath).fileName(), m_settings->defaultEditor()));
-    } else {
+    if (!ok) {
         showToast("Could not launch configured text editor", true);
     }
 }
@@ -1286,15 +1269,12 @@ void AppController::openInTerminal(const QString &path)
     if (m_settings) {
         bool started = m_settings->openInTerminal(targetDir);
         if (started) {
-            showToast(QString("Opened terminal in %1").arg(QFileInfo(targetDir).fileName()));
             return;
         }
     }
 
     // Fallback konsole
-    if (QProcess::startDetached("konsole", {"--workdir", targetDir})) {
-        showToast(QString("Opened terminal in %1").arg(QFileInfo(targetDir).fileName()));
-    } else {
+    if (!QProcess::startDetached("konsole", {"--workdir", targetDir})) {
         showToast("Could not launch terminal emulator", true);
     }
 }
@@ -1308,7 +1288,6 @@ void AppController::openInFileManager(const QString &path)
     }
 
     QDesktopServices::openUrl(QUrl::fromLocalFile(targetDir));
-    showToast(QString("Opened file manager in %1").arg(QFileInfo(targetDir).fileName()));
 }
 
 void AppController::openOnGitHub()
@@ -1339,7 +1318,6 @@ void AppController::openOnGitHub()
     }
 
     QDesktopServices::openUrl(QUrl(url));
-    showToast(QString("Opening %1 in browser...").arg(url));
 }
 
 void AppController::createPullRequest()
@@ -1372,7 +1350,6 @@ void AppController::createPullRequest()
     QString prUrl = QString("%1/pull/new/%2").arg(url, branch);
 
     QDesktopServices::openUrl(QUrl(prUrl));
-    showToast(QString("Opening Pull Request in browser..."));
 }
 
 void AppController::hideToast()
