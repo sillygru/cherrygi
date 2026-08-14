@@ -177,7 +177,7 @@ ColumnLayout {
                     spacing: Kirigami.Units.smallSpacing
 
                     // Avatar Circle
-                    Kirigami.Avatar {
+                    CherryAvatar {
                         Layout.alignment: Qt.AlignVCenter
                         implicitWidth: 36
                         implicitHeight: 36

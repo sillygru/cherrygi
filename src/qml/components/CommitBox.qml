@@ -194,7 +194,7 @@ Rectangle {
             spacing: Kirigami.Units.smallSpacing
 
             // User avatar circle
-            Kirigami.Avatar {
+            CherryAvatar {
                 implicitWidth: 28
                 implicitHeight: 28
                 name: appController.currentAuthorName

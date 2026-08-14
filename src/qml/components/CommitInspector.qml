@@ -83,7 +83,7 @@ ColumnLayout {
                 spacing: Kirigami.Units.mediumSpacing
 
                 // Author Avatar
-                Kirigami.Avatar {
+                CherryAvatar {
                     implicitWidth: 34
                     implicitHeight: 34
                     name: (root.commitData && root.commitData.authorName) ? root.commitData.authorName : ""

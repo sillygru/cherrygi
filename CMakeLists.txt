@@ -26,6 +26,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
     Qml
     Quick
     QuickControls2
+    QuickEffects
     Widgets
 )
 
@@ -101,6 +102,7 @@ qt_add_qml_module(cherrygi
         src/qml/components/SidebarPanel.qml
         src/qml/components/ChangesTab.qml
         src/qml/components/HistoryTab.qml
+        src/qml/components/CherryAvatar.qml
         src/qml/components/CommitBox.qml
         src/qml/components/MainContentArea.qml
         src/qml/components/DiffHeader.qml
@@ -125,6 +127,7 @@ target_link_libraries(cherrygi PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
+    Qt6::QuickEffects
     Qt6::Widgets
     ZLIB::ZLIB
     KF6::Kirigami

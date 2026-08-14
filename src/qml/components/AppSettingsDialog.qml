@@ -1012,7 +1012,7 @@ QQC2.Popup {
                         Layout.fillWidth: true
                         spacing: Kirigami.Units.mediumSpacing
 
-                        Kirigami.Avatar {
+                        CherryAvatar {
                             implicitWidth: 44
                             implicitHeight: 44
                             name: globalNameField.text.length > 0 ? globalNameField.text : appController.currentAuthorName
