@@ -83,19 +83,12 @@ ColumnLayout {
                 spacing: Kirigami.Units.mediumSpacing
 
                 // Author Avatar
-                Rectangle {
-                    width: 34
-                    height: 34
-                    radius: 17
+                Kirigami.Avatar {
+                    implicitWidth: 34
+                    implicitHeight: 34
+                    name: (root.commitData && root.commitData.authorName) ? root.commitData.authorName : ""
+                    source: (root.commitData && root.commitData.authorAvatarUrl) ? root.commitData.authorAvatarUrl : ""
                     color: avatarColor(root.commitData && root.commitData.authorName ? root.commitData.authorName : "")
-
-                    QQC2.Label {
-                        anchors.centerIn: parent
-                        text: (root.commitData && root.commitData.authorName && root.commitData.authorName.length > 0) ? root.commitData.authorName.charAt(0).toUpperCase() : "G"
-                        font.bold: true
-                        font.pixelSize: 14
-                        color: Kirigami.Theme.highlightedTextColor
-                    }
                 }
 
                 // Author details

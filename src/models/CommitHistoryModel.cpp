@@ -1,4 +1,5 @@
 #include "CommitHistoryModel.h"
+#include "AvatarResolver.h"
 #include <QColor>
 
 namespace Cherry {
@@ -54,7 +55,7 @@ QVariant CommitHistoryModel::data(const QModelIndex &index, int role) const
     case AuthorEmailRole:
         return commit.authorEmail;
     case AuthorAvatarUrlRole:
-        return commit.authorAvatarUrl;
+        return !commit.authorAvatarUrl.isEmpty() ? commit.authorAvatarUrl : AvatarResolver::resolve(commit.authorName, commit.authorEmail);
     case RelativeTimeRole:
         return commit.relativeTime;
     case TimestampRole:

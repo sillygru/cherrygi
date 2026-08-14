@@ -177,20 +177,13 @@ ColumnLayout {
                     spacing: Kirigami.Units.smallSpacing
 
                     // Avatar Circle
-                    Rectangle {
-                        width: 36
-                        height: 36
-                        radius: 18
-                        color: commitDelegate.authorColor
+                    Kirigami.Avatar {
                         Layout.alignment: Qt.AlignVCenter
-
-                        QQC2.Label {
-                            anchors.centerIn: parent
-                            text: commitDelegate.authorInitial
-                            font.bold: true
-                            font.pixelSize: 14
-                            color: Kirigami.Theme.highlightedTextColor
-                        }
+                        implicitWidth: 36
+                        implicitHeight: 36
+                        name: commitDelegate.authorName
+                        source: commitDelegate.authorAvatarUrl
+                        color: commitDelegate.authorColor
                     }
 
                     // Metadata

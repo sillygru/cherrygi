@@ -194,28 +194,21 @@ Rectangle {
             spacing: Kirigami.Units.smallSpacing
 
             // User avatar circle
-            Rectangle {
-                width: 28
-                height: 28
-                radius: 14
+            Kirigami.Avatar {
+                implicitWidth: 28
+                implicitHeight: 28
+                name: appController.currentAuthorName
+                source: appController.currentAuthorAvatarUrl
                 color: avatarColor(appController.currentAuthorName)
                 Layout.alignment: Qt.AlignVCenter
 
-                QQC2.ToolTip.text: appController.currentAuthorName
+                QQC2.ToolTip.text: appController.currentAuthorEmail.length > 0 ? (appController.currentAuthorName + " <" + appController.currentAuthorEmail + ">") : appController.currentAuthorName
                 QQC2.ToolTip.visible: avatarMouse.containsMouse
 
                 MouseArea {
                     id: avatarMouse
                     anchors.fill: parent
                     hoverEnabled: true
-                }
-
-                QQC2.Label {
-                    anchors.centerIn: parent
-                    text: appController.currentAuthorInitial
-                    font.bold: true
-                    font.pixelSize: 12
-                    color: Kirigami.Theme.highlightedTextColor
                 }
             }
 

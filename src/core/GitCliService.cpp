@@ -1,5 +1,6 @@
 #include "GitCliService.h"
 #include "AppSettings.h"
+#include "AvatarResolver.h"
 #include <QProcess>
 #include <QDir>
 #include <QFileInfo>
@@ -1357,6 +1358,7 @@ QList<CommitItem> GitCliService::getCommitHistory(int limit)
             item.description = fields[3].trimmed();
             item.authorName = fields[4].trimmed();
             item.authorEmail = fields[5].trimmed();
+            item.authorAvatarUrl = AvatarResolver::resolve(item.authorName, item.authorEmail);
             qint64 epoch = fields[6].trimmed().toLongLong();
             item.timestamp = QDateTime::fromSecsSinceEpoch(epoch, QTimeZone::UTC);
             item.relativeTime = formatRelativeTime(item.timestamp);
@@ -1408,6 +1410,7 @@ std::optional<CommitItem> GitCliService::getCommitDetails(const QString &sha)
             commit.description = fields[3].trimmed();
             commit.authorName = fields[4].trimmed();
             commit.authorEmail = fields[5].trimmed();
+            commit.authorAvatarUrl = AvatarResolver::resolve(commit.authorName, commit.authorEmail);
             const qint64 epoch = fields[6].trimmed().toLongLong();
             commit.timestamp = QDateTime::fromSecsSinceEpoch(epoch, QTimeZone::UTC);
             commit.relativeTime = formatRelativeTime(commit.timestamp);

@@ -1,4 +1,5 @@
 #include "AppController.h"
+#include "AvatarResolver.h"
 #include <QVariantMap>
 #include <QFileDialog>
 #include <QDesktopServices>
@@ -39,6 +40,16 @@ AppController::AppController(QObject *parent)
 
     connectServiceSignals();
     updateCurrentState();
+
+    if (m_settings) {
+        connect(m_settings.get(), &AppSettings::avatarProviderChanged, this, [this]() {
+            emit currentRepoChanged();
+            if (m_commitHistoryModel) {
+                m_commitHistoryModel->reload();
+            }
+            emit avatarProviderChanged();
+        });
+    }
 
     // Auto-refresh when app enters foreground / becomes active
     connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
@@ -327,11 +338,27 @@ QString AppController::currentAuthorName() const
     return m_activeService->getAuthorName();
 }
 
+QString AppController::currentAuthorEmail() const
+{
+    if (!m_activeService) return "";
+    return m_activeService->getAuthorEmail();
+}
+
 QString AppController::currentAuthorInitial() const
 {
     QString name = currentAuthorName().trimmed();
     if (name.isEmpty()) return "U";
     return name.left(1).toUpper();
+}
+
+QString AppController::currentAuthorAvatarUrl() const
+{
+    return AvatarResolver::resolve(currentAuthorName(), currentAuthorEmail());
+}
+
+QString AppController::avatarProvider() const
+{
+    return m_settings ? m_settings->avatarProvider() : "auto";
 }
 
 bool AppController::isGhAvailable() const
@@ -722,6 +749,18 @@ void AppController::saveTerminalSettings(const QString &terminal, const QString 
     m_settings->setCustomTerminalCommand(customCmd);
     emit terminalSettingsChanged();
     showToast(QString("Saved terminal settings"));
+}
+
+void AppController::saveAvatarSettings(const QString &provider)
+{
+    if (!m_settings) return;
+    m_settings->setAvatarProvider(provider);
+    showToast(QString("Saved avatar settings"));
+}
+
+QString AppController::resolveAvatarUrl(const QString &name, const QString &email) const
+{
+    return AvatarResolver::resolve(name, email);
 }
 
 void AppController::openLocalRepositoryDialog()

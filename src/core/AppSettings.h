@@ -36,6 +36,7 @@ class AppSettings : public QObject {
     Q_PROPERTY(bool showWhitespace READ showWhitespace WRITE setShowWhitespace NOTIFY showWhitespaceChanged)
     Q_PROPERTY(int tabSize READ tabSize WRITE setTabSize NOTIFY tabSizeChanged)
     Q_PROPERTY(QString startupBackend READ startupBackend WRITE setStartupBackend NOTIFY startupBackendChanged)
+    Q_PROPERTY(QString avatarProvider READ avatarProvider WRITE setAvatarProvider NOTIFY avatarProviderChanged)
     Q_PROPERTY(bool isGhAvailable READ isGhAvailable CONSTANT)
     Q_PROPERTY(QStringList availableEditors READ availableEditors CONSTANT)
     Q_PROPERTY(QStringList availableTerminals READ availableTerminals CONSTANT)
@@ -76,6 +77,9 @@ public:
     QString startupBackend() const { return m_startupBackend; }
     void setStartupBackend(const QString &backend);
 
+    QString avatarProvider() const { return m_avatarProvider; }
+    void setAvatarProvider(const QString &provider);
+
     // Discovery & Capabilities
     bool isGhAvailable() const;
     QStringList availableEditors() const;
@@ -94,6 +98,7 @@ signals:
     void showWhitespaceChanged();
     void tabSizeChanged();
     void startupBackendChanged();
+    void avatarProviderChanged();
 
 private:
     void detectTools();
@@ -111,6 +116,7 @@ private:
     bool m_showWhitespace{true};
     int m_tabSize{4};
     QString m_startupBackend{"real"};
+    QString m_avatarProvider{"auto"};
 
     QMap<QString, EditorInfo> m_knownEditors;
     QMap<QString, TerminalInfo> m_knownTerminals;

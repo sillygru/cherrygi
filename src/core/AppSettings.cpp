@@ -109,6 +109,7 @@ void AppSettings::loadSettings()
     m_showWhitespace = settings.value("General/showWhitespace", true).toBool();
     m_tabSize = settings.value("General/tabSize", 4).toInt();
     m_startupBackend = settings.value("General/startupBackend", "real").toString();
+    m_avatarProvider = settings.value("General/avatarProvider", "auto").toString();
 }
 
 void AppSettings::saveSettings()
@@ -122,6 +123,7 @@ void AppSettings::saveSettings()
     settings.setValue("General/showWhitespace", m_showWhitespace);
     settings.setValue("General/tabSize", m_tabSize);
     settings.setValue("General/startupBackend", m_startupBackend);
+    settings.setValue("General/avatarProvider", m_avatarProvider);
 }
 
 void AppSettings::setDefaultEditor(const QString &editorId)
@@ -186,6 +188,14 @@ void AppSettings::setStartupBackend(const QString &backend)
     m_startupBackend = backend;
     saveSettings();
     emit startupBackendChanged();
+}
+
+void AppSettings::setAvatarProvider(const QString &provider)
+{
+    if (m_avatarProvider == provider) return;
+    m_avatarProvider = provider;
+    saveSettings();
+    emit avatarProviderChanged();
 }
 
 bool AppSettings::isGhAvailable() const

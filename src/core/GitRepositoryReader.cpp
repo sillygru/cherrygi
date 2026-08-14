@@ -1,4 +1,5 @@
 #include "GitRepositoryReader.h"
+#include "AvatarResolver.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -611,6 +612,7 @@ std::optional<CommitItem> GitRepositoryReader::parseCommit(const QString &sha, b
             if (match.hasMatch()) {
                 commit.authorName = match.captured(1);
                 commit.authorEmail = match.captured(2);
+                commit.authorAvatarUrl = AvatarResolver::resolve(commit.authorName, commit.authorEmail);
                 commit.timestamp = QDateTime::fromSecsSinceEpoch(match.captured(3).toLongLong(), QTimeZone::UTC);
             }
         }

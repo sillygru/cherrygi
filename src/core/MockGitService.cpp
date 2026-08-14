@@ -1,4 +1,5 @@
 #include "MockGitService.h"
+#include "AvatarResolver.h"
 #include <QUuid>
 #include <QRandomGenerator>
 #include <QFileInfo>
@@ -717,7 +718,7 @@ bool MockGitService::createCommit(const QString &summary, const QString &descrip
     newCommit.description = description;
     newCommit.authorName = "You (Local User)";
     newCommit.authorEmail = "user@kde-plasma.local";
-    newCommit.authorAvatarUrl = "";
+    newCommit.authorAvatarUrl = AvatarResolver::resolve(newCommit.authorName, newCommit.authorEmail);
     newCommit.timestamp = QDateTime::currentDateTime();
     newCommit.relativeTime = "Just now";
     newCommit.coAuthors = coAuthors;

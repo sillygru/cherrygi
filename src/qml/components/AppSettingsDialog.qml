@@ -125,6 +125,13 @@ QQC2.Popup {
             }
         }
 
+        if (avatarProviderCombo.currentIndex >= 0) {
+            var selectedProv = avatarProviderCombo.model[avatarProviderCombo.currentIndex].value;
+            if (selectedProv !== appController.avatarProvider) {
+                appController.saveAvatarSettings(selectedProv);
+            }
+        }
+
         if (pendingDiffViewMode !== appController.diffViewMode) {
             appController.diffViewMode = pendingDiffViewMode;
         }
@@ -174,6 +181,15 @@ QQC2.Popup {
             var titem = terminalCombo.model[j];
             if (titem.split("|")[0] === appController.defaultTerminal) {
                 terminalCombo.currentIndex = j;
+                break;
+            }
+        }
+
+        // Select active avatar provider in combo
+        avatarProviderCombo.currentIndex = 0;
+        for (var k = 0; k < avatarProviderCombo.model.length; ++k) {
+            if (avatarProviderCombo.model[k].value === appController.avatarProvider) {
+                avatarProviderCombo.currentIndex = k;
                 break;
             }
         }
@@ -980,6 +996,74 @@ QQC2.Popup {
                                 border.width: globalEmailField.activeFocus ? 2 : 1
                                 radius: CherryStyle.radiusSmall
                             }
+                        }
+                    }
+
+                    // Avatar Service / Profile Pictures Section
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: 1
+                        color: CherryStyle.separatorColor
+                        Layout.topMargin: Kirigami.Units.smallSpacing
+                        Layout.bottomMargin: Kirigami.Units.smallSpacing
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.mediumSpacing
+
+                        Kirigami.Avatar {
+                            implicitWidth: 44
+                            implicitHeight: 44
+                            name: globalNameField.text.length > 0 ? globalNameField.text : appController.currentAuthorName
+                            source: appController.resolveAvatarUrl(globalNameField.text, globalEmailField.text.length > 0 ? globalEmailField.text : appController.currentAuthorEmail)
+                            color: CherryStyle.accentColor
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+
+                            QQC2.Label {
+                                text: qsTr("Author Profile Picture & Avatars")
+                                font.bold: true
+                                font.pixelSize: CherryStyle.basePixelSize
+                                color: Kirigami.Theme.textColor
+                            }
+
+                            QQC2.Label {
+                                text: qsTr("Resolves author profile pictures from GitHub, GitLab, Codeberg, and Gravatar/Libravatar based on commit emails.")
+                                font.pixelSize: CherryStyle.smallFont.pixelSize
+                                color: CherryStyle.secondaryTextColor
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        QQC2.Label {
+                            text: qsTr("Avatar Provider Service")
+                            font.bold: true
+                            font.pixelSize: CherryStyle.smallFont.pixelSize
+                            color: Kirigami.Theme.textColor
+                        }
+
+                        QQC2.ComboBox {
+                            id: avatarProviderCombo
+                            Layout.fillWidth: true
+                            textRole: "text"
+                            valueRole: "value"
+                            model: [
+                                { text: qsTr("Automatic (GitHub, GitLab, Codeberg, Gravatar)"), value: "auto" },
+                                { text: qsTr("Gravatar (https://gravatar.com)"), value: "gravatar" },
+                                { text: qsTr("Libravatar (https://libravatar.org)"), value: "libravatar" },
+                                { text: qsTr("Disabled (Colored initial badges only)"), value: "none" }
+                            ]
                         }
                     }
                 }

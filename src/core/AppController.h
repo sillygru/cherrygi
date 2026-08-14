@@ -41,7 +41,10 @@ class AppController : public QObject {
     Q_PROPERTY(QString currentBranchPr READ currentBranchPr NOTIFY currentBranchChanged)
     Q_PROPERTY(bool currentBranchPrActive READ currentBranchPrActive NOTIFY currentBranchChanged)
     Q_PROPERTY(QString currentAuthorName READ currentAuthorName NOTIFY currentRepoChanged)
+    Q_PROPERTY(QString currentAuthorEmail READ currentAuthorEmail NOTIFY currentRepoChanged)
     Q_PROPERTY(QString currentAuthorInitial READ currentAuthorInitial NOTIFY currentRepoChanged)
+    Q_PROPERTY(QString currentAuthorAvatarUrl READ currentAuthorAvatarUrl NOTIFY currentRepoChanged)
+    Q_PROPERTY(QString avatarProvider READ avatarProvider NOTIFY avatarProviderChanged)
     Q_PROPERTY(bool isCurrentRepoMissing READ isCurrentRepoMissing NOTIFY currentRepoChanged)
     Q_PROPERTY(QString missingRepoPath READ missingRepoPath NOTIFY currentRepoChanged)
     Q_PROPERTY(QString missingRepoName READ missingRepoName NOTIFY currentRepoChanged)
@@ -148,7 +151,10 @@ public:
     QString currentBranchPr() const;
     bool currentBranchPrActive() const;
     QString currentAuthorName() const;
+    QString currentAuthorEmail() const;
     QString currentAuthorInitial() const;
+    QString currentAuthorAvatarUrl() const;
+    QString avatarProvider() const;
 
     bool hasRemote() const { return m_remoteStatus.hasRemote; }
     bool isGitHubRemote() const;
@@ -265,6 +271,8 @@ public:
     Q_INVOKABLE bool saveAuthorInfo(const QString &name, const QString &email, bool global = false);
     Q_INVOKABLE void saveEditorSettings(const QString &editor, const QString &customCmd);
     Q_INVOKABLE void saveTerminalSettings(const QString &terminal, const QString &customCmd);
+    Q_INVOKABLE void saveAvatarSettings(const QString &provider);
+    Q_INVOKABLE QString resolveAvatarUrl(const QString &name, const QString &email) const;
 
     Q_INVOKABLE void openLocalRepositoryDialog();
     Q_INVOKABLE void switchRepository(const QString &repoIdOrPath);
@@ -335,6 +343,7 @@ signals:
     void settingsTabChanged();
     void editorSettingsChanged();
     void terminalSettingsChanged();
+    void avatarProviderChanged();
     void authorInfoChanged();
     void toastChanged();
 

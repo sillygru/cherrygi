@@ -55,6 +55,8 @@ set(CHERRYGI_SOURCES
     src/core/MockGitService.cpp
     src/core/AppSettings.h
     src/core/AppSettings.cpp
+    src/core/AvatarResolver.h
+    src/core/AvatarResolver.cpp
     src/core/GitImageProvider.h
     src/core/GitImageProvider.cpp
     src/core/AppController.h
