@@ -47,11 +47,13 @@ public:
     bool discardFileChanges(const QString &filePath) override;
     bool discardAllChanges() override;
 
-    // Diff
+    // Diff & Blobs
     QList<DiffLine> getDiffForFile(const QString &filePath) override;
     bool isFileMetadataOnly(const QString &filePath) override;
     QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath) override;
     QList<DiffLine> getDiffForStashFile(const QString &stashId, const QString &filePath) override;
+    QByteArray getFileBlob(const QString &filePath, const QString &ref = QString()) override;
+    bool isImageFile(const QString &filePath) const override;
 
     // Commit & History
     QList<CommitItem> getCommitHistory(int limit = 100) override;

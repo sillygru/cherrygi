@@ -35,11 +35,13 @@ public:
     virtual bool discardFileChanges(const QString &filePath) = 0;
     virtual bool discardAllChanges() = 0;
 
-    // Diff
+    // Diff & Blobs
     virtual QList<DiffLine> getDiffForFile(const QString &filePath) = 0;
     virtual bool isFileMetadataOnly(const QString &filePath) = 0;
     virtual QList<DiffLine> getDiffForCommitFile(const QString &commitSha, const QString &filePath) = 0;
     virtual QList<DiffLine> getDiffForStashFile(const QString &stashId, const QString &filePath) = 0;
+    virtual QByteArray getFileBlob(const QString &filePath, const QString &ref = QString()) = 0;
+    virtual bool isImageFile(const QString &filePath) const = 0;
 
     // Commit & History
     virtual QList<CommitItem> getCommitHistory(int limit = 100) = 0;

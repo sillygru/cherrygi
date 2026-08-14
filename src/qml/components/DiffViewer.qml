@@ -109,7 +109,7 @@ ColumnLayout {
         // Empty state when no file or empty diff
         Item {
             anchors.centerIn: parent
-            visible: !appController.diffModel.isLoading && !appController.diffModel.metadataOnly && appController.diffModel.count === 0
+            visible: !appController.diffModel.isLoading && !appController.diffModel.metadataOnly && !appController.diffModel.isImage && (appController.diffModel.count === 0 || !root.filePath || root.filePath.length === 0)
             width: parent.width - 60
             height: 140
 
@@ -126,7 +126,7 @@ ColumnLayout {
                 }
 
                 QQC2.Label {
-                    text: qsTr("No diff to display")
+                    text: (root.filePath && root.filePath.length > 0) ? qsTr("No diff to display") : qsTr("No file selected")
                     font.bold: true
                     font.pixelSize: CherryStyle.basePixelSize + 2
                     Layout.alignment: Qt.AlignHCenter
@@ -134,7 +134,7 @@ ColumnLayout {
                 }
 
                 QQC2.Label {
-                    text: qsTr("Select a modified file from the changes list to view the diff.")
+                    text: (root.filePath && root.filePath.length > 0) ? qsTr("This file has no uncommitted changes or difference to display.") : qsTr("Select a modified file from the changes list to view the diff.")
                     font.pixelSize: CherryStyle.smallFont.pixelSize
                     Layout.alignment: Qt.AlignHCenter
                     color: Kirigami.Theme.disabledTextColor
@@ -143,11 +143,19 @@ ColumnLayout {
         }
 
         // ==========================================
+        // IMAGE DIFF VIEW
+        // ==========================================
+        ImageDiffViewer {
+            anchors.fill: parent
+            visible: !appController.diffModel.isLoading && appController.diffModel.isImage && Boolean(root.filePath && root.filePath.length > 0)
+        }
+
+        // ==========================================
         // UNIFIED DIFF VIEW
         // ==========================================
         QQC2.ScrollView {
             anchors.fill: parent
-            visible: !appController.diffModel.isLoading && appController.diffModel.count > 0 && appController.diffViewMode === "unified"
+            visible: !appController.diffModel.isLoading && !appController.diffModel.isImage && appController.diffModel.count > 0 && appController.diffViewMode === "unified" && Boolean(root.filePath && root.filePath.length > 0)
             clip: true
 
             ListView {
@@ -278,7 +286,7 @@ ColumnLayout {
         // ==========================================
         QQC2.ScrollView {
             anchors.fill: parent
-            visible: !appController.diffModel.isLoading && appController.diffModel.count > 0 && appController.diffViewMode === "split"
+            visible: !appController.diffModel.isLoading && !appController.diffModel.isImage && appController.diffModel.count > 0 && appController.diffViewMode === "split" && Boolean(root.filePath && root.filePath.length > 0)
             clip: true
 
             RowLayout {

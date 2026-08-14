@@ -925,6 +925,52 @@ QList<DiffLine> GitCliService::getDiffForStashFile(const QString &stashId, const
     return parseDiffOutput(res.stdOut);
 }
 
+QByteArray GitCliService::getFileBlob(const QString &filePath, const QString &ref)
+{
+    if (m_repoPath.isEmpty() || filePath.isEmpty()) return {};
+
+    if (ref.isEmpty()) {
+        // Read directly from disk (working copy)
+        QString fullPath = m_repoPath + "/" + filePath;
+        QFile file(fullPath);
+        if (file.open(QIODevice::ReadOnly)) {
+            return file.readAll();
+        }
+        return {};
+    }
+
+    // Capture binary output from git show <ref>:<path>
+    QProcess process;
+    process.setWorkingDirectory(m_repoPath);
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("LC_ALL", "C");
+    env.insert("GIT_TERMINAL_PROMPT", "0");
+    process.setProcessEnvironment(env);
+
+    process.start("git", {"show", QString("%1:%2").arg(ref, filePath)});
+    bool finished = process.waitForFinished(5000);
+    if (!finished) {
+        process.kill();
+        process.waitForFinished(500);
+        return {};
+    }
+
+    if (process.exitCode() == 0) {
+        return process.readAllStandardOutput();
+    }
+    return {};
+}
+
+bool GitCliService::isImageFile(const QString &filePath) const
+{
+    if (filePath.isEmpty()) return false;
+    static const QStringList imageExtensions = {
+        "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif", "tif", "tiff"
+    };
+    const QString ext = QFileInfo(filePath).suffix().toLower();
+    return imageExtensions.contains(ext);
+}
+
 QList<CommitItem> GitCliService::getCommitHistory(int limit)
 {
     QMutexLocker locker(&m_cacheMutex);

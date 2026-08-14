@@ -51,6 +51,8 @@ AppController::AppController(QObject *parent)
     auto files = m_activeService->getChangedFiles();
     if (!files.isEmpty()) {
         setSelectedFilePath(files.first().filePath);
+    } else {
+        m_diffModel->clear();
     }
 
     // Select initial commit
@@ -304,6 +306,8 @@ void AppController::setActiveTab(const QString &tab)
     if (m_activeTab == "changes") {
         if (!m_selectedFilePath.isEmpty()) {
             m_diffModel->loadDiffForFile(m_selectedFilePath);
+        } else {
+            m_diffModel->clear();
         }
     } else if (m_activeTab == "history") {
         if (!m_selectedCommitSha.isEmpty()) {
@@ -312,6 +316,8 @@ void AppController::setActiveTab(const QString &tab)
             auto commits = m_activeService->getCommitHistory(1);
             if (!commits.isEmpty()) {
                 selectCommit(commits.first().sha);
+            } else {
+                m_diffModel->clear();
             }
         }
     }
@@ -661,11 +667,16 @@ void AppController::switchRepository(const QString &repoIdOrPath)
                 if (!files.isEmpty()) {
                     self->setSelectedFilePath(files.first().filePath);
                 } else {
+                    self->m_selectedFilePath.clear();
+                    emit self->selectedFilePathChanged();
                     self->m_diffModel->clear();
                 }
                 auto commits = self->m_activeService->getCommitHistory(1);
                 if (!commits.isEmpty()) {
                     self->setSelectedCommitSha(commits.first().sha);
+                } else {
+                    self->m_selectedCommitSha.clear();
+                    emit self->selectedCommitShaChanged();
                 }
             }
         }, Qt::QueuedConnection);
@@ -708,11 +719,16 @@ void AppController::addRepository(const QString &name, const QString &path)
                 if (!files.isEmpty()) {
                     self->setSelectedFilePath(files.first().filePath);
                 } else {
+                    self->m_selectedFilePath.clear();
+                    emit self->selectedFilePathChanged();
                     self->m_diffModel->clear();
                 }
                 auto commits = self->m_activeService->getCommitHistory(1);
                 if (!commits.isEmpty()) {
                     self->setSelectedCommitSha(commits.first().sha);
+                } else {
+                    self->m_selectedCommitSha.clear();
+                    emit self->selectedCommitShaChanged();
                 }
             }
         }, Qt::QueuedConnection);
@@ -930,6 +946,8 @@ void AppController::clearStashSelection()
     emit selectedStashIdChanged();
     if (!m_selectedFilePath.isEmpty()) {
         m_diffModel->loadDiffForFile(m_selectedFilePath);
+    } else {
+        m_diffModel->clear();
     }
 }
 

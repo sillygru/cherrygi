@@ -10,6 +10,7 @@
 #include <cstdlib>
 
 #include "core/AppController.h"
+#include "core/GitImageProvider.h"
 
 static void cherryMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
@@ -84,6 +85,7 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonInstance("org.kde.cherrygi", 1, 0, "AppController", &appController);
 
     QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("gitimage"), new Cherry::GitImageProvider(&appController));
     engine.rootContext()->setContextProperty("appController", &appController);
 
     // Forward all QML runtime warnings to the message handler with precise location details

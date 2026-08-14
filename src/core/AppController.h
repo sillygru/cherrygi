@@ -126,6 +126,7 @@ public:
     CommitHistoryModel* commitHistory() const { return m_commitHistoryModel; }
     DiffModel* diffModel() const { return m_diffModel; }
     StashModel* stashes() const { return m_stashModel; }
+    IGitService* activeService() const { return m_activeService; }
 
     QString currentRepoName() const;
     QString currentRepoPath() const;

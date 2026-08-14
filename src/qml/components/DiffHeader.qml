@@ -107,10 +107,10 @@ Rectangle {
             Layout.fillWidth: true
         }
 
-        // Additions / Deletions Stats
+        // Additions / Deletions Stats (Code / Text only)
         RowLayout {
             spacing: 3
-            visible: root.additions > 0 || root.deletions > 0
+            visible: !appController.diffModel.isImage && (root.additions > 0 || root.deletions > 0)
 
             Rectangle {
                 visible: root.additions > 0
@@ -151,6 +151,42 @@ Rectangle {
             }
         }
 
+        // Image Diff Mode Buttons (Image only)
+        RowLayout {
+            spacing: 2
+            visible: appController.diffModel.isImage && root.filePath.length > 0
+
+            QQC2.ToolButton {
+                text: qsTr("2-Up")
+                icon.name: "view-split-left-right"
+                checkable: true
+                checked: appController.diffModel.imageDiffMode === "2-up"
+                QQC2.ToolTip.text: qsTr("Side-by-side 2-Up Image Comparison")
+                QQC2.ToolTip.visible: hovered
+                onClicked: appController.diffModel.imageDiffMode = "2-up"
+            }
+
+            QQC2.ToolButton {
+                text: qsTr("Swipe")
+                icon.name: "transform-crop-and-resize"
+                checkable: true
+                checked: appController.diffModel.imageDiffMode === "swipe"
+                QQC2.ToolTip.text: qsTr("Swipe Slider Split Image Comparison")
+                QQC2.ToolTip.visible: hovered
+                onClicked: appController.diffModel.imageDiffMode = "swipe"
+            }
+
+            QQC2.ToolButton {
+                text: qsTr("Onion Skin")
+                icon.name: "view-opacity"
+                checkable: true
+                checked: appController.diffModel.imageDiffMode === "onion"
+                QQC2.ToolTip.text: qsTr("Onion Skin Opacity Blending")
+                QQC2.ToolTip.visible: hovered
+                onClicked: appController.diffModel.imageDiffMode = "onion"
+            }
+        }
+
         // Open in Editor ToolButton
         QQC2.ToolButton {
             icon.name: "accessories-text-editor"
@@ -160,11 +196,12 @@ Rectangle {
             onClicked: appController.openInEditor(root.filePath)
         }
 
-        // Split / Unified Toggle Button
+        // Split / Unified Toggle Button (Code / Text only)
         QQC2.ToolButton {
             icon.name: appController.diffViewMode === "split" ? "view-split-left-right" : "view-list-details"
             checkable: true
             checked: appController.diffViewMode === "split"
+            visible: !appController.diffModel.isImage && root.filePath.length > 0
             QQC2.ToolTip.text: appController.diffViewMode === "split" ? qsTr("Switch to Unified Diff") : qsTr("Switch to Split Diff")
             QQC2.ToolTip.visible: hovered
             onClicked: {
@@ -172,11 +209,12 @@ Rectangle {
             }
         }
 
-        // Whitespace Toggle
+        // Whitespace Toggle (Code / Text only)
         QQC2.ToolButton {
             icon.name: "format-indent-more"
             checkable: true
             checked: appController.showWhitespace
+            visible: !appController.diffModel.isImage && root.filePath.length > 0
             QQC2.ToolTip.text: appController.showWhitespace ? qsTr("Hide Whitespace Changes") : qsTr("Show Whitespace Changes")
             QQC2.ToolTip.visible: hovered
             onClicked: {
@@ -187,6 +225,7 @@ Rectangle {
         // Gear options menu
         QQC2.ToolButton {
             icon.name: "configure"
+            visible: root.filePath.length > 0
             onClicked: diffOptionsMenu.popup(this, 0, this.height)
         }
     }

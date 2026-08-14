@@ -55,6 +55,8 @@ set(CHERRYGI_SOURCES
     src/core/MockGitService.cpp
     src/core/AppSettings.h
     src/core/AppSettings.cpp
+    src/core/GitImageProvider.h
+    src/core/GitImageProvider.cpp
     src/core/AppController.h
     src/core/AppController.cpp
     src/models/RepositoryListModel.h
@@ -101,6 +103,7 @@ qt_add_qml_module(cherrygi
         src/qml/components/MainContentArea.qml
         src/qml/components/DiffHeader.qml
         src/qml/components/DiffViewer.qml
+        src/qml/components/ImageDiffViewer.qml
         src/qml/components/CommitInspector.qml
         src/qml/components/StashInspector.qml
         src/qml/components/UndoToast.qml

@@ -1,6 +1,7 @@
 #include "MockGitService.h"
 #include <QUuid>
 #include <QRandomGenerator>
+#include <QFileInfo>
 
 namespace Cherry {
 
@@ -586,6 +587,38 @@ QList<DiffLine> MockGitService::getDiffForStashFile(const QString &stashId, cons
         }
     }
     return {};
+}
+
+QByteArray MockGitService::getFileBlob(const QString &filePath, const QString &ref)
+{
+    Q_UNUSED(ref);
+    if (filePath.isEmpty()) return {};
+
+    // For mock demonstration, generate a valid minimal SVG image if image format requested
+    if (isImageFile(filePath)) {
+        QString color = ref.isEmpty() ? "#3daee9" : "#27ae60";
+        QString label = ref.isEmpty() ? "New Image" : "Old Image";
+        QString svg = QString(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"400\" height=\"300\" viewBox=\"0 0 400 300\">"
+            "<rect width=\"400\" height=\"300\" fill=\"#1e2022\" rx=\"12\"/>"
+            "<circle cx=\"200\" cy=\"130\" r=\"60\" fill=\"%1\" opacity=\"0.85\"/>"
+            "<text x=\"200\" y=\"230\" fill=\"#ffffff\" font-size=\"20\" font-family=\"sans-serif\" text-anchor=\"middle\" font-weight=\"bold\">%2</text>"
+            "<text x=\"200\" y=\"260\" fill=\"#888888\" font-size=\"13\" font-family=\"sans-serif\" text-anchor=\"middle\">%3</text>"
+            "</svg>"
+        ).arg(color, label, filePath);
+        return svg.toUtf8();
+    }
+    return {};
+}
+
+bool MockGitService::isImageFile(const QString &filePath) const
+{
+    if (filePath.isEmpty()) return false;
+    static const QStringList imageExtensions = {
+        "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif", "tif", "tiff"
+    };
+    const QString ext = QFileInfo(filePath).suffix().toLower();
+    return imageExtensions.contains(ext);
 }
 
 QList<CommitItem> MockGitService::getCommitHistory(int limit)
