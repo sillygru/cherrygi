@@ -105,12 +105,141 @@ void GitCliService::invalidateRepositoryCaches()
     m_commitDetailsCache.clear();
 }
 
+void GitCliService::invalidateRefreshCaches()
+{
+    // Keep the last complete snapshot visible while the replacement snapshot
+    // is built. This is the same stale-while-revalidate shape used by Desktop's
+    // per-repository GitStore and prevents refreshes from blanking the UI.
+    QMutexLocker locker(&m_cacheMutex);
+    m_repositoryReader.refresh();
+    m_changedFilesCacheValid = false;
+    m_branchesCacheValid = false;
+    m_currentBranchCacheValid = false;
+    m_commitHistoryCacheValid = false;
+    m_stashesCacheValid = false;
+    m_remoteStatusCacheValid = false;
+    m_fileDiffCacheValid = false;
+    m_commitDetailsCache.clear();
+}
+
+bool GitCliService::shouldReturnStaleCache() const
+{
+    return m_refreshInProgress && QThread::currentThread() == thread();
+}
+
+bool GitCliService::shouldDeferExpensiveInitialRead() const
+{
+    return m_initialLoadPending.load(std::memory_order_acquire) && QThread::currentThread() == thread();
+}
+
+void GitCliService::loadAuthorCache()
+{
+    const RepositoryMetadata previous = m_repositoryMetadata.value(m_repoPath);
+    const GitResult name = runGit({"config", "--get", "user.name"}, QString(), 1000);
+    const GitResult email = runGit({"config", "--get", "user.email"}, QString(), 1000);
+    m_authorNameCache = name.success && !name.stdOut.trimmed().isEmpty()
+        ? name.stdOut.trimmed()
+        : previous.authorName;
+    m_authorEmailCache = email.success && !email.stdOut.trimmed().isEmpty()
+        ? email.stdOut.trimmed()
+        : previous.authorEmail;
+    if (m_authorNameCache.isEmpty()) m_authorNameCache = getGlobalAuthorName();
+    if (m_authorEmailCache.isEmpty()) m_authorEmailCache = getGlobalAuthorEmail();
+    m_authorCacheValid = true;
+}
+
+void GitCliService::loadVitalRepositoryState()
+{
+    // Phase one is intentionally small: HEAD, remote configuration, and the
+    // author identity are needed to render the shell correctly. Status,
+    // history, and file scanning remain in the background refresh.
+    {
+        QMutexLocker locker(&m_cacheMutex);
+        m_currentBranchCache = m_repositoryReader.currentBranch();
+        m_currentBranchCacheValid = true;
+    }
+
+    const RepositoryMetadata previous = m_repositoryMetadata.value(m_repoPath);
+    RemoteStatus status;
+    status.remoteName = previous.remoteName.isEmpty() ? QStringLiteral("origin") : previous.remoteName;
+    status.remoteUrl = previous.remoteUrl;
+    status.hasRemote = previous.hasRemote && !previous.remoteUrl.isEmpty();
+    status.ahead = previous.ahead;
+    status.behind = previous.behind;
+    status.lastFetchedText = previous.lastFetchedText;
+
+    // Remote configuration is cheap and must be authoritative before the
+    // repositoryChanged signal reaches QML; otherwise a real remote can look
+    // like a repository eligible for publishing for one render.
+    const GitResult remotes = runGit({"remote"}, QString(), 2000);
+    if (remotes.success) {
+        const QStringList names = remotes.stdOut.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        QString selectedName;
+        QString selectedUrl;
+        for (const QString &name : names) {
+            const QString candidate = name.trimmed();
+            if (candidate.isEmpty()) continue;
+            const GitResult url = runGit({"remote", "get-url", candidate}, QString(), 2000);
+            if (!url.success || url.stdOut.trimmed().isEmpty()) continue;
+            if (selectedName.isEmpty() || candidate == QStringLiteral("origin")) {
+                selectedName = candidate;
+                selectedUrl = url.stdOut.trimmed();
+            }
+            if (candidate == QStringLiteral("origin")) break;
+        }
+        status.hasRemote = !selectedUrl.isEmpty();
+        status.remoteName = selectedName;
+        status.remoteUrl = selectedUrl;
+        if (!status.hasRemote) {
+            status.ahead = 0;
+            status.behind = 0;
+            status.lastFetchedText = QStringLiteral("No remote repository configured");
+        }
+    }
+
+    if (status.hasRemote && status.lastFetchedText.isEmpty()) {
+        status.lastFetchedText = m_lastFetchTime.isValid()
+            ? QStringLiteral("Last fetched %1").arg(formatRelativeTime(m_lastFetchTime))
+            : QStringLiteral("Not fetched in this session");
+    }
+    if (!status.hasRemote && status.lastFetchedText.isEmpty()) {
+        status.lastFetchedText = QStringLiteral("No remote repository configured");
+    }
+
+    m_remoteStatus = status;
+    m_remoteStatusCacheValid = true;
+    if (status.hasRemote) {
+        m_repoRemotes[m_repoPath] = redactRemoteUrl(status.remoteUrl);
+    } else {
+        m_repoRemotes.remove(m_repoPath);
+    }
+    loadAuthorCache();
+    cacheCurrentRepositoryMetadata();
+    saveRepositories();
+}
+
+void GitCliService::cacheCurrentRepositoryMetadata()
+{
+    if (m_repoPath.isEmpty() || m_isMissing) return;
+    RepositoryMetadata &metadata = m_repositoryMetadata[m_repoPath];
+    metadata.currentBranch = m_currentBranchCache ? m_currentBranchCache->name : QString();
+    metadata.remoteName = m_remoteStatus.remoteName;
+    metadata.remoteUrl = redactRemoteUrl(m_remoteStatus.remoteUrl);
+    metadata.hasRemote = m_remoteStatus.hasRemote;
+    metadata.ahead = m_remoteStatus.ahead;
+    metadata.behind = m_remoteStatus.behind;
+    metadata.lastFetchedText = m_remoteStatus.lastFetchedText;
+    metadata.authorName = m_authorNameCache;
+    metadata.authorEmail = m_authorEmailCache;
+}
+
 void GitCliService::preloadRepositoryCaches()
 {
-    // All expensive Git queries happen before the update signals are posted.
-    // We run independent queries in parallel so big repositories open almost instantly.
+    // Populate expensive views in parallel here, away from the GUI thread.
+    // Keep the previous complete snapshot readable until all replacements are
+    // ready, rather than exposing a transient empty model.
     m_suppressRefreshSignals = true;
-    invalidateRepositoryCaches();
+    invalidateRefreshCaches();
 
     auto fReader = std::async(std::launch::async, [this]() {
         getCurrentBranch();
@@ -135,18 +264,10 @@ void GitCliService::preloadRepositoryCaches()
     fHistory.get();
     fFiles.get();
 
-    {
-        QMutexLocker locker(&m_cacheMutex);
-        if (!m_changedFilesCache.isEmpty()) {
-            m_fileDiffCachePath = m_changedFilesCache.first().filePath;
-            locker.unlock();
-            auto diff = getDiffForFile(m_fileDiffCachePath);
-            locker.relock();
-            m_fileDiffCache = diff;
-            m_fileDiffCacheValid = true;
-        }
-    }
+    // Diff content is loaded lazily by DiffModel after the first selection;
+    // parsing it here only delays repository visibility.
     m_suppressRefreshSignals = false;
+    m_initialLoadPending.store(false, std::memory_order_release);
 }
 
 void GitCliService::emitRepositoryRefreshSignals(bool changedFilesChanged)
@@ -161,6 +282,11 @@ void GitCliService::emitRepositoryRefreshSignals(bool changedFilesChanged)
     emit remoteStatusUpdated(m_remoteStatus);
     emit commitHistoryUpdated();
     emit stashesUpdated();
+
+    // Persist only the compact metadata snapshot. Large models remain in
+    // memory, while the next launch can render the shell without a scan.
+    cacheCurrentRepositoryMetadata();
+    saveRepositories();
 
     if (auto repo = getCurrentRepository()) {
         emit repositoryChanged(*repo);
@@ -225,9 +351,10 @@ GitResult GitCliService::runGit(const QStringList &args, const QString &workingD
 {
     QProcess process;
     QString dir = workingDir.isEmpty() ? m_repoPath : workingDir;
-    if (!dir.isEmpty()) {
-        process.setWorkingDirectory(dir);
+    if (dir.isEmpty() || !QDir(dir).exists()) {
+        dir = QDir::homePath();
     }
+    process.setWorkingDirectory(dir);
 
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert("LC_ALL", "C");
@@ -290,6 +417,18 @@ void GitCliService::loadSavedRepositories()
             if (!remote.isEmpty()) {
                 m_repoRemotes.insert(path, redactRemoteUrl(remote));
             }
+
+            RepositoryMetadata metadata;
+            metadata.currentBranch = settings.value("currentBranch").toString();
+            metadata.remoteName = settings.value("remoteName", "origin").toString();
+            metadata.remoteUrl = redactRemoteUrl(settings.value("cachedRemoteUrl", remote).toString());
+            metadata.hasRemote = settings.value("hasRemote", !metadata.remoteUrl.isEmpty()).toBool();
+            metadata.ahead = settings.value("ahead", 0).toInt();
+            metadata.behind = settings.value("behind", 0).toInt();
+            metadata.lastFetchedText = settings.value("lastFetchedText").toString();
+            metadata.authorName = settings.value("authorName").toString();
+            metadata.authorEmail = settings.value("authorEmail").toString();
+            m_repositoryMetadata.insert(path, metadata);
         }
         settings.endGroup();
     }
@@ -309,6 +448,16 @@ void GitCliService::saveRepositories()
         if (m_repoRemotes.contains(it.key())) {
             settings.setValue("remoteUrl", redactRemoteUrl(m_repoRemotes.value(it.key())));
         }
+        const RepositoryMetadata metadata = m_repositoryMetadata.value(it.key());
+        settings.setValue("currentBranch", metadata.currentBranch);
+        settings.setValue("remoteName", metadata.remoteName);
+        settings.setValue("cachedRemoteUrl", redactRemoteUrl(metadata.remoteUrl));
+        settings.setValue("hasRemote", metadata.hasRemote);
+        settings.setValue("ahead", metadata.ahead);
+        settings.setValue("behind", metadata.behind);
+        settings.setValue("lastFetchedText", metadata.lastFetchedText);
+        settings.setValue("authorName", metadata.authorName);
+        settings.setValue("authorEmail", metadata.authorEmail);
         settings.endGroup();
     }
     settings.endGroup();
@@ -397,7 +546,8 @@ QList<RepositoryInfo> GitCliService::getRepositories()
         info.id = path;
         info.name = name;
         info.path = path;
-        info.remoteUrl = m_repoRemotes.value(path);
+        const RepositoryMetadata cached = m_repositoryMetadata.value(path);
+        info.remoteUrl = cached.remoteUrl.isEmpty() ? m_repoRemotes.value(path) : cached.remoteUrl;
         bool existsOnDisk = QDir(path).exists() && (QFile::exists(path + "/.git") || QDir(path + "/.git").exists());
         info.isMissing = !existsOnDisk;
 
@@ -408,16 +558,17 @@ QList<RepositoryInfo> GitCliService::getRepositories()
             } else {
                 auto b = getCurrentBranch();
                 info.currentBranch = b ? b->name : "main";
-                info.changedFilesCount = m_fileSelection.size();
+                info.changedFilesCount = m_changedFilesCacheValid ? m_changedFilesCache.size() : 0;
                 info.aheadCount = m_remoteStatus.ahead;
                 info.behindCount = m_remoteStatus.behind;
                 info.lastFetchedTime = m_remoteStatus.lastFetchedText;
             }
         } else {
-            info.currentBranch = "main";
-            QDateTime repoFetch = m_repoFetchTimes.value(path);
-            info.lastFetchedTime = repoFetch.isValid()
-                ? QString("Last fetched %1").arg(formatRelativeTime(repoFetch))
+            info.currentBranch = cached.currentBranch.isEmpty() ? "main" : cached.currentBranch;
+            info.aheadCount = cached.ahead;
+            info.behindCount = cached.behind;
+            info.lastFetchedTime = !cached.lastFetchedText.isEmpty()
+                ? cached.lastFetchedText
                 : (info.isMissing ? "Repository not found on disk" : "Not fetched in this session");
         }
         list.append(info);
@@ -433,7 +584,8 @@ std::optional<RepositoryInfo> GitCliService::getCurrentRepository()
     info.name = m_repoName;
     info.path = m_repoPath;
     info.isMissing = m_isMissing;
-    info.remoteUrl = m_repoRemotes.value(m_repoPath);
+    const RepositoryMetadata cached = m_repositoryMetadata.value(m_repoPath);
+    info.remoteUrl = cached.remoteUrl.isEmpty() ? m_repoRemotes.value(m_repoPath) : cached.remoteUrl;
     if (m_isMissing) {
         info.currentBranch = "-";
         info.lastFetchedTime = "Repository not found on disk";
@@ -441,7 +593,7 @@ std::optional<RepositoryInfo> GitCliService::getCurrentRepository()
     }
     auto b = getCurrentBranch();
     info.currentBranch = b ? b->name : "main";
-    info.changedFilesCount = m_fileSelection.size();
+    info.changedFilesCount = m_changedFilesCacheValid ? m_changedFilesCache.size() : 0;
     info.aheadCount = m_remoteStatus.ahead;
     info.behindCount = m_remoteStatus.behind;
     info.lastFetchedTime = m_remoteStatus.lastFetchedText;
@@ -468,6 +620,7 @@ bool GitCliService::openRepository(const QString &pathOrId)
         if (m_repoName.isEmpty()) m_repoName = "Repository";
         m_isMissing = true;
         m_refreshInProgress = false;
+        m_initialLoadPending.store(false, std::memory_order_release);
         m_remoteStatus.isFetching = false;
         m_remoteStatus.isPulling = false;
         m_remoteStatus.isPushing = false;
@@ -498,29 +651,22 @@ bool GitCliService::openRepository(const QString &pathOrId)
 
     m_isMissing = false;
     m_refreshInProgress = false;
-    m_remoteStatus.isFetching = false;
-    m_remoteStatus.isPulling = false;
-    m_remoteStatus.isPushing = false;
+    m_initialLoadPending.store(true, std::memory_order_release);
+    m_remoteStatus = RemoteStatus{};
     const QString discoveredPath = m_repositoryReader.workTreePath().isEmpty()
         ? QDir::cleanPath(targetPath)
         : m_repositoryReader.workTreePath();
     m_repoPath = discoveredPath;
     m_repoName = QFileInfo(m_repoPath).fileName();
     if (m_repoName.isEmpty()) m_repoName = "Repository";
-
-    // Cache the URL for the remote used by sync operations. It may not be named
-    // "origin" (for example, repositories commonly use "upstream").
-    const QString remoteName = preferredRemoteName();
-    const QString remote = getRemoteUrl(remoteName);
-    if (!remote.isEmpty()) {
-        m_repoRemotes.insert(m_repoPath, redactRemoteUrl(remote));
-    }
+    invalidateRepositoryCaches();
 
     // Restore this repo's persisted last-fetch time so "Last fetched" survives restarts.
     m_lastFetchTime = m_repoFetchTimes.value(m_repoPath);
+    m_authorCacheValid = false;
 
     m_knownRepos.insert(m_repoPath, m_repoName);
-    saveRepositories();
+    loadVitalRepositoryState();
 
     // Reset selection & undo state. The watcher belongs to the GUI thread, so
     // install it there even when this operation is running in the loader thread.
@@ -528,9 +674,24 @@ bool GitCliService::openRepository(const QString &pathOrId)
     clearUndoState();
     QMetaObject::invokeMethod(this, [this]() { setupFileSystemWatcher(); }, Qt::QueuedConnection);
 
-    preloadRepositoryCaches();
-    emitRepositoryRefreshSignals();
-    emit operationSucceeded(QString("Opened repository '%1'").arg(m_repoName));
+    // Publish the vital snapshot only after it is complete. Expensive status,
+    // history, and file enumeration are deliberately left to refreshRepository.
+    RepositoryInfo info;
+    info.id = m_repoPath;
+    info.name = m_repoName;
+    info.path = m_repoPath;
+    info.currentBranch = m_currentBranchCache ? m_currentBranchCache->name : QStringLiteral("main");
+    info.changedFilesCount = 0;
+    info.aheadCount = m_remoteStatus.ahead;
+    info.behindCount = m_remoteStatus.behind;
+    info.lastFetchedTime = m_remoteStatus.lastFetchedText;
+    info.isMissing = false;
+    info.remoteUrl = m_remoteStatus.remoteUrl;
+    emit repositoryChanged(info);
+    const quint64 generation = m_repositoryGeneration.load();
+    QMetaObject::invokeMethod(this, [this, generation]() {
+        if (m_repositoryGeneration.load() == generation) refreshRepository();
+    }, Qt::QueuedConnection);
     return true;
 }
 
@@ -597,6 +758,9 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
     if (cleanPath.startsWith("file://")) {
         cleanPath = QUrl(cleanPath).toLocalFile();
     }
+    if (cleanPath.startsWith("~/") || cleanPath == "~") {
+        cleanPath = QDir::homePath() + cleanPath.mid(1);
+    }
     cleanPath = QDir::cleanPath(cleanPath);
 
     if (cleanUrl.isEmpty() || cleanPath.isEmpty()) {
@@ -610,7 +774,17 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
         return false;
     }
 
-    GitResult res = runGit({"clone", "--progress", "--", cleanUrl, cleanPath}, QString(), 180000);
+    QString parentDir = QFileInfo(cleanPath).path();
+    if (!parentDir.isEmpty()) {
+        QDir().mkpath(parentDir);
+    }
+
+    QString workingDir = parentDir;
+    if (workingDir.isEmpty() || !QDir(workingDir).exists()) {
+        workingDir = QDir::homePath();
+    }
+
+    GitResult res = runGit({"clone", "--progress", "--", cleanUrl, cleanPath}, workingDir, 600000);
     if (!res.success) {
         emit operationFailed(formatGitError(res.stdErr.isEmpty() ? res.stdOut : res.stdErr, tr("Git clone failed")));
         return false;
@@ -692,7 +866,10 @@ bool GitCliService::removeRepository(const QString &repoIdOrPath)
 QList<BranchInfo> GitCliService::getBranches()
 {
     QMutexLocker locker(&m_cacheMutex);
+    if (m_isMissing) return {};
+    if (shouldDeferExpensiveInitialRead()) return {};
     if (m_branchesCacheValid) return m_branchesCache;
+    if (shouldReturnStaleCache()) return m_branchesCache;
     if (m_repoPath.isEmpty()) return {};
 
     if (m_repositoryReader.directReadSupported()) {
@@ -731,7 +908,9 @@ QList<BranchInfo> GitCliService::getBranches()
 std::optional<BranchInfo> GitCliService::getCurrentBranch()
 {
     QMutexLocker locker(&m_cacheMutex);
+    if (m_isMissing) return std::nullopt;
     if (m_currentBranchCacheValid) return m_currentBranchCache;
+    if (shouldReturnStaleCache()) return m_currentBranchCache;
     if (m_repoPath.isEmpty()) return std::nullopt;
 
     if (m_repositoryReader.directReadSupported()) {
@@ -849,7 +1028,10 @@ bool GitCliService::deleteBranch(const QString &branchName)
 QList<FileChange> GitCliService::getChangedFiles()
 {
     QMutexLocker locker(&m_cacheMutex);
+    if (m_isMissing) return {};
+    if (shouldDeferExpensiveInitialRead()) return {};
     if (m_changedFilesCacheValid) return m_changedFilesCache;
+    if (shouldReturnStaleCache()) return m_changedFilesCache;
     if (m_repoPath.isEmpty()) return {};
 
     locker.unlock();
@@ -1335,7 +1517,10 @@ bool GitCliService::isImageFile(const QString &filePath) const
 QList<CommitItem> GitCliService::getCommitHistory(int limit)
 {
     QMutexLocker locker(&m_cacheMutex);
+    if (m_isMissing) return {};
+    if (shouldDeferExpensiveInitialRead()) return {};
     if (m_repoPath.isEmpty()) return {};
+    if (!m_commitHistoryCacheValid && shouldReturnStaleCache()) return m_commitHistoryCache;
     const int fetchCount = std::max(limit > 0 ? limit : 200, 200);
     if (m_commitHistoryCacheValid) {
         return (limit > 0) ? m_commitHistoryCache.mid(0, limit) : m_commitHistoryCache;
@@ -1712,28 +1897,29 @@ bool GitCliService::revertCommit(const QString &sha)
 bool GitCliService::hasRemote() const
 {
     if (m_repoPath.isEmpty()) return false;
-
-    GitResult res = const_cast<GitCliService*>(this)->runGit({"remote"}, QString(), 2000);
-    if (!res.success) return false;
-
-    const QStringList names = res.stdOut.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
-    for (const QString &name : names) {
-        if (!getRemoteUrl(name.trimmed()).isEmpty()) return true;
+    if (m_remoteStatusCacheValid || shouldReturnStaleCache()) {
+        return m_remoteStatus.hasRemote;
     }
-    return false;
+    return const_cast<GitCliService *>(this)->getRemoteStatus().hasRemote;
 }
 
 QString GitCliService::getRemoteUrl(const QString &remoteName) const
 {
     if (m_repoPath.isEmpty()) return QString();
-    QString target = remoteName.isEmpty() ? "origin" : remoteName.trimmed();
+    const QString target = remoteName.isEmpty() ? QStringLiteral("origin") : remoteName.trimmed();
     static const QRegularExpression remoteNameRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$");
     if (!remoteNameRegex.match(target).hasMatch()) return QString();
-    GitResult res = const_cast<GitCliService*>(this)->runGit({"remote", "get-url", target}, QString(), 2000);
-    if (res.success) {
-        return res.stdOut.trimmed();
+
+    if ((m_remoteStatusCacheValid || shouldReturnStaleCache()) && m_remoteStatus.hasRemote) {
+        // The no-argument API historically uses "origin", but the selected
+        // sync remote may legitimately be named upstream or something custom.
+        if (target == m_remoteStatus.remoteName || target == QStringLiteral("origin")) {
+            return m_remoteStatus.remoteUrl;
+        }
     }
-    return QString();
+
+    GitResult res = const_cast<GitCliService *>(this)->runGit({"remote", "get-url", target}, QString(), 2000);
+    return res.success ? res.stdOut.trimmed() : QString();
 }
 
 bool GitCliService::setRemoteUrl(const QString &url, const QString &remoteName)
@@ -1769,6 +1955,7 @@ bool GitCliService::setRemoteUrl(const QString &url, const QString &remoteName)
         } else {
             m_repoRemotes.remove(m_repoPath);
         }
+        cacheCurrentRepositoryMetadata();
         saveRepositories();
         emit branchListChanged();
         emit operationSucceeded(QString("Remote '%1' updated").arg(target));
@@ -1798,6 +1985,7 @@ bool GitCliService::removeRemote(const QString &remoteName)
         } else {
             m_repoRemotes.remove(m_repoPath);
         }
+        cacheCurrentRepositoryMetadata();
         saveRepositories();
         emit branchListChanged();
         emit operationSucceeded(QString("Removed remote '%1'").arg(target));
@@ -1876,7 +2064,6 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
                 getRemoteStatus();
                 emit branchListChanged();
                 emit commitHistoryUpdated();
-                emit operationSucceeded(QString("Successfully published '%1' to GitHub!").arg(repoName));
             } else {
                 getRemoteStatus();
                 QString errorMsg = stdErr.trimmed().isEmpty() ? stdOut.trimmed() : stdErr.trimmed();
@@ -1892,18 +2079,19 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
 RemoteStatus GitCliService::getRemoteStatus()
 {
     QMutexLocker locker(&m_cacheMutex);
+    if (m_isMissing) return m_remoteStatus;
     if (m_remoteStatusCacheValid) return m_remoteStatus;
+    if (shouldReturnStaleCache()) return m_remoteStatus;
     if (m_repoPath.isEmpty()) return m_remoteStatus;
 
     locker.unlock();
-    // First check if any remote is configured
-    bool remoteExists = hasRemote();
-    locker.relock();
-    m_remoteStatus.hasRemote = remoteExists;
 
-    if (!remoteExists) {
-        m_remoteStatus.remoteName = "origin";
-        m_remoteStatus.remoteUrl.clear();
+    GitResult res = const_cast<GitCliService*>(this)->runGit({"remote"}, QString(), 2000);
+    m_remoteStatus.hasRemote = res.success && !res.stdOut.trimmed().isEmpty();
+
+    if (!m_remoteStatus.hasRemote) {
+        m_remoteStatus.remoteName = "";
+        m_remoteStatus.remoteUrl = "";
         m_remoteStatus.ahead = 0;
         m_remoteStatus.behind = 0;
         m_remoteStatus.lastFetchedText = "No remote repository configured";
@@ -1912,25 +2100,23 @@ RemoteStatus GitCliService::getRemoteStatus()
         return m_remoteStatus;
     }
 
-    locker.unlock();
     const QString remoteName = preferredRemoteName();
-    QString remoteUrl = getRemoteUrl(remoteName);
-    GitResult revRes = runGit({"rev-list", "--left-right", "--count", "HEAD...@{upstream}"}, QString(), 2000);
-    locker.relock();
     m_remoteStatus.remoteName = remoteName;
-    m_remoteStatus.remoteUrl = remoteUrl;
+    m_remoteStatus.remoteUrl = getRemoteUrl(remoteName);
 
-    if (revRes.success) {
-        QStringList parts = revRes.stdOut.trimmed().split('\t');
+    // Ahead / behind count against upstream tracking branch
+    GitResult countRes = const_cast<GitCliService*>(this)->runGit(
+        {"rev-list", "--left-right", "--count", "HEAD...@{upstream}"}, QString(), 3000);
+
+    if (countRes.success) {
+        QStringList parts = countRes.stdOut.trimmed().split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
         if (parts.size() >= 2) {
             m_remoteStatus.ahead = parts[0].toInt();
             m_remoteStatus.behind = parts[1].toInt();
         }
     } else {
         // Check if there are unpushed commits on a branch without upstream
-        locker.unlock();
         GitResult unpushedRes = runGit({"rev-list", "--count", "HEAD", "--not", "--remotes"}, QString(), 2000);
-        locker.relock();
         if (unpushedRes.success) {
             m_remoteStatus.ahead = unpushedRes.stdOut.trimmed().toInt();
             m_remoteStatus.behind = 0;
@@ -1977,8 +2163,6 @@ void GitCliService::fetchOrigin()
             invalidateRepositoryCaches();
             getRemoteStatus();
             emit branchListChanged();
-            emit operationSucceeded(QString("Fetched latest changes from '%1'").arg(remoteName));
-
         } else {
             m_remoteStatus.lastFetchedText = "Fetch failed";
             emit remoteStatusUpdated(m_remoteStatus);
@@ -2013,7 +2197,6 @@ void GitCliService::pullOrigin()
             emit commitHistoryUpdated();
             emit changedFilesUpdated();
             emit branchListChanged();
-            emit operationSucceeded("Successfully pulled latest changes");
         } else {
             m_remoteStatus.lastFetchedText = "Pull failed";
             emit remoteStatusUpdated(m_remoteStatus);
@@ -2048,6 +2231,18 @@ void GitCliService::pushOrigin()
     const QString operationRepoPath = m_repoPath;
     const quint64 operationGeneration = m_repositoryGeneration.load();
     QThread *thread = QThread::create([this, dir, branchName, remoteName, operationRepoPath, operationGeneration]() {
+        // Fetch remote origin before pushing to avoid stale refs and pushing against unseen changes
+        GitResult fetchRes = const_cast<GitCliService*>(this)->runGit({"fetch", remoteName, "--prune"}, dir, 120000);
+        if (!fetchRes.success) {
+            QMetaObject::invokeMethod(this, [this, fetchRes, operationRepoPath, operationGeneration]() {
+                if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
+                m_remoteStatus.isPushing = false;
+                emit remoteStatusUpdated(m_remoteStatus);
+                emit operationFailed(formatGitError(fetchRes.stdErr, "Fetch before push failed"));
+            }, Qt::QueuedConnection);
+            return;
+        }
+
         GitResult upstreamCheck = const_cast<GitCliService*>(this)->runGit({"rev-parse", "--verify", "@{upstream}"}, dir, 3000);
         QStringList pushArgs = {"push"};
         if (!upstreamCheck.success) {
@@ -2061,12 +2256,18 @@ void GitCliService::pushOrigin()
             if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
             m_remoteStatus.isPushing = false;
             if (res.success) {
+                m_lastFetchTime = QDateTime::currentDateTime();
+                m_repoFetchTimes[operationRepoPath] = m_lastFetchTime;
+                saveFetchTimes();
+                m_remoteStatus.lastFetchedText = "Last fetched just now";
                 clearUndoState();
                 invalidateRepositoryCaches();
                 getRemoteStatus();
+                emit branchListChanged();
                 emit commitHistoryUpdated();
-                emit operationSucceeded(QString("Successfully pushed commits to '%1'").arg(remoteName));
             } else {
+                invalidateRepositoryCaches();
+                getRemoteStatus();
                 emit remoteStatusUpdated(m_remoteStatus);
                 emit operationFailed(formatGitError(res.stdErr, "Push failed"));
             }
@@ -2079,8 +2280,11 @@ void GitCliService::pushOrigin()
 QList<StashItem> GitCliService::getStashes()
 {
     QMutexLocker locker(&m_cacheMutex);
+    if (m_isMissing) return {};
+    if (shouldDeferExpensiveInitialRead()) return {};
     if (m_repoPath.isEmpty()) return {};
     if (m_stashesCacheValid) return m_stashesCache;
+    if (shouldReturnStaleCache()) return m_stashesCache;
 
     if (m_repositoryReader.directReadSupported()) {
         m_stashesCache = m_repositoryReader.stashes();
@@ -2279,6 +2483,10 @@ bool GitCliService::isValidBranchName(const QString &name)
 
 QString GitCliService::preferredRemoteName() const
 {
+    if ((m_remoteStatusCacheValid || shouldReturnStaleCache()) && m_remoteStatus.hasRemote &&
+        !m_remoteStatus.remoteName.isEmpty()) {
+        return m_remoteStatus.remoteName;
+    }
     if (!getRemoteUrl("origin").isEmpty()) return QStringLiteral("origin");
 
     GitResult remotes = const_cast<GitCliService *>(this)->runGit({"remote"}, QString(), 2000);
@@ -2397,28 +2605,24 @@ bool GitCliService::setIgnoreFileModeChanges(bool ignored, bool global)
     // Invalidate caches and re-scan so UI updates immediately
     invalidateRepositoryCaches();
     refreshRepository();
-    emit operationSucceeded(QString("File metadata changes are now %1 (%2)")
-                                .arg(ignored ? "ignored" : "tracked", global ? "global" : "this repository"));
     return true;
 }
 
 QString GitCliService::getAuthorName() const
 {
+    if (m_authorCacheValid) return m_authorNameCache.isEmpty() ? QStringLiteral("User") : m_authorNameCache;
     if (m_repoPath.isEmpty()) return getGlobalAuthorName();
-    GitResult res = const_cast<GitCliService*>(this)->runGit({"config", "--local", "user.name"}, QString(), 1000);
-    if (res.success && !res.stdOut.trimmed().isEmpty()) {
-        return res.stdOut.trimmed();
-    }
+    GitResult res = const_cast<GitCliService *>(this)->runGit({"config", "--get", "user.name"}, QString(), 1000);
+    if (res.success && !res.stdOut.trimmed().isEmpty()) return res.stdOut.trimmed();
     return getGlobalAuthorName();
 }
 
 QString GitCliService::getAuthorEmail() const
 {
+    if (m_authorCacheValid) return m_authorEmailCache.isEmpty() ? QStringLiteral("user@localhost") : m_authorEmailCache;
     if (m_repoPath.isEmpty()) return getGlobalAuthorEmail();
-    GitResult res = const_cast<GitCliService*>(this)->runGit({"config", "--local", "user.email"}, QString(), 1000);
-    if (res.success && !res.stdOut.trimmed().isEmpty()) {
-        return res.stdOut.trimmed();
-    }
+    GitResult res = const_cast<GitCliService *>(this)->runGit({"config", "--get", "user.email"}, QString(), 1000);
+    if (res.success && !res.stdOut.trimmed().isEmpty()) return res.stdOut.trimmed();
     return getGlobalAuthorEmail();
 }
 
@@ -2453,10 +2657,13 @@ bool GitCliService::setAuthorInfo(const QString &name, const QString &email, boo
         GitResult r2 = runGit({"config", scope, "user.email", email.trimmed()}, QString(), 2000);
         ok = ok && r2.success;
     }
-    if (ok) {
-        emit operationSucceeded(QString("Updated Git author info (%1)").arg(global ? "global" : "repository"));
-    } else {
+    if (!ok) {
         emit operationFailed("Failed to update Git author config");
+    } else {
+        m_authorCacheValid = false;
+        loadAuthorCache();
+        cacheCurrentRepositoryMetadata();
+        saveRepositories();
     }
     return ok;
 }
