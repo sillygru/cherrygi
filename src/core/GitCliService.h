@@ -114,6 +114,12 @@ private:
     void discoverInitialRepository();
     void setupFileSystemWatcher();
     void invalidateRepositoryCaches();
+    void invalidateRefreshCaches();
+    void loadVitalRepositoryState();
+    void cacheCurrentRepositoryMetadata();
+    bool shouldReturnStaleCache() const;
+    bool shouldDeferExpensiveInitialRead() const;
+    void loadAuthorCache();
     QList<DiffLine> parseDiffOutput(const QString &diffText);
     QString formatRelativeTime(const QDateTime &dt) const;
     QString formatGitError(const QString &rawError, const QString &fallbackContext) const;
@@ -126,8 +132,21 @@ private:
     void loadFetchTimes();
     void saveFetchTimes();
 
+    struct RepositoryMetadata {
+        QString currentBranch;
+        QString remoteName{"origin"};
+        QString remoteUrl;
+        bool hasRemote{false};
+        int ahead{0};
+        int behind{0};
+        QString lastFetchedText;
+        QString authorName;
+        QString authorEmail;
+    };
+
     bool m_suppressRefreshSignals{false};
     bool m_refreshInProgress{false};
+    std::atomic_bool m_initialLoadPending{false};
     bool m_changedFilesCacheValid{false};
     bool m_branchesCacheValid{false};
     bool m_currentBranchCacheValid{false};
@@ -155,9 +174,14 @@ private:
     GitRepositoryReader m_repositoryReader;
     QMap<QString, QString> m_knownRepos; // path -> name
     QMap<QString, QString> m_repoRemotes; // path -> remoteUrl
+    // Small scalar snapshots only; large status/history/diff data stays in memory.
+    QMap<QString, RepositoryMetadata> m_repositoryMetadata;
     QMap<QString, bool> m_fileSelection; // filePath -> isSelected
 
     RemoteStatus m_remoteStatus;
+    QString m_authorNameCache;
+    QString m_authorEmailCache;
+    bool m_authorCacheValid{false};
     QDateTime m_lastFetchTime;
     QMap<QString, QDateTime> m_repoFetchTimes; // repoPath -> last fetch time
 

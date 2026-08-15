@@ -96,11 +96,36 @@ ColumnLayout {
         }
     }
 
+    // Header bar context menu
+    QQC2.Menu {
+        id: changesHeaderContextMenu
+
+        QQC2.MenuItem {
+            text: qsTr("Discard All Changes...")
+            icon.name: "edit-delete"
+            enabled: !appController.isOperating && appController.changedFiles.count > 0
+            onTriggered: discardAllDialog.open()
+        }
+
+        QQC2.MenuItem {
+            text: qsTr("Stash All Changes")
+            icon.name: "archive-insert"
+            enabled: !appController.isOperating && appController.changedFiles.count > 0
+            onTriggered: appController.stashChanges()
+        }
+    }
+
     // Header bar: Select all checkbox + Changed files count
     Rectangle {
         Layout.fillWidth: true
         height: 36
         color: CherryStyle.surfaceHeader
+
+        TapHandler {
+            acceptedButtons: Qt.RightButton
+            enabled: appController.changedFiles.count > 0
+            onTapped: changesHeaderContextMenu.popup()
+        }
 
         RowLayout {
             anchors.fill: parent
@@ -136,17 +161,6 @@ ColumnLayout {
                 QQC2.ToolTip.text: qsTr("Refresh repository (F5)")
                 QQC2.ToolTip.visible: hovered
                 onClicked: appController.refresh()
-            }
-
-            QQC2.ToolButton {
-                icon.name: "edit-delete"
-                icon.width: 14
-                icon.height: 14
-                visible: appController.changedFiles.count > 0
-                enabled: !appController.isOperating
-                QQC2.ToolTip.text: qsTr("Discard all changes")
-                QQC2.ToolTip.visible: hovered
-                onClicked: discardAllDialog.open()
             }
         }
     }
