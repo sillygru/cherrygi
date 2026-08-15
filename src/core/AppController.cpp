@@ -175,6 +175,16 @@ void AppController::connectServiceSignals()
         emit undoStateChanged();
     });
 
+    connect(m_activeService, &IGitService::cloneProgressUpdated, this, [this](double progress, const QString &status, const QString &details) {
+        m_cloneProgress = progress;
+        m_cloneProgressMessage = status;
+        m_cloneProgressDetails = details;
+        emit cloneProgressChanged();
+        emit cloneProgressMessageChanged();
+        emit cloneProgressDetailsChanged();
+        emit operatingStateChanged();
+    });
+
     connect(m_activeService, &IGitService::operationSucceeded, this, [this](const QString &msg) {
         if (m_isPublishing) {
             m_isPublishing = false;
@@ -385,7 +395,13 @@ bool AppController::isGhAvailable() const
 QString AppController::operationMessage() const
 {
     if (m_isCloning) {
-        return m_cloneProgressMessage.isEmpty() ? tr("Cloning repository...") : m_cloneProgressMessage;
+        if (!m_cloneProgressMessage.isEmpty()) {
+            if (!m_cloneProgressDetails.isEmpty()) {
+                return QString("%1 • %2").arg(m_cloneProgressMessage, m_cloneProgressDetails);
+            }
+            return m_cloneProgressMessage;
+        }
+        return tr("Cloning repository...");
     }
     if (m_isLoadingRepository) {
         return m_loadingRepositoryMessage.isEmpty() ? tr("Loading repository...") : m_loadingRepositoryMessage;
@@ -921,9 +937,13 @@ void AppController::cloneRepository(const QString &url, const QString &targetDir
     if (!m_activeService || m_isCloning) return;
 
     m_isCloning = true;
-    m_cloneProgressMessage = tr("Cloning %1...").arg(url);
+    m_cloneProgress = -1.0;
+    m_cloneProgressMessage = tr("Connecting to %1...").arg(url);
+    m_cloneProgressDetails.clear();
     emit isCloningChanged();
+    emit cloneProgressChanged();
     emit cloneProgressMessageChanged();
+    emit cloneProgressDetailsChanged();
     emit operatingStateChanged();
 
     QPointer<AppController> self(this);
@@ -936,7 +956,13 @@ void AppController::cloneRepository(const QString &url, const QString &targetDir
         QMetaObject::invokeMethod(self, [self, ok]() {
             if (!self) return;
             self->m_isCloning = false;
+            self->m_cloneProgress = -1.0;
+            self->m_cloneProgressMessage.clear();
+            self->m_cloneProgressDetails.clear();
             emit self->isCloningChanged();
+            emit self->cloneProgressChanged();
+            emit self->cloneProgressMessageChanged();
+            emit self->cloneProgressDetailsChanged();
             emit self->operatingStateChanged();
             if (ok) {
                 self->hideCloneDialog();

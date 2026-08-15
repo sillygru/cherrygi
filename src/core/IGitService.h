@@ -95,6 +95,7 @@ signals:
     void commitHistoryUpdated();
     void remoteStatusUpdated(const RemoteStatus &status);
     void stashesUpdated();
+    void cloneProgressUpdated(double progress, const QString &statusText, const QString &detailsText);
     void operationSucceeded(const QString &message);
     void operationFailed(const QString &errorMessage);
 };

@@ -3,6 +3,7 @@
 #include <QUuid>
 #include <QRandomGenerator>
 #include <QFileInfo>
+#include <QThread>
 
 namespace Cherry {
 
@@ -406,6 +407,22 @@ bool MockGitService::cloneRepository(const QString &url, const QString &targetPa
 {
     QString name = QFileInfo(targetPath).fileName();
     if (name.isEmpty()) name = "Cloned-Repo";
+
+    emit cloneProgressUpdated(-1.0, tr("Connecting to repository..."), url);
+    QThread::msleep(150);
+    emit cloneProgressUpdated(0.05, tr("Counting objects (100%)"), "31/31 objects");
+    QThread::msleep(150);
+    emit cloneProgressUpdated(0.15, tr("Compressing objects (100%)"), "30/30 objects");
+    QThread::msleep(200);
+    emit cloneProgressUpdated(0.50, tr("Receiving objects (50%)"), "12000/24000 objects • 6.2 MiB | 2.5 MiB/s");
+    QThread::msleep(200);
+    emit cloneProgressUpdated(0.80, tr("Receiving objects (100%)"), "24000/24000 objects • 12.4 MiB | 2.5 MiB/s");
+    QThread::msleep(150);
+    emit cloneProgressUpdated(0.92, tr("Resolving deltas (100%)"), "1542/1542 deltas");
+    QThread::msleep(150);
+    emit cloneProgressUpdated(1.00, tr("Updating files (100%)"), "200/200 files");
+    QThread::msleep(100);
+
     addRepository(name, targetPath);
     if (auto *s = activeState()) {
         s->info.remoteUrl = url;
@@ -834,7 +851,6 @@ void MockGitService::fetchOrigin()
         state->remoteStatus.lastFetchedText = "Last fetched just now";
         state->info.lastFetchedTime = "Just now";
         emit remoteStatusUpdated(state->remoteStatus);
-        emit operationSucceeded("Fetched latest changes from origin");
     });
 }
 
@@ -848,14 +864,12 @@ void MockGitService::pullOrigin()
 
     QTimer::singleShot(800, this, [this, state]() {
         state->remoteStatus.isPulling = false;
-        int pulledCount = state->remoteStatus.behind;
         state->remoteStatus.behind = 0;
         state->info.behindCount = 0;
         state->remoteStatus.lastFetchedText = "Last fetched just now";
         m_undoStack.clear();
         emit remoteStatusUpdated(state->remoteStatus);
         emit commitHistoryUpdated();
-        emit operationSucceeded(QString("Successfully pulled %1 commits from origin").arg(pulledCount));
     });
 }
 
@@ -869,12 +883,12 @@ void MockGitService::pushOrigin()
 
     QTimer::singleShot(800, this, [this, state]() {
         state->remoteStatus.isPushing = false;
-        int pushedCount = state->remoteStatus.ahead;
         state->remoteStatus.ahead = 0;
         state->info.aheadCount = 0;
+        state->remoteStatus.lastFetchedText = "Last fetched just now";
+        state->info.lastFetchedTime = "Just now";
         m_undoStack.clear();
         emit remoteStatusUpdated(state->remoteStatus);
-        emit operationSucceeded(QString("Successfully pushed %1 commits to origin").arg(pushedCount));
     });
 }
 
@@ -1024,7 +1038,6 @@ bool MockGitService::publishRepository(const QString &name, const QString &descr
     state->remoteStatus.ahead = 0;
     state->info.aheadCount = 0;
     emit remoteStatusUpdated(state->remoteStatus);
-    emit operationSucceeded(QString("Successfully published '%1' to GitHub!").arg(repoName));
     return true;
 }
 
@@ -1049,8 +1062,6 @@ bool MockGitService::setIgnoreFileModeChanges(bool ignored, bool global)
         state->localIgnoreFileModeChanges = ignored;
     }
     emit changedFilesUpdated();
-    emit operationSucceeded(QString("File metadata changes are now %1 (%2)")
-                                .arg(ignored ? "ignored" : "tracked", global ? "global" : "this repository"));
     return true;
 }
 
@@ -1069,7 +1080,6 @@ bool MockGitService::setAuthorInfo(const QString &name, const QString &email, bo
     Q_UNUSED(name);
     Q_UNUSED(email);
     Q_UNUSED(global);
-    emit operationSucceeded("Updated author info");
     return true;
 }
 

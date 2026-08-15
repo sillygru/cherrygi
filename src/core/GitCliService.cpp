@@ -751,6 +751,125 @@ bool GitCliService::relocateRepository(const QString &oldPath, const QString &ne
     return openRepository(realPath);
 }
 
+static void parseGitCloneProgress(const QString &rawLine, double &progress, QString &stage, QString &details)
+{
+    QString line = rawLine.trimmed();
+    if (line.isEmpty()) return;
+
+    if (line.endsWith(", done.")) {
+        line = line.left(line.length() - 7).trimmed();
+    } else if (line.endsWith("done.")) {
+        line = line.left(line.length() - 5).trimmed();
+    }
+
+    // 1. Receiving objects:  45% (10830/24066), 5.21 MiB | 1.12 MiB/s
+    static const QRegularExpression rxReceiving(R"(Receiving objects:\s*(\d+)%(?:\s*\(([^)]+)\))?(?:,\s*(.+))?)");
+    auto matchReceiving = rxReceiving.match(line);
+    if (matchReceiving.hasMatch()) {
+        int pct = matchReceiving.captured(1).toInt();
+        QString counts = matchReceiving.captured(2).trimmed();
+        QString speed = matchReceiving.captured(3).trimmed();
+
+        stage = QString("Receiving objects (%1%)").arg(pct);
+        progress = 0.15 + (pct / 100.0) * 0.65; // 15% -> 80%
+
+        QStringList parts;
+        if (!counts.isEmpty()) parts << counts + " objects";
+        if (!speed.isEmpty()) parts << speed;
+        details = parts.join(" • ");
+        return;
+    }
+
+    // 2. Resolving deltas:  80% (1234/1542)
+    static const QRegularExpression rxDeltas(R"(Resolving deltas:\s*(\d+)%(?:\s*\(([^)]+)\))?)");
+    auto matchDeltas = rxDeltas.match(line);
+    if (matchDeltas.hasMatch()) {
+        int pct = matchDeltas.captured(1).toInt();
+        QString counts = matchDeltas.captured(2).trimmed();
+
+        stage = QString("Resolving deltas (%1%)").arg(pct);
+        progress = 0.80 + (pct / 100.0) * 0.15; // 80% -> 95%
+        details = counts.isEmpty() ? QString() : (counts + " deltas");
+        return;
+    }
+
+    // 3. Updating / Checking out files:  60% (120/200)
+    static const QRegularExpression rxUpdating(R"((?:Updating files|Checking out files):\s*(\d+)%(?:\s*\(([^)]+)\))?)");
+    auto matchUpdating = rxUpdating.match(line);
+    if (matchUpdating.hasMatch()) {
+        int pct = matchUpdating.captured(1).toInt();
+        QString counts = matchUpdating.captured(2).trimmed();
+
+        stage = QString("Updating files (%1%)").arg(pct);
+        progress = 0.95 + (pct / 100.0) * 0.05; // 95% -> 100%
+        details = counts.isEmpty() ? QString() : (counts + " files");
+        return;
+    }
+
+    // 4. Compressing objects:  33% (10/30)
+    static const QRegularExpression rxCompress(R"((?:remote:\s*)?Compressing objects:\s*(\d+)%(?:\s*\(([^)]+)\))?)");
+    auto matchCompress = rxCompress.match(line);
+    if (matchCompress.hasMatch()) {
+        int pct = matchCompress.captured(1).toInt();
+        QString counts = matchCompress.captured(2).trimmed();
+
+        stage = QString("Compressing objects (%1%)").arg(pct);
+        progress = 0.05 + (pct / 100.0) * 0.10; // 5% -> 15%
+        details = counts.isEmpty() ? QString() : (counts + " objects");
+        return;
+    }
+
+    // 5. Counting objects:  50% (15/31)
+    static const QRegularExpression rxCount(R"((?:remote:\s*)?Counting objects:\s*(\d+)%(?:\s*\(([^)]+)\))?)");
+    auto matchCount = rxCount.match(line);
+    if (matchCount.hasMatch()) {
+        int pct = matchCount.captured(1).toInt();
+        QString counts = matchCount.captured(2).trimmed();
+
+        stage = QString("Counting objects (%1%)").arg(pct);
+        progress = (pct / 100.0) * 0.05; // 0% -> 5%
+        details = counts.isEmpty() ? QString() : (counts + " objects");
+        return;
+    }
+
+    // 6. Enumerating objects: 24066
+    static const QRegularExpression rxEnum(R"((?:remote:\s*)?Enumerating objects:\s*(\d+))");
+    auto matchEnum = rxEnum.match(line);
+    if (matchEnum.hasMatch()) {
+        stage = "Enumerating objects...";
+        progress = 0.02;
+        details = QString("%1 objects found").arg(matchEnum.captured(1));
+        return;
+    }
+
+    // 7. Generic progress with percentage
+    static const QRegularExpression rxGeneric(R"((.+?):\s*(\d+)%(?:\s*\(([^)]+)\))?(?:,\s*(.+))?)");
+    auto matchGeneric = rxGeneric.match(line);
+    if (matchGeneric.hasMatch()) {
+        QString stageName = matchGeneric.captured(1).trimmed();
+        if (stageName.startsWith("remote: ")) stageName = stageName.mid(8).trimmed();
+        int pct = matchGeneric.captured(2).toInt();
+        QString counts = matchGeneric.captured(3).trimmed();
+        QString extra = matchGeneric.captured(4).trimmed();
+
+        stage = QString("%1 (%2%)").arg(stageName).arg(pct);
+        progress = (pct / 100.0);
+        QStringList parts;
+        if (!counts.isEmpty()) parts << counts;
+        if (!extra.isEmpty()) parts << extra;
+        details = parts.join(" • ");
+        return;
+    }
+
+    // 8. Connecting / Initializing fallback
+    if (line.startsWith("Cloning into", Qt::CaseInsensitive)) {
+        stage = "Connecting to repository...";
+        progress = -1.0;
+        details = line;
+        return;
+    }
+}
+
 bool GitCliService::cloneRepository(const QString &url, const QString &targetPath)
 {
     QString cleanUrl = url.trimmed();
@@ -784,11 +903,75 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
         workingDir = QDir::homePath();
     }
 
-    GitResult res = runGit({"clone", "--progress", "--", cleanUrl, cleanPath}, workingDir, 600000);
-    if (!res.success) {
-        emit operationFailed(formatGitError(res.stdErr.isEmpty() ? res.stdOut : res.stdErr, tr("Git clone failed")));
+    emit cloneProgressUpdated(-1.0, tr("Connecting to repository..."), cleanUrl);
+
+    QProcess process;
+    process.setWorkingDirectory(workingDir);
+
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("LC_ALL", "C");
+    env.insert("GIT_TERMINAL_PROMPT", "0");
+    if (!env.contains("GIT_SSH_COMMAND")) {
+        env.insert("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
+    }
+    process.setProcessEnvironment(env);
+
+    process.start("git", {"clone", "--progress", "--", cleanUrl, cleanPath});
+    if (!process.waitForStarted(10000)) {
+        emit operationFailed(tr("Failed to start git clone process."));
         return false;
     }
+
+    QString errBuffer;
+    QString fullStdErr;
+    QString fullStdOut;
+    double currentProgress = -1.0;
+    QString currentStage = tr("Connecting to repository...");
+    QString currentDetails = cleanUrl;
+
+    auto processStderrChunk = [&](const QByteArray &chunk) {
+        if (chunk.isEmpty()) return;
+        QString text = QString::fromUtf8(chunk);
+        fullStdErr += text;
+        errBuffer += text;
+
+        int sepIdx = -1;
+        while ((sepIdx = errBuffer.indexOf(QRegularExpression("[\r\n]"))) != -1) {
+            QString token = errBuffer.left(sepIdx).trimmed();
+            errBuffer = errBuffer.mid(sepIdx + 1);
+
+            if (!token.isEmpty()) {
+                double newProg = currentProgress;
+                QString newStage = currentStage;
+                QString newDetails = currentDetails;
+                parseGitCloneProgress(token, newProg, newStage, newDetails);
+                if (newProg != currentProgress || newStage != currentStage || newDetails != currentDetails) {
+                    currentProgress = newProg;
+                    currentStage = newStage;
+                    currentDetails = newDetails;
+                    emit cloneProgressUpdated(currentProgress, currentStage, currentDetails);
+                }
+            }
+        }
+    };
+
+    while (process.state() != QProcess::NotRunning) {
+        if (process.waitForReadyRead(100)) {
+            processStderrChunk(process.readAllStandardError());
+            fullStdOut += QString::fromUtf8(process.readAllStandardOutput());
+        }
+    }
+
+    processStderrChunk(process.readAllStandardError());
+    fullStdOut += QString::fromUtf8(process.readAllStandardOutput());
+
+    bool ok = (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0);
+    if (!ok) {
+        emit operationFailed(formatGitError(fullStdErr.isEmpty() ? fullStdOut : fullStdErr, tr("Git clone failed")));
+        return false;
+    }
+
+    emit cloneProgressUpdated(1.0, tr("Clone completed"), QString());
 
     // Git clone on POSIX systems automatically writes core.filemode=true to .git/config.
     // If the user has global ignore file mode enabled, remove the local override so the

@@ -54,7 +54,9 @@ class AppController : public QObject {
     Q_PROPERTY(QString clonePrefillUrl READ clonePrefillUrl NOTIFY cloneDialogVisibleChanged)
     Q_PROPERTY(QString clonePrefillPath READ clonePrefillPath NOTIFY cloneDialogVisibleChanged)
     Q_PROPERTY(bool isCloning READ isCloning NOTIFY isCloningChanged)
+    Q_PROPERTY(double cloneProgress READ cloneProgress NOTIFY cloneProgressChanged)
     Q_PROPERTY(QString cloneProgressMessage READ cloneProgressMessage NOTIFY cloneProgressMessageChanged)
+    Q_PROPERTY(QString cloneProgressDetails READ cloneProgressDetails NOTIFY cloneProgressDetailsChanged)
 
     // Remote Sync State & Capabilities
     Q_PROPERTY(bool hasRemote READ hasRemote NOTIFY remoteStatusChanged)
@@ -241,7 +243,9 @@ public:
     QString clonePrefillUrl() const { return m_clonePrefillUrl; }
     QString clonePrefillPath() const { return m_clonePrefillPath; }
     bool isCloning() const { return m_isCloning; }
+    double cloneProgress() const { return m_cloneProgress; }
     QString cloneProgressMessage() const { return m_cloneProgressMessage; }
+    QString cloneProgressDetails() const { return m_cloneProgressDetails; }
 
     QString toastMessage() const { return m_toastMessage; }
     bool toastIsError() const { return m_toastIsError; }
@@ -331,7 +335,9 @@ signals:
     void loadingRepositoryNameChanged();
     void cloneDialogVisibleChanged();
     void isCloningChanged();
+    void cloneProgressChanged();
     void cloneProgressMessageChanged();
+    void cloneProgressDetailsChanged();
     void operatingStateChanged();
     void activeTabChanged();
     void selectedFilePathChanged();
@@ -375,7 +381,9 @@ private:
     QString m_clonePrefillUrl;
     QString m_clonePrefillPath;
     bool m_isCloning{false};
+    double m_cloneProgress{-1.0};
     QString m_cloneProgressMessage;
+    QString m_cloneProgressDetails;
     bool m_isCurrentRepoMissing{false};
     QString m_missingRepoPath;
     QString m_missingRepoName;

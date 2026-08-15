@@ -173,23 +173,67 @@ QQC2.Popup {
             }
         }
 
-        // Progress bar during cloning
-        ColumnLayout {
+        // Progress bar and detailed status during cloning
+        Rectangle {
             Layout.fillWidth: true
             visible: appController.isCloning
-            spacing: 4
+            radius: CherryStyle.radiusMedium
+            color: CherryStyle.surfaceCard
+            border.color: CherryStyle.borderColor
+            border.width: 1
+            implicitHeight: progressInnerLayout.implicitHeight + Kirigami.Units.mediumSpacing * 2
 
-            QQC2.ProgressBar {
-                Layout.fillWidth: true
-                indeterminate: true
-            }
+            ColumnLayout {
+                id: progressInnerLayout
+                anchors.fill: parent
+                anchors.margins: Kirigami.Units.mediumSpacing
+                spacing: Kirigami.Units.smallSpacing
 
-            QQC2.Label {
-                text: appController.cloneProgressMessage !== "" ? appController.cloneProgressMessage : qsTr("Cloning repository...")
-                font.pixelSize: CherryStyle.smallFont.pixelSize
-                color: CherryStyle.secondaryTextColor
-                elide: Text.ElideRight
-                Layout.fillWidth: true
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Kirigami.Icon {
+                        source: "download"
+                        width: 16
+                        height: 16
+                        color: CherryStyle.accentColor
+                    }
+
+                    QQC2.Label {
+                        text: appController.cloneProgressMessage !== "" ? appController.cloneProgressMessage : qsTr("Cloning repository...")
+                        font.bold: true
+                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                        color: Kirigami.Theme.textColor
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+
+                    QQC2.Label {
+                        visible: appController.cloneProgress >= 0.0
+                        text: Math.round(appController.cloneProgress * 100) + "%"
+                        font.bold: true
+                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                        color: CherryStyle.accentColor
+                    }
+                }
+
+                QQC2.ProgressBar {
+                    Layout.fillWidth: true
+                    from: 0.0
+                    to: 1.0
+                    value: appController.cloneProgress >= 0.0 ? appController.cloneProgress : 0.0
+                    indeterminate: appController.cloneProgress < 0.0
+                }
+
+                QQC2.Label {
+                    visible: appController.cloneProgressDetails !== ""
+                    text: appController.cloneProgressDetails
+                    font.pixelSize: CherryStyle.smallFont.pixelSize
+                    color: CherryStyle.secondaryTextColor
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
             }
         }
 
