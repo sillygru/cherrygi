@@ -179,6 +179,7 @@ QString ChangedFilesModel::getFilePath(int index) const
 
 void ChangedFilesModel::reload()
 {
+    if (m_updatesSuspended) return;
     if (!m_service) {
         beginResetModel();
         m_files.clear();
@@ -194,6 +195,22 @@ void ChangedFilesModel::reload()
 
     emit countChanged();
     emit selectionChanged();
+}
+
+void ChangedFilesModel::clear()
+{
+    beginResetModel();
+    m_files.clear();
+    endResetModel();
+    emit countChanged();
+    emit selectionChanged();
+}
+
+void ChangedFilesModel::setUpdatesSuspended(bool suspended)
+{
+    if (m_updatesSuspended == suspended) return;
+    m_updatesSuspended = suspended;
+    if (!m_updatesSuspended) reload();
 }
 
 void ChangedFilesModel::setService(IGitService *service)

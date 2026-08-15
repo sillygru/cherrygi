@@ -12,11 +12,14 @@
 #include <QTextStream>
 #include <QFileSystemWatcher>
 #include <QTimer>
-#include <future>
+#include <QElapsedTimer>
+#include <QSet>
 
 namespace Cherry {
 
 namespace {
+thread_local quint64 s_refreshGeneration{0};
+
 QString redactRemoteUrl(const QString &url)
 {
     QString result = url;
@@ -44,6 +47,50 @@ GitCliService::GitCliService(QObject *parent)
     loadSavedRepositories();
     loadFetchTimes();
     discoverInitialRepository();
+}
+
+void GitCliService::cancelOperations()
+{
+    m_shuttingDown.store(true, std::memory_order_release);
+    m_repositoryGeneration.fetch_add(1);
+}
+
+GitCliService::~GitCliService()
+{
+    cancelOperations();
+
+    QList<QThread *> workers;
+    {
+        QMutexLocker locker(&m_workerMutex);
+        workers = m_workers;
+    }
+    for (QThread *worker : workers) {
+        if (worker && worker->isRunning()) worker->wait();
+    }
+
+    {
+        QMutexLocker locker(&m_workerMutex);
+        workers = m_workers;
+        m_workers.clear();
+    }
+    for (QThread *worker : workers) {
+        delete worker;
+    }
+}
+
+QThread *GitCliService::trackWorker(QThread *thread)
+{
+    if (!thread) return nullptr;
+    {
+        QMutexLocker locker(&m_workerMutex);
+        m_workers.append(thread);
+    }
+    connect(thread, &QThread::finished, this, [this, thread]() {
+        QMutexLocker locker(&m_workerMutex);
+        m_workers.removeAll(thread);
+        thread->deleteLater();
+    });
+    return thread;
 }
 
 void GitCliService::setupFileSystemWatcher()
@@ -89,9 +136,12 @@ void GitCliService::clearUndoState()
     m_lastUndoCommitCoAuthors.clear();
 }
 
-void GitCliService::invalidateRepositoryCaches()
+void GitCliService::invalidateRepositoryCaches(bool invalidateSessionCache)
 {
     QMutexLocker locker(&m_cacheMutex);
+    if (invalidateSessionCache && !m_repoPath.isEmpty()) {
+        invalidateSession(m_repoPath);
+    }
     m_repositoryReader.refresh();
     m_changedFilesCacheValid = false;
     m_branchesCacheValid = false;
@@ -111,6 +161,9 @@ void GitCliService::invalidateRefreshCaches()
     // is built. This is the same stale-while-revalidate shape used by Desktop's
     // per-repository GitStore and prevents refreshes from blanking the UI.
     QMutexLocker locker(&m_cacheMutex);
+    if (!m_repoPath.isEmpty()) {
+        invalidateSession(m_repoPath);
+    }
     m_repositoryReader.refresh();
     m_changedFilesCacheValid = false;
     m_branchesCacheValid = false;
@@ -120,6 +173,71 @@ void GitCliService::invalidateRefreshCaches()
     m_remoteStatusCacheValid = false;
     m_fileDiffCacheValid = false;
     m_commitDetailsCache.clear();
+}
+
+void GitCliService::invalidateSession(const QString &repoPath)
+{
+    if (repoPath.isEmpty()) return;
+    QMutexLocker locker(&m_cacheMutex);
+    auto it = m_sessionCaches.find(repoPath);
+    if (it != m_sessionCaches.end()) it->complete = false;
+}
+
+void GitCliService::cacheCurrentSession()
+{
+    QMutexLocker locker(&m_cacheMutex);
+    if (m_repoPath.isEmpty() || m_isMissing ||
+        !m_changedFilesCacheValid || !m_branchesCacheValid ||
+        !m_currentBranchCacheValid || !m_commitHistoryCacheValid ||
+        !m_stashesCacheValid || !m_remoteStatusCacheValid) {
+        return;
+    }
+
+    SessionCache snapshot;
+    snapshot.complete = true;
+    snapshot.changedFiles = m_changedFilesCache;
+    snapshot.branches = m_branchesCache;
+    snapshot.currentBranch = m_currentBranchCache;
+    snapshot.commitHistory = m_commitHistoryCache;
+    snapshot.stashes = m_stashesCache;
+    snapshot.remoteStatus = m_remoteStatus;
+    m_sessionCaches.insert(m_repoPath, std::move(snapshot));
+
+    // Keep this cache deliberately small. Qt containers are implicitly shared,
+    // so retaining a few model snapshots costs little while avoiding unbounded
+    // growth in long-running sessions.
+    while (m_sessionCaches.size() > 8) {
+        m_sessionCaches.erase(m_sessionCaches.begin());
+    }
+}
+
+bool GitCliService::restoreSession(const QString &repoPath)
+{
+    QMutexLocker locker(&m_cacheMutex);
+    const auto it = m_sessionCaches.constFind(repoPath);
+    if (it == m_sessionCaches.cend() || !it->complete) return false;
+
+    m_changedFilesCache = it->changedFiles;
+    m_branchesCache = it->branches;
+    m_currentBranchCache = it->currentBranch;
+    m_commitHistoryCache = it->commitHistory;
+    m_stashesCache = it->stashes;
+    m_remoteStatus = it->remoteStatus;
+    m_changedFilesCacheValid = true;
+    m_branchesCacheValid = true;
+    m_currentBranchCacheValid = true;
+    m_commitHistoryCacheValid = true;
+    m_stashesCacheValid = true;
+    m_remoteStatusCacheValid = true;
+    m_fileDiffCacheValid = false;
+    m_fileDiffCachePath.clear();
+    m_fileDiffCache.clear();
+    m_commitDetailsCache.clear();
+    m_fileSelection.clear();
+    for (const auto &file : m_changedFilesCache) {
+        m_fileSelection.insert(file.filePath, file.isSelected);
+    }
+    return true;
 }
 
 bool GitCliService::shouldReturnStaleCache() const
@@ -233,41 +351,38 @@ void GitCliService::cacheCurrentRepositoryMetadata()
     metadata.authorEmail = m_authorEmailCache;
 }
 
-void GitCliService::preloadRepositoryCaches()
+bool GitCliService::preloadRepositoryCaches()
 {
-    // Populate expensive views in parallel here, away from the GUI thread.
-    // Keep the previous complete snapshot readable until all replacements are
-    // ready, rather than exposing a transient empty model.
+    // Populate expensive views away from the GUI thread. These readers share
+    // repository state and the Git process mutex, so keeping the sequence
+    // deterministic is safer than starting several competing scans at once.
+    // The work is still off the GUI thread and the previous snapshot remains
+    // visible until the complete replacement is ready.
     m_suppressRefreshSignals = true;
     invalidateRefreshCaches();
 
-    auto fReader = std::async(std::launch::async, [this]() {
-        getCurrentBranch();
-        getBranches();
-        getStashes();
-    });
-
-    auto fRemote = std::async(std::launch::async, [this]() {
-        getRemoteStatus();
-    });
-
-    auto fHistory = std::async(std::launch::async, [this]() {
-        getCommitHistory();
-    });
-
-    auto fFiles = std::async(std::launch::async, [this]() {
-        getChangedFiles();
-    });
-
-    fReader.get();
-    fRemote.get();
-    fHistory.get();
-    fFiles.get();
+    const auto stillCurrent = [this]() {
+        return s_refreshGeneration == 0 || m_repositoryGeneration.load() == s_refreshGeneration;
+    };
+    getCurrentBranch();
+    if (!stillCurrent()) { m_suppressRefreshSignals = false; return false; }
+    getBranches();
+    if (!stillCurrent()) { m_suppressRefreshSignals = false; return false; }
+    getStashes();
+    if (!stillCurrent()) { m_suppressRefreshSignals = false; return false; }
+    getRemoteStatus();
+    if (!stillCurrent()) { m_suppressRefreshSignals = false; return false; }
+    getCommitHistory();
+    if (!stillCurrent()) { m_suppressRefreshSignals = false; return false; }
+    getChangedFiles();
+    if (!stillCurrent()) { m_suppressRefreshSignals = false; return false; }
+    cacheCurrentSession();
 
     // Diff content is loaded lazily by DiffModel after the first selection;
     // parsing it here only delays repository visibility.
     m_suppressRefreshSignals = false;
     m_initialLoadPending.store(false, std::memory_order_release);
+    return true;
 }
 
 void GitCliService::emitRepositoryRefreshSignals(bool changedFilesChanged)
@@ -317,9 +432,18 @@ void GitCliService::refreshRepository()
     const QString repoPath = m_repoPath;
     const quint64 generation = m_repositoryGeneration.load();
     QThread *thread = QThread::create([this, repoPath, generation]() {
+        // Hold the transition lock for the complete scan and publication
+        // decision. A repository switch must wait instead of changing the
+        // shared caches underneath this worker.
+        QMutexLocker repositoryLocker(&m_repositoryOpenMutex);
+        if (m_repositoryGeneration.load() != generation || m_repoPath != repoPath) return;
+
         const bool hadFilesCache = m_changedFilesCacheValid;
         const QList<FileChange> previousFiles = m_changedFilesCache;
-        preloadRepositoryCaches();
+        s_refreshGeneration = generation;
+        const bool loaded = preloadRepositoryCaches();
+        s_refreshGeneration = 0;
+        if (!loaded) return;
 
         bool filesChanged = !hadFilesCache || previousFiles.size() != m_changedFilesCache.size();
         if (!filesChanged) {
@@ -343,12 +467,15 @@ void GitCliService::refreshRepository()
             emitRepositoryRefreshSignals(filesChanged);
         }, Qt::QueuedConnection);
     });
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    trackWorker(thread)->start();
 }
 
-GitResult GitCliService::runGit(const QStringList &args, const QString &workingDir, int timeoutMs)
+GitResult GitCliService::runGit(const QStringList &args, const QString &workingDir, int timeoutMs, quint64 cancellationGeneration)
 {
+    // Refresh, diff, and network workers may all issue Git commands. A single
+    // process lock prevents concurrent commands from observing half-updated
+    // refs/index state or competing for Git's repository lock files.
+    QMutexLocker processLocker(&m_gitProcessMutex);
     QProcess process;
     QString dir = workingDir.isEmpty() ? m_repoPath : workingDir;
     if (dir.isEmpty() || !QDir(dir).exists()) {
@@ -365,9 +492,26 @@ GitResult GitCliService::runGit(const QStringList &args, const QString &workingD
     process.setProcessEnvironment(env);
 
     process.start("git", args);
-    bool finished = process.waitForFinished(timeoutMs);
+    bool finished = false;
+    bool cancelled = false;
+    QElapsedTimer timer;
+    timer.start();
+    while (process.state() != QProcess::NotRunning && timer.elapsed() < timeoutMs) {
+        const bool refreshCancelled = s_refreshGeneration != 0 &&
+            m_repositoryGeneration.load() != s_refreshGeneration;
+        const bool operationCancelled = cancellationGeneration != 0 &&
+            m_repositoryGeneration.load() != cancellationGeneration;
+        if (m_shuttingDown.load(std::memory_order_acquire) || refreshCancelled || operationCancelled) {
+            cancelled = true;
+            process.kill();
+            process.waitForFinished(500);
+            break;
+        }
+        process.waitForFinished(100);
+    }
+    finished = !cancelled && process.state() == QProcess::NotRunning;
 
-    if (!finished) {
+    if (!finished && process.state() != QProcess::NotRunning) {
         process.kill();
         process.waitForFinished(500);
     }
@@ -382,23 +526,22 @@ GitResult GitCliService::runGit(const QStringList &args, const QString &workingD
         // Do not log the command arguments: remote URLs may contain credentials.
         qWarning().noquote() << QString("[GitCliService] Git command failed (exit %1): %2")
                                     .arg(result.exitCode)
-                                    .arg(result.stdErr.trimmed());
+                                    .arg(redactRemoteUrl(result.stdErr.trimmed()));
     }
 
     return result;
 }
 
-void GitCliService::runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback)
+void GitCliService::runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback, quint64 cancellationGeneration)
 {
     QString dir = m_repoPath;
-    QThread *thread = QThread::create([this, args, dir, callback]() {
-        GitResult res = const_cast<GitCliService*>(this)->runGit(args, dir, 120000);
+    QThread *thread = QThread::create([this, args, dir, callback, cancellationGeneration]() {
+        GitResult res = const_cast<GitCliService*>(this)->runGit(args, dir, 120000, cancellationGeneration);
         QMetaObject::invokeMethod(this, [callback, res]() {
             if (callback) callback(res);
         }, Qt::QueuedConnection);
     });
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    trackWorker(thread)->start();
 }
 
 void GitCliService::loadSavedRepositories()
@@ -602,7 +745,14 @@ std::optional<RepositoryInfo> GitCliService::getCurrentRepository()
 
 bool GitCliService::openRepository(const QString &pathOrId)
 {
+    // Opening a repository changes the reader, caches, watcher, and current
+    // path as one logical transition. Never let two worker threads interleave
+    // those updates.
+    // Invalidate refresh workers before waiting for the transition lock. This
+    // lets a long status/history scan cancel promptly instead of delaying a
+    // switch to a cached repository.
     m_repositoryGeneration.fetch_add(1);
+    QMutexLocker repositoryLocker(&m_repositoryOpenMutex);
     QString targetPath = pathOrId;
     if (!m_knownRepos.contains(targetPath)) {
         for (auto it = m_knownRepos.begin(); it != m_knownRepos.end(); ++it) {
@@ -611,6 +761,34 @@ bool GitCliService::openRepository(const QString &pathOrId)
                 break;
             }
         }
+    }
+
+    const QString normalizedTarget = QDir::cleanPath(QFileInfo(targetPath).absoluteFilePath());
+    if (!m_repoPath.isEmpty() && !m_isMissing && normalizedTarget == QDir::cleanPath(m_repoPath)) {
+        // Re-opening the current repository should not throw away its live
+        // state or start a second expensive load. A background refresh can still
+        // pick up external edits without showing the repository-loading UI.
+        if (m_initialLoadPending.load(std::memory_order_acquire) || m_refreshInProgress) {
+            // The generation bump above may have canceled the in-flight scan;
+            // restart it after this no-op reopen instead of leaving the repo in
+            // its initial-load state forever.
+            m_refreshInProgress = false;
+            m_initialLoadPending.store(false, std::memory_order_release);
+            const quint64 generation = m_repositoryGeneration.load();
+            QMetaObject::invokeMethod(this, [this, generation]() {
+                if (m_repositoryGeneration.load() == generation) refreshRepository();
+            }, Qt::QueuedConnection);
+            return true;
+        }
+        if (restoreSession(m_repoPath)) {
+            clearUndoState();
+            emitRepositoryRefreshSignals(true);
+        }
+        const quint64 generation = m_repositoryGeneration.load();
+        QMetaObject::invokeMethod(this, [this, generation]() {
+            if (m_repositoryGeneration.load() == generation) refreshRepository();
+        }, Qt::QueuedConnection);
+        return true;
     }
 
     if (!m_repositoryReader.open(targetPath)) {
@@ -659,7 +837,10 @@ bool GitCliService::openRepository(const QString &pathOrId)
     m_repoPath = discoveredPath;
     m_repoName = QFileInfo(m_repoPath).fileName();
     if (m_repoName.isEmpty()) m_repoName = "Repository";
-    invalidateRepositoryCaches();
+    // Preserve a complete session snapshot for this repository so switching
+    // back can restore it immediately. The new repository's live caches still
+    // need to be rebuilt below.
+    invalidateRepositoryCaches(false);
 
     // Restore this repo's persisted last-fetch time so "Last fetched" survives restarts.
     m_lastFetchTime = m_repoFetchTimes.value(m_repoPath);
@@ -903,7 +1084,7 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
         workingDir = QDir::homePath();
     }
 
-    emit cloneProgressUpdated(-1.0, tr("Connecting to repository..."), cleanUrl);
+    emit cloneProgressUpdated(-1.0, tr("Connecting to repository..."), redactRemoteUrl(cleanUrl));
 
     QProcess process;
     process.setWorkingDirectory(workingDir);
@@ -927,7 +1108,7 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
     QString fullStdOut;
     double currentProgress = -1.0;
     QString currentStage = tr("Connecting to repository...");
-    QString currentDetails = cleanUrl;
+    QString currentDetails = redactRemoteUrl(cleanUrl);
 
     auto processStderrChunk = [&](const QByteArray &chunk) {
         if (chunk.isEmpty()) return;
@@ -956,6 +1137,11 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
     };
 
     while (process.state() != QProcess::NotRunning) {
+        if (m_shuttingDown.load(std::memory_order_acquire)) {
+            process.kill();
+            process.waitForFinished(500);
+            break;
+        }
         if (process.waitForReadyRead(100)) {
             processStderrChunk(process.readAllStandardError());
             fullStdOut += QString::fromUtf8(process.readAllStandardOutput());
@@ -1302,11 +1488,14 @@ QList<FileChange> GitCliService::getChangedFiles()
 
     int idx = 0;
     locker.relock();
+    QSet<QString> currentPaths;
+    currentPaths.reserve(statusRecords.size());
     for (const StatusRecord &record : statusRecords) {
         const QChar x = record.x;
         const QChar y = record.y;
         const QString &filePath = record.filePath;
         const QString &oldPath = record.oldFilePath;
+        currentPaths.insert(filePath);
 
         FileChange fc;
         fc.id = QString("fc-%1").arg(idx++);
@@ -1340,6 +1529,14 @@ QList<FileChange> GitCliService::getChangedFiles()
         files.append(fc);
     }
 
+    for (auto it = m_fileSelection.begin(); it != m_fileSelection.end();) {
+        if (!currentPaths.contains(it.key())) {
+            it = m_fileSelection.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
     m_changedFilesCache = files;
     m_changedFilesCacheValid = true;
     return m_changedFilesCache;
@@ -1354,6 +1551,7 @@ void GitCliService::setFileSelected(const QString &filePath, bool selected)
             if (file.filePath == filePath) file.isSelected = selected;
         }
     }
+    cacheCurrentSession();
     emit changedFilesUpdated();
 }
 
@@ -1366,6 +1564,7 @@ void GitCliService::setAllFilesSelected(bool selected)
     if (m_changedFilesCacheValid) {
         for (auto &file : m_changedFilesCache) file.isSelected = selected;
     }
+    cacheCurrentSession();
     emit changedFilesUpdated();
 }
 
@@ -1498,6 +1697,11 @@ QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath, const QSt
         (!filePath.isEmpty() && !isSafeRepositoryPath(filePath)) ||
         (!oldFilePath.isEmpty() && !isSafeRepositoryPath(oldFilePath))) return {};
 
+    // Mark this key as the active in-flight request. If another diff is
+    // requested before this one completes, only the newest request may fill
+    // the cache.
+    m_fileDiffCachePath = cacheKey;
+    m_fileDiffCacheValid = false;
     locker.unlock();
 
     QString effectivePath = filePath.isEmpty() ? oldFilePath : filePath;
@@ -1528,7 +1732,10 @@ QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath, const QSt
         }
 
         QFile f(fullPath);
-        if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return {};
+        if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            locker.relock();
+            return {};
+        }
         QTextStream in(&f);
         QList<DiffLine> lines;
         int lineNum = 1;
@@ -2228,8 +2435,21 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
         }
         process.setProcessEnvironment(env);
         process.start("gh", args);
-        bool finished = process.waitForFinished(120000);
-        if (!finished) {
+        bool cancelled = false;
+        QElapsedTimer timer;
+        timer.start();
+        while (process.state() != QProcess::NotRunning && timer.elapsed() < 120000) {
+            if (m_shuttingDown.load(std::memory_order_acquire) ||
+                m_repositoryGeneration.load() != operationGeneration) {
+                cancelled = true;
+                process.kill();
+                process.waitForFinished(500);
+                break;
+            }
+            process.waitForFinished(100);
+        }
+        const bool finished = !cancelled && process.state() == QProcess::NotRunning;
+        if (!finished && process.state() != QProcess::NotRunning) {
             process.kill();
             process.waitForFinished(500);
         }
@@ -2247,6 +2467,7 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
                 getRemoteStatus();
                 emit branchListChanged();
                 emit commitHistoryUpdated();
+                emit operationSucceeded(QString("Published repository '%1'").arg(repoName));
             } else {
                 getRemoteStatus();
                 QString errorMsg = stdErr.trimmed().isEmpty() ? stdOut.trimmed() : stdErr.trimmed();
@@ -2254,8 +2475,7 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
             }
         }, Qt::QueuedConnection);
     });
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    trackWorker(thread)->start();
     return true;
 }
 
@@ -2351,7 +2571,7 @@ void GitCliService::fetchOrigin()
             emit remoteStatusUpdated(m_remoteStatus);
             emit operationFailed(formatGitError(res.stdErr, "Fetch failed"));
         }
-    });
+    }, operationGeneration);
 }
 
 void GitCliService::pullOrigin()
@@ -2385,7 +2605,7 @@ void GitCliService::pullOrigin()
             emit remoteStatusUpdated(m_remoteStatus);
             emit operationFailed(formatGitError(res.stdErr, "Pull failed"));
         }
-    });
+    }, operationGeneration);
 }
 
 void GitCliService::pushOrigin()
@@ -2415,7 +2635,7 @@ void GitCliService::pushOrigin()
     const quint64 operationGeneration = m_repositoryGeneration.load();
     QThread *thread = QThread::create([this, dir, branchName, remoteName, operationRepoPath, operationGeneration]() {
         // Fetch remote origin before pushing to avoid stale refs and pushing against unseen changes
-        GitResult fetchRes = const_cast<GitCliService*>(this)->runGit({"fetch", remoteName, "--prune"}, dir, 120000);
+        GitResult fetchRes = const_cast<GitCliService*>(this)->runGit({"fetch", remoteName, "--prune"}, dir, 120000, operationGeneration);
         if (!fetchRes.success) {
             QMetaObject::invokeMethod(this, [this, fetchRes, operationRepoPath, operationGeneration]() {
                 if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
@@ -2426,14 +2646,14 @@ void GitCliService::pushOrigin()
             return;
         }
 
-        GitResult upstreamCheck = const_cast<GitCliService*>(this)->runGit({"rev-parse", "--verify", "@{upstream}"}, dir, 3000);
+        GitResult upstreamCheck = const_cast<GitCliService*>(this)->runGit({"rev-parse", "--verify", "@{upstream}"}, dir, 3000, operationGeneration);
         QStringList pushArgs = {"push"};
         if (!upstreamCheck.success) {
             // Set upstream tracking on initial push
             pushArgs = {"push", "-u", remoteName, branchName};
         }
 
-        GitResult res = const_cast<GitCliService*>(this)->runGit(pushArgs, dir, 120000);
+        GitResult res = const_cast<GitCliService*>(this)->runGit(pushArgs, dir, 120000, operationGeneration);
 
         QMetaObject::invokeMethod(this, [this, res, remoteName, operationRepoPath, operationGeneration]() {
             if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
@@ -2456,8 +2676,7 @@ void GitCliService::pushOrigin()
             }
         }, Qt::QueuedConnection);
     });
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    trackWorker(thread)->start();
 }
 
 QList<StashItem> GitCliService::getStashes()
@@ -2694,11 +2913,17 @@ bool GitCliService::isSafeRepositoryPath(const QString &path) const
     const QString full = QDir::cleanPath(QDir(root).filePath(path));
     if (full != root && !full.startsWith(root + '/')) return false;
 
+    // Check the canonical parent as well as the final entry. This prevents
+    // reads/deletes through a symlinked directory when the requested child does
+    // not exist yet (the final QFileInfo then has no canonical path).
     const QFileInfo info(full);
-    if (info.exists() && info.isSymLink()) {
-        const QString canonical = QDir::cleanPath(info.canonicalFilePath());
-        if (!canonical.isEmpty() && canonical != root && !canonical.startsWith(root + '/')) return false;
+    QString canonical = info.exists() ? info.canonicalFilePath() : QString();
+    if (canonical.isEmpty()) {
+        const QString canonicalParent = QFileInfo(info.path()).canonicalFilePath();
+        if (!canonicalParent.isEmpty()) canonical = QDir(canonicalParent).filePath(info.fileName());
     }
+    canonical = QDir::cleanPath(canonical);
+    if (!canonical.isEmpty() && canonical != root && !canonical.startsWith(root + '/')) return false;
     return true;
 }
 

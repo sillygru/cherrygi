@@ -8,6 +8,8 @@
 #include <QFileSystemWatcher>
 #include <QTimer>
 #include <QRecursiveMutex>
+#include <QMutex>
+#include <QThread>
 #include <functional>
 #include <atomic>
 
@@ -24,7 +26,7 @@ class GitCliService : public IGitService {
     Q_OBJECT
 public:
     explicit GitCliService(QObject *parent = nullptr);
-    ~GitCliService() override = default;
+    ~GitCliService() override;
 
     // Repositories
     QList<RepositoryInfo> getRepositories() override;
@@ -101,20 +103,25 @@ public:
     bool setAuthorInfo(const QString &name, const QString &email, bool global = false) override;
 
     // Helper utilities
-    GitResult runGit(const QStringList &args, const QString &workingDir = QString(), int timeoutMs = 30000);
-    void runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback);
+    GitResult runGit(const QStringList &args, const QString &workingDir = QString(), int timeoutMs = 30000, quint64 cancellationGeneration = 0);
+    void runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback, quint64 cancellationGeneration = 0);
 
     QString activeRepoPath() const { return m_repoPath; }
     bool isCurrentRepoMissing() const { return m_isMissing; }
     void clearUndoState();
+    void cancelOperations();
 
 private:
+    QThread *trackWorker(QThread *thread);
     void loadSavedRepositories();
     void saveRepositories();
     void discoverInitialRepository();
     void setupFileSystemWatcher();
-    void invalidateRepositoryCaches();
+    void invalidateRepositoryCaches(bool invalidateSessionCache = true);
     void invalidateRefreshCaches();
+    void cacheCurrentSession();
+    bool restoreSession(const QString &repoPath);
+    void invalidateSession(const QString &repoPath);
     void loadVitalRepositoryState();
     void cacheCurrentRepositoryMetadata();
     bool shouldReturnStaleCache() const;
@@ -144,8 +151,18 @@ private:
         QString authorEmail;
     };
 
+    struct SessionCache {
+        bool complete{false};
+        QList<FileChange> changedFiles;
+        QList<BranchInfo> branches;
+        std::optional<BranchInfo> currentBranch;
+        QList<CommitItem> commitHistory;
+        QList<StashItem> stashes;
+        RemoteStatus remoteStatus;
+    };
+
     bool m_suppressRefreshSignals{false};
-    bool m_refreshInProgress{false};
+    std::atomic_bool m_refreshInProgress{false};
     std::atomic_bool m_initialLoadPending{false};
     bool m_changedFilesCacheValid{false};
     bool m_branchesCacheValid{false};
@@ -164,7 +181,7 @@ private:
     QList<DiffLine> m_fileDiffCache;
     QHash<QString, CommitItem> m_commitDetailsCache;
 
-    void preloadRepositoryCaches();
+    bool preloadRepositoryCaches();
     void emitRepositoryRefreshSignals(bool changedFilesChanged = true);
 
     bool m_isMissing{false};
@@ -174,7 +191,9 @@ private:
     GitRepositoryReader m_repositoryReader;
     QMap<QString, QString> m_knownRepos; // path -> name
     QMap<QString, QString> m_repoRemotes; // path -> remoteUrl
-    // Small scalar snapshots only; large status/history/diff data stays in memory.
+    // Bounded, session-only snapshots make switching back to a recently opened
+    // repository instant without persisting large model data to disk.
+    QMap<QString, SessionCache> m_sessionCaches;
     QMap<QString, RepositoryMetadata> m_repositoryMetadata;
     QMap<QString, bool> m_fileSelection; // filePath -> isSelected
 
@@ -193,7 +212,15 @@ private:
     QFileSystemWatcher *m_fsWatcher{nullptr};
     QTimer *m_fsDebounceTimer{nullptr};
     mutable QRecursiveMutex m_cacheMutex;
+    // Protect repository transitions from overlapping switch/add/clone calls.
+    mutable QMutex m_repositoryOpenMutex;
+    // Git CLI calls can originate from refresh, diff, and sync workers at the
+    // same time. Serialize them so a mutation cannot race a status/read call.
+    mutable QMutex m_gitProcessMutex;
     std::atomic<quint64> m_repositoryGeneration{0};
+    std::atomic_bool m_shuttingDown{false};
+    QMutex m_workerMutex;
+    QList<QThread *> m_workers;
 };
 
 } // namespace Cherry

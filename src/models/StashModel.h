@@ -25,6 +25,8 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     Q_INVOKABLE void reload();
+    void clear();
+    void setUpdatesSuspended(bool suspended);
     void setService(IGitService *service);
 
 signals:
@@ -33,6 +35,7 @@ signals:
 private:
     IGitService *m_service;
     QList<StashItem> m_stashes;
+    bool m_updatesSuspended{false};
 };
 
 } // namespace Cherry

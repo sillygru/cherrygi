@@ -69,6 +69,7 @@ void BranchListModel::setFilterText(const QString &text)
 
 void BranchListModel::reload()
 {
+    if (m_updatesSuspended) return;
     if (!m_service) {
         m_allBranches.clear();
         applyFilter();
@@ -88,6 +89,19 @@ void BranchListModel::setService(IGitService *service)
         connect(m_service, &IGitService::branchListChanged, this, &BranchListModel::reload);
     }
     reload();
+}
+
+void BranchListModel::clear()
+{
+    m_allBranches.clear();
+    applyFilter();
+}
+
+void BranchListModel::setUpdatesSuspended(bool suspended)
+{
+    if (m_updatesSuspended == suspended) return;
+    m_updatesSuspended = suspended;
+    if (!m_updatesSuspended) reload();
 }
 
 void BranchListModel::applyFilter()

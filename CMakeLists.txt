@@ -145,12 +145,20 @@ target_link_libraries(cherrygi PRIVATE
 install(TARGETS cherrygi ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
 
 # Install the desktop entry and the source SVG in the standard hicolor theme.
+# Use the reverse-DNS icon key from the desktop entry so Plasma does not reuse
+# a stale pixmap cached under the generic "cherrygi" name.
 # Keeping the icon as SVG lets Plasma and other launchers render it sharply at
 # any taskbar, launcher, or high-DPI size.
 install(FILES org.kde.cherrygi.desktop
     DESTINATION ${KDE_INSTALL_APPDIR}
 )
 
+# Keep the legacy key updated too: running a development build or an older
+# pinned launcher may still ask Plasma for "cherrygi" instead of the scoped key.
 install(FILES src/icons/cherrygi.svg
     DESTINATION ${KDE_INSTALL_ICONDIR}/hicolor/scalable/apps
+)
+install(FILES src/icons/cherrygi.svg
+    DESTINATION ${KDE_INSTALL_ICONDIR}/hicolor/scalable/apps
+    RENAME org.kde.cherrygi.svg
 )

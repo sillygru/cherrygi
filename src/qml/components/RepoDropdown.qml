@@ -28,11 +28,13 @@ QQC2.Popup {
         property string targetRepoId: ""
         property string targetRepoPath: ""
         property string targetRepoName: ""
+        modal: true
+        closePolicy: QQC2.Popup.CloseOnEscape | QQC2.Popup.CloseOnPressOutside
 
         QQC2.MenuItem {
             text: qsTr("Open in External Editor")
             icon.name: "accessories-text-editor"
-            onTriggered: appController.openInEditor()
+            onTriggered: appController.openInEditor(repoContextMenu.targetRepoPath)
         }
 
         QQC2.MenuItem {
@@ -293,9 +295,18 @@ QQC2.Popup {
                         ListView.view.requestClose();
                     }
 
-                    TapHandler {
+                    // Use a right-button MouseArea instead of TapHandler so the
+                    // event is accepted before an underlying file view can see
+                    // the same native right-click.
+                    MouseArea {
+                        id: repoContextMouse
+                        anchors.fill: parent
                         acceptedButtons: Qt.RightButton
-                        onTapped: {
+                        preventStealing: true
+                        z: 2
+
+                        onPressed: function(mouse) {
+                            mouse.accepted = true;
                             repoContextMenu.targetRepoId = repoDelegate.repoId;
                             repoContextMenu.targetRepoPath = repoDelegate.path;
                             repoContextMenu.targetRepoName = repoDelegate.name;

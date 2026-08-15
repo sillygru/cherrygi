@@ -31,6 +31,8 @@ public:
     void setFilterText(const QString &text);
 
     Q_INVOKABLE void reload();
+    void clear();
+    void setUpdatesSuspended(bool suspended);
     void setService(IGitService *service);
 
 signals:
@@ -44,6 +46,7 @@ private:
     QList<BranchInfo> m_allBranches;
     QList<BranchInfo> m_filteredBranches;
     QString m_filterText;
+    bool m_updatesSuspended{false};
 };
 
 } // namespace Cherry

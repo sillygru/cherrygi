@@ -7,6 +7,7 @@
 #include <QNetworkRequest>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QUrl>
 
 namespace Cherry {
@@ -84,6 +85,11 @@ void GitHubAvatarService::fetchForRemote(const QString &remoteUrl)
     if (!m_ghAuthInProgress) {
         m_ghAuthInProgress = true;
         m_ghAuthProcess.start(QStringLiteral("gh"), {QStringLiteral("auth"), QStringLiteral("token"), QStringLiteral("--hostname"), QStringLiteral("github.com")});
+        QTimer::singleShot(10000, &m_ghAuthProcess, [this]() {
+            if (m_ghAuthInProgress && m_ghAuthProcess.state() != QProcess::NotRunning) {
+                m_ghAuthProcess.kill();
+            }
+        });
     }
 }
 
@@ -120,15 +126,12 @@ void GitHubAvatarService::fetchPage(const QString &url, const QString &remoteKey
     }
 
     QNetworkReply *reply = m_network.get(request);
+    // Avatar metadata is optional; never let an unavailable GitHub endpoint
+    // keep a request alive indefinitely or delay the rest of the UI.
+    QTimer::singleShot(15000, reply, [reply]() {
+        if (reply->isRunning()) reply->abort();
+    });
     connect(reply, &QNetworkReply::finished, this, [this, reply, remoteKey, url, authenticated]() {
-        const QByteArray payload = reply->readAll();
-        const QString nextUrl = QString::fromUtf8(reply->rawHeader("Link"))
-            .split(',', Qt::SkipEmptyParts)
-            .value(0)
-            .trimmed();
-        static const QRegularExpression nextLinkRegex(QStringLiteral(R"(<([^>]+)>;\s*rel="next")"));
-        const auto linkMatch = nextLinkRegex.match(nextUrl);
-
         const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (statusCode == 401 && authenticated) {
             m_ghToken.clear();
@@ -136,12 +139,19 @@ void GitHubAvatarService::fetchPage(const QString &url, const QString &remoteKey
             fetchPage(url, remoteKey, false);
             return;
         }
-
         if (reply->error() != QNetworkReply::NoError) {
             m_fetchedRemotes.remove(remoteKey);
             reply->deleteLater();
             return;
         }
+
+        const QByteArray payload = reply->readAll();
+        const QString nextUrl = QString::fromUtf8(reply->rawHeader("Link"))
+            .split(',', Qt::SkipEmptyParts)
+            .value(0)
+            .trimmed();
+        static const QRegularExpression nextLinkRegex(QStringLiteral(R"(<([^>]+)>;\s*rel="next")"));
+        const auto linkMatch = nextLinkRegex.match(nextUrl);
 
         const QJsonDocument document = QJsonDocument::fromJson(payload);
         if (!document.isArray()) {

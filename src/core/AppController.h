@@ -5,6 +5,8 @@
 #include <QStringList>
 #include <memory>
 #include <atomic>
+#include <QThread>
+#include <QMutex>
 
 #include "IGitService.h"
 #include "GitCliService.h"
@@ -359,6 +361,8 @@ signals:
 private:
     void updateCurrentState();
     void connectServiceSignals();
+    void setRepositoryModelsSuspended(bool suspended);
+    QThread *trackWorker(QThread *thread);
 
     std::unique_ptr<AppSettings> m_settings;
     std::unique_ptr<GitHubAvatarService> m_githubAvatarService;
@@ -374,7 +378,13 @@ private:
     QString m_publishErrorMessage;
     bool m_isCommitting{false};
     bool m_isLoadingRepository{false};
+    QList<QThread *> m_workerThreads;
+    QMutex m_workerMutex;
     std::atomic<quint64> m_currentLoadSequence{0};
+    // Repository switches are coalesced on the GUI thread. A quick sequence
+    // of clicks should finish only the newest requested load.
+    bool m_repositoryLoadWorkerActive{false};
+    QString m_pendingRepositoryTarget;
     QString m_loadingRepositoryMessage;
     QString m_loadingRepositoryName;
     bool m_isCloneDialogVisible{false};

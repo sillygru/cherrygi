@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QThread>
+#include <QMutex>
+#include <atomic>
 #include <functional>
 #include "../core/IGitService.h"
 
@@ -37,6 +40,7 @@ public:
     };
 
     explicit DiffModel(IGitService *service, QObject *parent = nullptr);
+    ~DiffModel() override;
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -65,6 +69,7 @@ public:
     Q_INVOKABLE void loadDiffForStash(const QString &stashId, const QString &filePath, const QString &oldFilePath = QString());
     Q_INVOKABLE void clear();
     void setService(IGitService *service);
+    void cancelOperations();
 
 signals:
     void countChanged();
@@ -92,6 +97,7 @@ private:
 
     void setDiffLines(const QList<DiffLine> &lines);
     void loadDiffAsync(std::function<DiffLoadResult()> loader);
+    QThread *trackWorker(QThread *thread);
     static void populateImageInfo(IGitService *service, const QString &oldPath, const QString &newPath, const QString &oldRef, const QString &newRef, DiffLoadResult &result);
 
     IGitService *m_service;
@@ -110,7 +116,9 @@ private:
     qint64 m_oldImageSize{0};
     qint64 m_newImageSize{0};
     QString m_imageDiffMode{"2-up"};
-    quint64 m_loadGeneration{0};
+    std::atomic<quint64> m_loadGeneration{0};
+    QMutex m_workerMutex;
+    QList<QThread *> m_workers;
 };
 
 } // namespace Cherry

@@ -55,6 +55,7 @@ QHash<int, QByteArray> StashModel::roleNames() const
 
 void StashModel::reload()
 {
+    if (m_updatesSuspended) return;
     if (!m_service) {
         beginResetModel();
         m_stashes.clear();
@@ -68,6 +69,21 @@ void StashModel::reload()
     endResetModel();
 
     emit countChanged();
+}
+
+void StashModel::clear()
+{
+    beginResetModel();
+    m_stashes.clear();
+    endResetModel();
+    emit countChanged();
+}
+
+void StashModel::setUpdatesSuspended(bool suspended)
+{
+    if (m_updatesSuspended == suspended) return;
+    m_updatesSuspended = suspended;
+    if (!m_updatesSuspended) reload();
 }
 
 void StashModel::setService(IGitService *service)

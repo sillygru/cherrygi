@@ -843,14 +843,18 @@ void MockGitService::fetchOrigin()
     auto *state = activeState();
     if (!state) return;
 
+    const QString repoId = m_currentRepoId;
     state->remoteStatus.isFetching = true;
     emit remoteStatusUpdated(state->remoteStatus);
 
-    QTimer::singleShot(600, this, [this, state]() {
-        state->remoteStatus.isFetching = false;
-        state->remoteStatus.lastFetchedText = "Last fetched just now";
-        state->info.lastFetchedTime = "Just now";
-        emit remoteStatusUpdated(state->remoteStatus);
+    QTimer::singleShot(600, this, [this, repoId]() {
+        auto it = m_repositories.find(repoId);
+        if (it == m_repositories.end()) return;
+        auto &state = it.value();
+        state.remoteStatus.isFetching = false;
+        state.remoteStatus.lastFetchedText = "Last fetched just now";
+        state.info.lastFetchedTime = "Just now";
+        if (m_currentRepoId == repoId) emit remoteStatusUpdated(state.remoteStatus);
     });
 }
 
@@ -859,17 +863,23 @@ void MockGitService::pullOrigin()
     auto *state = activeState();
     if (!state) return;
 
+    const QString repoId = m_currentRepoId;
     state->remoteStatus.isPulling = true;
     emit remoteStatusUpdated(state->remoteStatus);
 
-    QTimer::singleShot(800, this, [this, state]() {
-        state->remoteStatus.isPulling = false;
-        state->remoteStatus.behind = 0;
-        state->info.behindCount = 0;
-        state->remoteStatus.lastFetchedText = "Last fetched just now";
-        m_undoStack.clear();
-        emit remoteStatusUpdated(state->remoteStatus);
-        emit commitHistoryUpdated();
+    QTimer::singleShot(800, this, [this, repoId]() {
+        auto it = m_repositories.find(repoId);
+        if (it == m_repositories.end()) return;
+        auto &state = it.value();
+        state.remoteStatus.isPulling = false;
+        state.remoteStatus.behind = 0;
+        state.info.behindCount = 0;
+        state.remoteStatus.lastFetchedText = "Last fetched just now";
+        if (m_currentRepoId == repoId) {
+            m_undoStack.clear();
+            emit remoteStatusUpdated(state.remoteStatus);
+            emit commitHistoryUpdated();
+        }
     });
 }
 
@@ -878,17 +888,23 @@ void MockGitService::pushOrigin()
     auto *state = activeState();
     if (!state) return;
 
+    const QString repoId = m_currentRepoId;
     state->remoteStatus.isPushing = true;
     emit remoteStatusUpdated(state->remoteStatus);
 
-    QTimer::singleShot(800, this, [this, state]() {
-        state->remoteStatus.isPushing = false;
-        state->remoteStatus.ahead = 0;
-        state->info.aheadCount = 0;
-        state->remoteStatus.lastFetchedText = "Last fetched just now";
-        state->info.lastFetchedTime = "Just now";
-        m_undoStack.clear();
-        emit remoteStatusUpdated(state->remoteStatus);
+    QTimer::singleShot(800, this, [this, repoId]() {
+        auto it = m_repositories.find(repoId);
+        if (it == m_repositories.end()) return;
+        auto &state = it.value();
+        state.remoteStatus.isPushing = false;
+        state.remoteStatus.ahead = 0;
+        state.info.aheadCount = 0;
+        state.remoteStatus.lastFetchedText = "Last fetched just now";
+        state.info.lastFetchedTime = "Just now";
+        if (m_currentRepoId == repoId) {
+            m_undoStack.clear();
+            emit remoteStatusUpdated(state.remoteStatus);
+        }
     });
 }
 
@@ -947,11 +963,16 @@ bool MockGitService::popStash(const QString &stashId)
 
     int targetIndex = 0;
     if (!stashId.isEmpty()) {
+        targetIndex = -1;
         for (int i = 0; i < state->stashes.size(); ++i) {
             if (state->stashes[i].id == stashId) {
                 targetIndex = i;
                 break;
             }
+        }
+        if (targetIndex < 0) {
+            emit operationFailed("Stash not found");
+            return false;
         }
     }
 
@@ -980,6 +1001,7 @@ bool MockGitService::dropStash(const QString &stashId)
             return true;
         }
     }
+    emit operationFailed("Stash not found");
     return false;
 }
 
@@ -1038,6 +1060,7 @@ bool MockGitService::publishRepository(const QString &name, const QString &descr
     state->remoteStatus.ahead = 0;
     state->info.aheadCount = 0;
     emit remoteStatusUpdated(state->remoteStatus);
+    emit operationSucceeded(QString("Published repository '%1'").arg(repoName));
     return true;
 }
 

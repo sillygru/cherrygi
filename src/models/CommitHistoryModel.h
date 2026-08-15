@@ -44,6 +44,8 @@ public:
 
     Q_INVOKABLE QString getSha(int index) const;
     Q_INVOKABLE void reload();
+    void clear();
+    void setUpdatesSuspended(bool suspended);
     void setService(IGitService *service);
 
 signals:
@@ -63,6 +65,7 @@ private:
     QString m_remoteUrl;
     QHash<QString, QString> m_avatarOverrides;
     int m_aheadCount{0};
+    bool m_updatesSuspended{false};
 };
 
 } // namespace Cherry

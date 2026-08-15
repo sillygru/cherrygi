@@ -12,6 +12,47 @@ DiffModel::DiffModel(IGitService *service, QObject *parent)
 {
 }
 
+DiffModel::~DiffModel()
+{
+    cancelOperations();
+}
+
+void DiffModel::cancelOperations()
+{
+    ++m_loadGeneration;
+    QList<QThread *> workers;
+    {
+        QMutexLocker locker(&m_workerMutex);
+        workers = m_workers;
+    }
+    for (QThread *worker : workers) {
+        if (worker && worker->isRunning()) worker->wait();
+    }
+    {
+        QMutexLocker locker(&m_workerMutex);
+        workers = m_workers;
+        m_workers.clear();
+    }
+    for (QThread *worker : workers) {
+        delete worker;
+    }
+}
+
+QThread *DiffModel::trackWorker(QThread *thread)
+{
+    if (!thread) return nullptr;
+    {
+        QMutexLocker locker(&m_workerMutex);
+        m_workers.append(thread);
+    }
+    connect(thread, &QThread::finished, this, [this, thread]() {
+        QMutexLocker locker(&m_workerMutex);
+        m_workers.removeAll(thread);
+        thread->deleteLater();
+    });
+    return thread;
+}
+
 int DiffModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid()) return 0;
@@ -128,12 +169,13 @@ void DiffModel::loadDiffForFile(const QString &filePath, const QString &oldFileP
     QString effectiveOldPath = oldFilePath.isEmpty() ? filePath : oldFilePath;
     QString effectiveNewPath = filePath.isEmpty() ? oldFilePath : filePath;
 
-    IGitService *service = m_service;
+    QPointer<IGitService> service = m_service;
     loadDiffAsync([service, effectiveOldPath, effectiveNewPath]() {
         DiffLoadResult result;
+        if (!service) return result;
         if (service->isImageFile(effectiveNewPath) || service->isImageFile(effectiveOldPath)) {
             result.isImage = true;
-            populateImageInfo(service, effectiveOldPath, effectiveNewPath, "HEAD", "", result);
+            populateImageInfo(service.data(), effectiveOldPath, effectiveNewPath, "HEAD", "", result);
             const qint64 ts = QDateTime::currentMSecsSinceEpoch();
             if (result.oldImageSize > 0) {
                 result.oldImageUrl = QString("image://gitimage/working/old/%1?t=%2").arg(effectiveOldPath).arg(ts);
@@ -163,12 +205,13 @@ void DiffModel::loadDiffForCommit(const QString &commitSha, const QString &fileP
     QString effectiveOldPath = oldFilePath.isEmpty() ? filePath : oldFilePath;
     QString effectiveNewPath = filePath.isEmpty() ? oldFilePath : filePath;
 
-    IGitService *service = m_service;
+    QPointer<IGitService> service = m_service;
     loadDiffAsync([service, commitSha, effectiveOldPath, effectiveNewPath]() {
         DiffLoadResult result;
+        if (!service) return result;
         if (service->isImageFile(effectiveNewPath) || service->isImageFile(effectiveOldPath)) {
             result.isImage = true;
-            populateImageInfo(service, effectiveOldPath, effectiveNewPath, QString("%1~1").arg(commitSha), commitSha, result);
+            populateImageInfo(service.data(), effectiveOldPath, effectiveNewPath, QString("%1~1").arg(commitSha), commitSha, result);
             if (result.oldImageSize > 0) {
                 result.oldImageUrl = QString("image://gitimage/commit/%1/old/%2").arg(commitSha, effectiveOldPath);
             }
@@ -196,12 +239,13 @@ void DiffModel::loadDiffForStash(const QString &stashId, const QString &filePath
     QString effectiveOldPath = oldFilePath.isEmpty() ? filePath : oldFilePath;
     QString effectiveNewPath = filePath.isEmpty() ? oldFilePath : filePath;
 
-    IGitService *service = m_service;
+    QPointer<IGitService> service = m_service;
     loadDiffAsync([service, stashId, effectiveOldPath, effectiveNewPath]() {
         DiffLoadResult result;
+        if (!service) return result;
         if (service->isImageFile(effectiveNewPath) || service->isImageFile(effectiveOldPath)) {
             result.isImage = true;
-            populateImageInfo(service, effectiveOldPath, effectiveNewPath, QString("%1^1").arg(stashId), stashId, result);
+            populateImageInfo(service.data(), effectiveOldPath, effectiveNewPath, QString("%1^1").arg(stashId), stashId, result);
             if (result.oldImageSize > 0) {
                 result.oldImageUrl = QString("image://gitimage/stash/%1/old/%2").arg(stashId, effectiveOldPath);
             }
@@ -252,8 +296,7 @@ void DiffModel::loadDiffAsync(std::function<DiffLoadResult()> loader)
             emit self->isLoadingChanged();
         }, Qt::QueuedConnection);
     });
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    trackWorker(thread)->start();
 }
 
 void DiffModel::clear()
@@ -304,6 +347,9 @@ void DiffModel::setDiffLines(const QList<DiffLine> &lines)
 
 void DiffModel::setService(IGitService *service)
 {
+    // Invalidate in-flight work before swapping backends. Otherwise a slow
+    // diff from the previous repository can overwrite the new backend's view.
+    ++m_loadGeneration;
     m_service = service;
     if (!m_filePath.isEmpty()) {
         loadDiffForFile(m_filePath);

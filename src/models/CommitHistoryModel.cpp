@@ -150,6 +150,7 @@ QString CommitHistoryModel::getSha(int index) const
 
 void CommitHistoryModel::reload()
 {
+    if (m_updatesSuspended) return;
     if (!m_service) {
         if (!m_allCommits.isEmpty()) {
             m_allCommits.clear();
@@ -196,6 +197,22 @@ void CommitHistoryModel::setService(IGitService *service)
         connect(m_service, &IGitService::commitHistoryUpdated, this, &CommitHistoryModel::reload);
     }
     reload();
+}
+
+void CommitHistoryModel::clear()
+{
+    m_allCommits.clear();
+    m_currentAuthorName.clear();
+    m_currentAuthorEmail.clear();
+    m_remoteUrl.clear();
+    applyFilter();
+}
+
+void CommitHistoryModel::setUpdatesSuspended(bool suspended)
+{
+    if (m_updatesSuspended == suspended) return;
+    m_updatesSuspended = suspended;
+    if (!m_updatesSuspended) reload();
 }
 
 void CommitHistoryModel::applyFilter()

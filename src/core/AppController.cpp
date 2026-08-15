@@ -82,7 +82,45 @@ AppController::AppController(QObject *parent)
     }
 }
 
-AppController::~AppController() = default;
+AppController::~AppController()
+{
+    m_currentLoadSequence.fetch_add(1);
+    if (m_diffModel) m_diffModel->cancelOperations();
+    if (m_gitCliService) m_gitCliService->cancelOperations();
+
+    QList<QThread *> workers;
+    {
+        QMutexLocker locker(&m_workerMutex);
+        workers = m_workerThreads;
+    }
+    for (QThread *worker : workers) {
+        if (worker && worker->isRunning()) worker->wait();
+    }
+
+    {
+        QMutexLocker locker(&m_workerMutex);
+        workers = m_workerThreads;
+        m_workerThreads.clear();
+    }
+    for (QThread *worker : workers) {
+        delete worker;
+    }
+}
+
+QThread *AppController::trackWorker(QThread *thread)
+{
+    if (!thread) return nullptr;
+    {
+        QMutexLocker locker(&m_workerMutex);
+        m_workerThreads.append(thread);
+    }
+    connect(thread, &QThread::finished, this, [this, thread]() {
+        QMutexLocker locker(&m_workerMutex);
+        m_workerThreads.removeAll(thread);
+        thread->deleteLater();
+    });
+    return thread;
+}
 
 void AppController::setBackendMode(const QString &mode)
 {
@@ -159,15 +197,18 @@ void AppController::connectServiceSignals()
     disconnect(m_activeService, nullptr, this, nullptr);
 
     connect(m_activeService, &IGitService::repositoryChanged, this, [this](const RepositoryInfo &) {
+        if (m_repositoryLoadWorkerActive) return;
         updateCurrentState();
         emit currentRepoChanged();
     });
 
     connect(m_activeService, &IGitService::currentBranchChanged, this, [this](const BranchInfo &) {
+        if (m_repositoryLoadWorkerActive) return;
         emit currentBranchChanged();
     });
 
     connect(m_activeService, &IGitService::remoteStatusUpdated, this, [this](const RemoteStatus &status) {
+        if (m_repositoryLoadWorkerActive) return;
         m_remoteStatus = status;
         m_commitHistoryModel->setAheadCount(m_remoteStatus.ahead);
         emit remoteStatusChanged();
@@ -209,6 +250,7 @@ void AppController::connectServiceSignals()
     });
 
     connect(m_activeService, &IGitService::changedFilesUpdated, this, [this]() {
+        if (m_repositoryLoadWorkerActive) return;
         auto files = m_activeService->getChangedFiles();
         if (files.isEmpty()) {
             m_selectedFilePath.clear();
@@ -232,6 +274,7 @@ void AppController::connectServiceSignals()
     });
 
     connect(m_activeService, &IGitService::commitHistoryUpdated, this, [this]() {
+        if (m_repositoryLoadWorkerActive) return;
         emit undoStateChanged();
         auto commits = m_activeService->getCommitHistory(1);
         if (!commits.isEmpty() && m_selectedCommitSha.isEmpty()) {
@@ -811,6 +854,21 @@ void AppController::openLocalRepositoryDialog()
     }
 }
 
+void AppController::setRepositoryModelsSuspended(bool suspended)
+{
+    m_branchModel->setUpdatesSuspended(suspended);
+    m_changedFilesModel->setUpdatesSuspended(suspended);
+    m_commitHistoryModel->setUpdatesSuspended(suspended);
+    m_stashModel->setUpdatesSuspended(suspended);
+
+    if (suspended) {
+        m_branchModel->clear();
+        m_changedFilesModel->clear();
+        m_commitHistoryModel->clear();
+        m_stashModel->clear();
+    }
+}
+
 void AppController::switchRepository(const QString &repoIdOrPath)
 {
     if (!m_activeService) return;
@@ -820,8 +878,13 @@ void AppController::switchRepository(const QString &repoIdOrPath)
     QString cleanName = QFileInfo(repoIdOrPath).fileName();
     if (cleanName.isEmpty()) cleanName = repoIdOrPath;
 
+    // Never leave repository-specific rows visible while the service is
+    // changing its active repository. Service signals are suspended until the
+    // final load wins, preventing Repo A's rows from being shown for Repo B.
+    setRepositoryModelsSuspended(true);
     m_selectedFilePath.clear();
     m_selectedCommitSha.clear();
+    if (!m_selectedStashId.isEmpty()) setSelectedStashId(QString());
     emit selectedFilePathChanged();
     emit selectedCommitShaChanged();
     m_diffModel->clear();
@@ -829,10 +892,20 @@ void AppController::switchRepository(const QString &repoIdOrPath)
     m_isLoadingRepository = true;
     m_loadingRepositoryName = cleanName;
     m_loadingRepositoryMessage = tr("Opening repository...");
-    emit isLoadingRepositoryChanged();
     emit loadingRepositoryNameChanged();
     emit loadingRepositoryMessageChanged();
+
+    emit isLoadingRepositoryChanged();
     emit operatingStateChanged();
+
+    // Do not start a second open against the same service while the first one
+    // is still mutating its repository state. Keep only the latest target; the
+    // completion callback below starts it after the current load is finished.
+    if (m_repositoryLoadWorkerActive) {
+        m_pendingRepositoryTarget = repoIdOrPath;
+        return;
+    }
+    m_repositoryLoadWorkerActive = true;
 
     QPointer<AppController> self(this);
     QString target = repoIdOrPath;
@@ -841,10 +914,24 @@ void AppController::switchRepository(const QString &repoIdOrPath)
     QThread *thread = QThread::create([self, service, target, seq]() {
         bool ok = service->openRepository(target);
         QMetaObject::invokeMethod(self, [self, ok, seq]() {
-            if (!self || self->m_currentLoadSequence != seq) return;
-            self->m_isLoadingRepository = false;
-            emit self->isLoadingRepositoryChanged();
-            emit self->operatingStateChanged();
+            if (!self) return;
+            self->m_repositoryLoadWorkerActive = false;
+
+            if (self->m_currentLoadSequence != seq) {
+                const QString pendingTarget = self->m_pendingRepositoryTarget;
+                self->m_pendingRepositoryTarget.clear();
+                if (!pendingTarget.isEmpty()) {
+                    self->switchRepository(pendingTarget);
+                }
+                return;
+            }
+
+            self->setRepositoryModelsSuspended(false);
+            if (self->m_isLoadingRepository) {
+                self->m_isLoadingRepository = false;
+                emit self->isLoadingRepositoryChanged();
+                emit self->operatingStateChanged();
+            }
 
             if (ok) {
                 // The service publishes lightweight metadata first and fills
@@ -854,20 +941,25 @@ void AppController::switchRepository(const QString &repoIdOrPath)
             }
         }, Qt::QueuedConnection);
     });
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    trackWorker(thread)->start();
 }
 
 void AppController::addRepository(const QString &name, const QString &path)
 {
     if (!m_activeService) return;
+    if (m_repositoryLoadWorkerActive) {
+        showToast(tr("Please wait for the current repository operation to finish"), true);
+        return;
+    }
 
     quint64 seq = ++m_currentLoadSequence;
 
     QString cleanName = name.trimmed().isEmpty() ? QFileInfo(path).fileName() : name.trimmed();
 
+    setRepositoryModelsSuspended(true);
     m_selectedFilePath.clear();
     m_selectedCommitSha.clear();
+    if (!m_selectedStashId.isEmpty()) setSelectedStashId(QString());
     emit selectedFilePathChanged();
     emit selectedCommitShaChanged();
     m_diffModel->clear();
@@ -875,11 +967,12 @@ void AppController::addRepository(const QString &name, const QString &path)
     m_isLoadingRepository = true;
     m_loadingRepositoryName = cleanName;
     m_loadingRepositoryMessage = tr("Scanning repository files...");
-    emit isLoadingRepositoryChanged();
     emit loadingRepositoryNameChanged();
     emit loadingRepositoryMessageChanged();
-    emit operatingStateChanged();
 
+    m_repositoryLoadWorkerActive = true;
+    emit isLoadingRepositoryChanged();
+    emit operatingStateChanged();
     QPointer<AppController> self(this);
     QString targetName = name;
     QString targetPath = path;
@@ -888,10 +981,24 @@ void AppController::addRepository(const QString &name, const QString &path)
     QThread *thread = QThread::create([self, service, targetName, targetPath, seq]() {
         bool ok = service->addRepository(targetName, targetPath);
         QMetaObject::invokeMethod(self, [self, ok, seq]() {
-            if (!self || self->m_currentLoadSequence != seq) return;
-            self->m_isLoadingRepository = false;
-            emit self->isLoadingRepositoryChanged();
-            emit self->operatingStateChanged();
+            if (!self) return;
+            self->m_repositoryLoadWorkerActive = false;
+
+            if (self->m_currentLoadSequence != seq) {
+                const QString pendingTarget = self->m_pendingRepositoryTarget;
+                self->m_pendingRepositoryTarget.clear();
+                if (!pendingTarget.isEmpty()) {
+                    self->switchRepository(pendingTarget);
+                }
+                return;
+            }
+
+            self->setRepositoryModelsSuspended(false);
+            if (self->m_isLoadingRepository) {
+                self->m_isLoadingRepository = false;
+                emit self->isLoadingRepositoryChanged();
+                emit self->operatingStateChanged();
+            }
 
             if (ok) {
                 // The service publishes lightweight metadata first and fills
@@ -901,8 +1008,7 @@ void AppController::addRepository(const QString &name, const QString &path)
             }
         }, Qt::QueuedConnection);
     });
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    trackWorker(thread)->start();
 }
 
 void AppController::removeRepository(const QString &repoIdOrPath)
@@ -970,8 +1076,7 @@ void AppController::cloneRepository(const QString &url, const QString &targetDir
             }
         }, Qt::QueuedConnection);
     });
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    trackWorker(thread)->start();
 }
 
 void AppController::cloneMissingRepository(const QString &targetDir)
