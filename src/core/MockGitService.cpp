@@ -150,6 +150,7 @@ void MockGitService::initializeMockData()
     c1.timestamp = QDateTime::currentDateTime().addSecs(-3600 * 2);
     c1.relativeTime = "2 hours ago";
     c1.coAuthors = {"@tidy-dev"};
+    c1.tags = {"v1.2.0", "latest"};
     c1.changedFiles = {change1};
 
     CommitItem c2;
@@ -175,6 +176,7 @@ void MockGitService::initializeMockData()
     c3.authorAvatarUrl = "qrc:/assets/avatar3.png";
     c3.timestamp = QDateTime::currentDateTime().addDays(-1);
     c3.relativeTime = "Yesterday at 18:42";
+    c3.tags = {"v1.1.0"};
     c3.changedFiles = {change1, change2};
 
     CommitItem c4;
@@ -199,6 +201,7 @@ void MockGitService::initializeMockData()
     c5.authorAvatarUrl = "qrc:/assets/avatar4.png";
     c5.timestamp = QDateTime::currentDateTime().addDays(-4);
     c5.relativeTime = "4 days ago";
+    c5.tags = {"v1.0.0"};
     c5.changedFiles = {change3};
 
     desktopRepo.commitHistory = {c1, c2, c3, c4, c5};

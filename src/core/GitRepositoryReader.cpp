@@ -144,8 +144,10 @@ void GitRepositoryReader::refresh()
     QMutexLocker locker(&m_mutex);
     m_packedRefsLoaded = false;
     m_packIndexesLoaded = false;
+    m_tagsLoaded = false;
     m_packedRefs.clear();
     m_packIndexes.clear();
+    m_commitTags.clear();
     m_objectCache.clear();
 }
 
@@ -233,6 +235,96 @@ void GitRepositoryReader::loadPackedRefs() const
             QString ref = value.mid(spaceIdx + 1).trimmed();
             if (!ref.isEmpty()) {
                 m_packedRefs.insert(ref, sha);
+            }
+        }
+    }
+}
+
+void GitRepositoryReader::loadTags() const
+{
+    if (m_tagsLoaded || m_gitDir.isEmpty()) return;
+    m_tagsLoaded = true;
+    m_commitTags.clear();
+
+    auto peelTag = [this](const QString &sha) -> QString {
+        auto obj = readObject(sha);
+        if (obj && obj->type == "tag") {
+            const QString content = QString::fromUtf8(obj->data);
+            const QStringList lines = content.split('\n');
+            for (const QString &line : lines) {
+                if (line.startsWith("object ")) {
+                    return line.mid(7).trimmed();
+                }
+            }
+        }
+        return sha;
+    };
+
+    // 1. Loose tags
+    const QDir tagDir(m_gitDir + "/refs/tags");
+    if (tagDir.exists()) {
+        QDirIterator it(tagDir.absolutePath(), QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            const QString path = it.next();
+            const QString tagName = tagDir.relativeFilePath(path).replace(QDir::separator(), '/');
+            const QString refName = "refs/tags/" + tagName;
+            const QString sha = readRef(refName);
+            if (!sha.isEmpty()) {
+                const QString commitSha = peelTag(sha);
+                if (!commitSha.isEmpty() && !m_commitTags[commitSha].contains(tagName)) {
+                    m_commitTags[commitSha].append(tagName);
+                }
+            }
+        }
+    }
+
+    // 2. Packed tags
+    QFile file(m_gitDir + "/packed-refs");
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString content = QString::fromUtf8(file.readAll());
+        const QStringList lines = content.split('\n');
+        QString lastTagName;
+        QString lastSha;
+        for (const QString &line : lines) {
+            const QString value = line.trimmed();
+            if (value.isEmpty() || value.startsWith('#')) continue;
+            if (value.startsWith('^')) {
+                // Peeled tag
+                if (!lastTagName.isEmpty()) {
+                    QString peeledSha = normaliseSha(value.mid(1).trimmed());
+                    if (!peeledSha.isEmpty() && !m_commitTags[peeledSha].contains(lastTagName)) {
+                        m_commitTags[peeledSha].append(lastTagName);
+                    }
+                    lastTagName.clear();
+                    lastSha.clear();
+                }
+                continue;
+            }
+
+            if (!lastTagName.isEmpty() && !lastSha.isEmpty()) {
+                QString commitSha = peelTag(lastSha);
+                if (!commitSha.isEmpty() && !m_commitTags[commitSha].contains(lastTagName)) {
+                    m_commitTags[commitSha].append(lastTagName);
+                }
+                lastTagName.clear();
+                lastSha.clear();
+            }
+
+            int spaceIdx = value.indexOf(' ');
+            if (spaceIdx < 0) spaceIdx = value.indexOf('\t');
+            if (spaceIdx >= ObjectIdHexLength) {
+                QString sha = normaliseSha(value.left(ObjectIdHexLength));
+                QString ref = value.mid(spaceIdx + 1).trimmed();
+                if (ref.startsWith("refs/tags/")) {
+                    lastTagName = ref.mid(10);
+                    lastSha = sha;
+                }
+            }
+        }
+        if (!lastTagName.isEmpty() && !lastSha.isEmpty()) {
+            QString commitSha = peelTag(lastSha);
+            if (!commitSha.isEmpty() && !m_commitTags[commitSha].contains(lastTagName)) {
+                m_commitTags[commitSha].append(lastTagName);
             }
         }
     }
@@ -632,6 +724,8 @@ std::optional<CommitItem> GitRepositoryReader::parseCommit(const QString &sha, b
     }
 
     if (includeFiles && !treeSha.isEmpty()) populateChangedFiles(commit, firstParent);
+    loadTags();
+    commit.tags = m_commitTags.value(commit.sha);
     return commit;
 }
 

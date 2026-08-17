@@ -17,6 +17,11 @@ ColumnLayout {
         Layout.fillWidth: true
     }
 
+    FontMetrics {
+        id: fontMetrics
+        font: CherryStyle.codeFont
+    }
+
     // Main diff content container
     Rectangle {
         Layout.fillWidth: true
@@ -109,7 +114,7 @@ ColumnLayout {
         // Empty state when no file or empty diff
         Item {
             anchors.centerIn: parent
-            visible: !appController.diffModel.isLoading && !appController.diffModel.metadataOnly && !appController.diffModel.isImage && (appController.diffModel.count === 0 || !root.filePath || root.filePath.length === 0)
+            visible: !appController.diffModel.isLoading && !appController.diffModel.metadataOnly && !appController.diffModel.isImage && (appController.diffModel.count === 0 || !root.filePath || root.filePath.length > 0 === false)
             width: parent.width - 60
             height: 140
 
@@ -168,7 +173,8 @@ ColumnLayout {
                 delegate: Rectangle {
                     id: unifiedLineDelegate
                     width: unifiedListView.width
-                    height: CherryStyle.diffLineHeight
+                    implicitHeight: Math.max(CherryStyle.diffLineHeight, unifiedRowLayout.implicitHeight)
+                    height: implicitHeight
 
                     required property int index
                     required property int lineType
@@ -186,6 +192,7 @@ ColumnLayout {
                     }
 
                     RowLayout {
+                        id: unifiedRowLayout
                         anchors.fill: parent
                         spacing: 0
 
@@ -201,7 +208,10 @@ ColumnLayout {
                             }
 
                             QQC2.Label {
-                                anchors.centerIn: parent
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.top: parent.top
+                                height: CherryStyle.diffLineHeight
+                                verticalAlignment: Text.AlignVCenter
                                 text: unifiedLineDelegate.oldLineNumStr
                                 font: CherryStyle.codeFont
                                 color: CherryStyle.secondaryTextColor
@@ -220,7 +230,10 @@ ColumnLayout {
                             }
 
                             QQC2.Label {
-                                anchors.centerIn: parent
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.top: parent.top
+                                height: CherryStyle.diffLineHeight
+                                verticalAlignment: Text.AlignVCenter
                                 text: unifiedLineDelegate.newLineNumStr
                                 font: CherryStyle.codeFont
                                 color: CherryStyle.secondaryTextColor
@@ -241,7 +254,10 @@ ColumnLayout {
                             color: "transparent"
 
                             QQC2.Label {
-                                anchors.centerIn: parent
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.top: parent.top
+                                height: CherryStyle.diffLineHeight
+                                verticalAlignment: Text.AlignVCenter
                                 text: unifiedLineDelegate.marker
                                 font: CherryStyle.codeFontBold
                                 color: {
@@ -254,26 +270,25 @@ ColumnLayout {
                         }
 
                         // Code Text Line
-                        Item {
+                        QQC2.Label {
+                            id: codeLabel
                             Layout.fillWidth: true
-                            Layout.fillHeight: true
-
-                            QQC2.Label {
-                                anchors.left: parent.left
-                                anchors.leftMargin: Kirigami.Units.mediumSpacing
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: unifiedLineDelegate.content
-                                font: CherryStyle.codeFont
-                                color: {
-                                    if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderColor;
-                                    if (unifiedLineDelegate.content.trim().startsWith("//") || unifiedLineDelegate.content.trim().startsWith("/*") || unifiedLineDelegate.content.trim().startsWith("*")) {
-                                        return CherryStyle.additionColor; // comment styling
-                                    }
-                                    if (unifiedLineDelegate.lineType === 1) return Kirigami.Theme.textColor;
-                                    if (unifiedLineDelegate.lineType === 2) return Kirigami.Theme.textColor;
-                                    return Kirigami.Theme.textColor;
+                            Layout.alignment: Qt.AlignTop
+                            Layout.leftMargin: Kirigami.Units.mediumSpacing
+                            Layout.rightMargin: Kirigami.Units.mediumSpacing
+                            topPadding: Math.max(0, Math.floor((CherryStyle.diffLineHeight - fontMetrics.height) / 2))
+                            bottomPadding: topPadding
+                            text: unifiedLineDelegate.content
+                            font: CherryStyle.codeFont
+                            wrapMode: Text.WrapAnywhere
+                            color: {
+                                if (unifiedLineDelegate.lineType === 3) return CherryStyle.hunkHeaderColor;
+                                if (unifiedLineDelegate.content.trim().startsWith("//") || unifiedLineDelegate.content.trim().startsWith("/*") || unifiedLineDelegate.content.trim().startsWith("*")) {
+                                    return CherryStyle.additionColor; // comment styling
                                 }
-                                elide: Text.ElideNone
+                                if (unifiedLineDelegate.lineType === 1) return Kirigami.Theme.textColor;
+                                if (unifiedLineDelegate.lineType === 2) return Kirigami.Theme.textColor;
+                                return Kirigami.Theme.textColor;
                             }
                         }
                     }
@@ -305,7 +320,8 @@ ColumnLayout {
                     delegate: Rectangle {
                         id: splitLeftDelegate
                         width: splitLeftListView.width
-                        height: CherryStyle.diffLineHeight
+                        implicitHeight: Math.max(CherryStyle.diffLineHeight, splitLeftRow.implicitHeight)
+                        height: implicitHeight
 
                         required property int index
                         required property int lineType
@@ -315,6 +331,7 @@ ColumnLayout {
                         color: (splitLeftDelegate.lineType === 2) ? CherryStyle.deletionBg : (splitLeftDelegate.lineType === 3 ? CherryStyle.hunkHeaderBg : (splitLeftDelegate.lineType === 1 ? CherryStyle.surfaceCard : "transparent"))
 
                         RowLayout {
+                            id: splitLeftRow
                             anchors.fill: parent
                             spacing: 0
 
@@ -324,7 +341,10 @@ ColumnLayout {
                                 color: (splitLeftDelegate.lineType === 2) ? CherryStyle.deletionGutterBg : CherryStyle.gutterBg
 
                                 QQC2.Label {
-                                    anchors.centerIn: parent
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    anchors.top: parent.top
+                                    height: CherryStyle.diffLineHeight
+                                    verticalAlignment: Text.AlignVCenter
                                     text: splitLeftDelegate.oldLineNumStr
                                     font: CherryStyle.codeFont
                                     color: CherryStyle.secondaryTextColor
@@ -339,10 +359,14 @@ ColumnLayout {
 
                             QQC2.Label {
                                 Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
+                                Layout.alignment: Qt.AlignTop
                                 Layout.leftMargin: Kirigami.Units.mediumSpacing
+                                Layout.rightMargin: Kirigami.Units.mediumSpacing
+                                topPadding: Math.max(0, Math.floor((CherryStyle.diffLineHeight - fontMetrics.height) / 2))
+                                bottomPadding: topPadding
                                 text: (splitLeftDelegate.lineType !== 1) ? splitLeftDelegate.content : ""
                                 font: CherryStyle.codeFont
+                                wrapMode: Text.WrapAnywhere
                                 color: (splitLeftDelegate.lineType === 2) ? CherryStyle.deletionColor : Kirigami.Theme.textColor
                             }
                         }
@@ -368,7 +392,8 @@ ColumnLayout {
                     delegate: Rectangle {
                         id: splitRightDelegate
                         width: splitRightListView.width
-                        height: CherryStyle.diffLineHeight
+                        implicitHeight: Math.max(CherryStyle.diffLineHeight, splitRightRow.implicitHeight)
+                        height: implicitHeight
 
                         required property int index
                         required property int lineType
@@ -378,6 +403,7 @@ ColumnLayout {
                         color: (splitRightDelegate.lineType === 1) ? CherryStyle.additionBg : (splitRightDelegate.lineType === 3 ? CherryStyle.hunkHeaderBg : (splitRightDelegate.lineType === 2 ? CherryStyle.surfaceCard : "transparent"))
 
                         RowLayout {
+                            id: splitRightRow
                             anchors.fill: parent
                             spacing: 0
 
@@ -387,7 +413,10 @@ ColumnLayout {
                                 color: (splitRightDelegate.lineType === 1) ? CherryStyle.additionGutterBg : CherryStyle.gutterBg
 
                                 QQC2.Label {
-                                    anchors.centerIn: parent
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    anchors.top: parent.top
+                                    height: CherryStyle.diffLineHeight
+                                    verticalAlignment: Text.AlignVCenter
                                     text: splitRightDelegate.newLineNumStr
                                     font: CherryStyle.codeFont
                                     color: CherryStyle.secondaryTextColor
@@ -402,10 +431,14 @@ ColumnLayout {
 
                             QQC2.Label {
                                 Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
+                                Layout.alignment: Qt.AlignTop
                                 Layout.leftMargin: Kirigami.Units.mediumSpacing
+                                Layout.rightMargin: Kirigami.Units.mediumSpacing
+                                topPadding: Math.max(0, Math.floor((CherryStyle.diffLineHeight - fontMetrics.height) / 2))
+                                bottomPadding: topPadding
                                 text: (splitRightDelegate.lineType !== 2) ? splitRightDelegate.content : ""
                                 font: CherryStyle.codeFont
+                                wrapMode: Text.WrapAnywhere
                                 color: (splitRightDelegate.lineType === 1) ? CherryStyle.additionColor : Kirigami.Theme.textColor
                             }
                         }

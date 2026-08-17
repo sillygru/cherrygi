@@ -98,6 +98,8 @@ private:
     static QString relativeTime(const QDateTime &timestamp);
     static QString cleanStashMessage(const QString &message);
 
+    void loadTags() const;
+
     QString m_workTree;
     QString m_gitDir;
     QString m_headGitDir; // per-worktree gitdir; m_gitDir may be the shared common dir
@@ -105,8 +107,10 @@ private:
 
     mutable bool m_packedRefsLoaded{false};
     mutable bool m_packIndexesLoaded{false};
+    mutable bool m_tagsLoaded{false};
     mutable QHash<QString, QString> m_packedRefs;
     mutable QList<PackIndex> m_packIndexes;
+    mutable QHash<QString, QStringList> m_commitTags;
     mutable QHash<QString, GitObject> m_objectCache;
     mutable QRecursiveMutex m_mutex;
 };

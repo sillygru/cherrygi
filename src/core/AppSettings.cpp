@@ -110,6 +110,17 @@ void AppSettings::loadSettings()
     m_tabSize = settings.value("General/tabSize", 4).toInt();
     m_startupBackend = settings.value("General/startupBackend", "real").toString();
     m_avatarProvider = settings.value("General/avatarProvider", "auto").toString();
+
+    // AI Commit Assistant
+    m_aiEnabled = settings.value("AI/enabled", false).toBool();
+    m_aiProvider = settings.value("AI/provider", "openai").toString();
+    m_aiApiKey = settings.value("AI/apiKey", "").toString();
+    m_aiEndpoint = settings.value("AI/endpoint", "").toString();
+    m_aiModel = settings.value("AI/model", "").toString();
+    m_aiCommitStyle = settings.value("AI/commitStyle", "conventional").toString();
+    m_aiIncludeDescription = settings.value("AI/includeDescription", true).toBool();
+    m_aiFollowRepoStyle = settings.value("AI/followRepoStyle", true).toBool();
+    m_aiFirstRunConfigured = settings.value("AI/firstRunConfigured", false).toBool();
 }
 
 void AppSettings::saveSettings()
@@ -124,6 +135,89 @@ void AppSettings::saveSettings()
     settings.setValue("General/tabSize", m_tabSize);
     settings.setValue("General/startupBackend", m_startupBackend);
     settings.setValue("General/avatarProvider", m_avatarProvider);
+
+    // AI Commit Assistant
+    settings.setValue("AI/enabled", m_aiEnabled);
+    settings.setValue("AI/provider", m_aiProvider);
+    settings.setValue("AI/apiKey", m_aiApiKey);
+    settings.setValue("AI/endpoint", m_aiEndpoint);
+    settings.setValue("AI/model", m_aiModel);
+    settings.setValue("AI/commitStyle", m_aiCommitStyle);
+    settings.setValue("AI/includeDescription", m_aiIncludeDescription);
+    settings.setValue("AI/followRepoStyle", m_aiFollowRepoStyle);
+    settings.setValue("AI/firstRunConfigured", m_aiFirstRunConfigured);
+}
+
+void AppSettings::setAiEnabled(bool enabled)
+{
+    if (m_aiEnabled == enabled) return;
+    m_aiEnabled = enabled;
+    saveSettings();
+    emit aiEnabledChanged();
+}
+
+void AppSettings::setAiProvider(const QString &provider)
+{
+    if (m_aiProvider == provider) return;
+    m_aiProvider = provider;
+    saveSettings();
+    emit aiProviderChanged();
+}
+
+void AppSettings::setAiApiKey(const QString &apiKey)
+{
+    if (m_aiApiKey == apiKey) return;
+    m_aiApiKey = apiKey;
+    saveSettings();
+    emit aiApiKeyChanged();
+}
+
+void AppSettings::setAiEndpoint(const QString &endpoint)
+{
+    if (m_aiEndpoint == endpoint) return;
+    m_aiEndpoint = endpoint;
+    saveSettings();
+    emit aiEndpointChanged();
+}
+
+void AppSettings::setAiModel(const QString &model)
+{
+    if (m_aiModel == model) return;
+    m_aiModel = model;
+    saveSettings();
+    emit aiModelChanged();
+}
+
+void AppSettings::setAiCommitStyle(const QString &style)
+{
+    if (m_aiCommitStyle == style) return;
+    m_aiCommitStyle = style;
+    saveSettings();
+    emit aiCommitStyleChanged();
+}
+
+void AppSettings::setAiIncludeDescription(bool includeDesc)
+{
+    if (m_aiIncludeDescription == includeDesc) return;
+    m_aiIncludeDescription = includeDesc;
+    saveSettings();
+    emit aiIncludeDescriptionChanged();
+}
+
+void AppSettings::setAiFollowRepoStyle(bool follow)
+{
+    if (m_aiFollowRepoStyle == follow) return;
+    m_aiFollowRepoStyle = follow;
+    saveSettings();
+    emit aiFollowRepoStyleChanged();
+}
+
+void AppSettings::setAiFirstRunConfigured(bool configured)
+{
+    if (m_aiFirstRunConfigured == configured) return;
+    m_aiFirstRunConfigured = configured;
+    saveSettings();
+    emit aiFirstRunConfiguredChanged();
 }
 
 void AppSettings::setDefaultEditor(const QString &editorId)

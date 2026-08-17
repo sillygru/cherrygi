@@ -21,6 +21,17 @@ QQC2.Popup {
     property string pendingDiffViewMode: "unified"
     property string pendingBackendMode: "real"
 
+    // AI Commit Assistant pending state
+    property bool pendingAiEnabled: false
+    property string pendingAiProvider: "openai"
+    property string pendingAiApiKey: ""
+    property string pendingAiEndpoint: ""
+    property string pendingAiModel: ""
+    property string pendingAiCommitStyle: "conventional"
+    property bool pendingAiIncludeDescription: true
+    property bool pendingAiFollowRepoStyle: true
+    property bool showApiKeyPlain: false
+
     function updateRemoteUrlFromParts() {
         if (remoteFieldsUpdating || remotePresetCombo.currentIndex < 0) return;
         var preset = remotePresetCombo.model[remotePresetCombo.currentIndex].split("|");
@@ -143,6 +154,19 @@ QQC2.Popup {
             appController.setBackendMode(pendingBackendMode);
         }
 
+        // Save AI Commit Assistant settings
+        appController.saveAiSettings(
+            pendingAiEnabled,
+            pendingAiProvider,
+            pendingAiApiKey,
+            pendingAiEndpoint,
+            pendingAiModel,
+            pendingAiCommitStyle,
+            pendingAiIncludeDescription,
+            pendingAiFollowRepoStyle,
+            appController.aiFirstRunConfigured || pendingAiEnabled
+        );
+
         root.close();
     }
 
@@ -167,6 +191,17 @@ QQC2.Popup {
         showWhitespaceCheckBox.checked = appController.showWhitespace;
         pendingBackendMode = appController.backendMode;
 
+        // AI Commit Assistant fields
+        pendingAiEnabled = appController.isAiEnabled;
+        pendingAiProvider = appController.aiProvider;
+        pendingAiApiKey = appController.aiApiKey;
+        pendingAiEndpoint = appController.aiEndpoint;
+        pendingAiModel = appController.aiModel;
+        pendingAiCommitStyle = appController.aiCommitStyle.length > 0 ? appController.aiCommitStyle : "conventional";
+        pendingAiIncludeDescription = appController.aiIncludeDescription;
+        pendingAiFollowRepoStyle = appController.aiFollowRepoStyle;
+        showApiKeyPlain = false;
+
         // Select active editor in combo
         for (var i = 0; i < editorCombo.count; ++i) {
             var item = editorCombo.model[i];
@@ -190,6 +225,14 @@ QQC2.Popup {
         for (var k = 0; k < avatarProviderCombo.model.length; ++k) {
             if (avatarProviderCombo.model[k].value === appController.avatarProvider) {
                 avatarProviderCombo.currentIndex = k;
+                break;
+            }
+        }
+
+        // Select active AI provider in combo
+        for (var p = 0; p < aiProviderCombo.count; ++p) {
+            if (aiProviderCombo.model[p].value === appController.aiProvider) {
+                aiProviderCombo.currentIndex = p;
                 break;
             }
         }
@@ -465,6 +508,44 @@ QQC2.Popup {
                     }
                 }
 
+                // Tab 6: AI Commit Assistant
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 38
+                    radius: CherryStyle.radiusMedium
+                    color: root.currentTab === "ai" ? CherryStyle.activeBackground : (aiTabMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+                        anchors.rightMargin: Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Kirigami.Icon {
+                            source: "tools-wizard"
+                            width: 16
+                            height: 16
+                            color: root.currentTab === "ai" ? CherryStyle.accentColor : Kirigami.Theme.textColor
+                        }
+
+                        QQC2.Label {
+                            text: qsTr("AI Commit Assistant")
+                            font.bold: root.currentTab === "ai"
+                            color: root.currentTab === "ai" ? CherryStyle.accentColor : Kirigami.Theme.textColor
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    MouseArea {
+                        id: aiTabMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.currentTab = "ai"
+                    }
+                }
+
                 Item { Layout.fillHeight: true }
             }
         }
@@ -489,7 +570,9 @@ QQC2.Popup {
                         if (root.currentTab === "git") return qsTr("Git Settings");
                         if (root.currentTab === "identity") return qsTr("Git Identity");
                         if (root.currentTab === "editor") return qsTr("External Editor & Terminal");
-                        return qsTr("Appearance & Diff Settings");
+                        if (root.currentTab === "appearance") return qsTr("Appearance & Diff Settings");
+                        if (root.currentTab === "ai") return qsTr("AI Commit Assistant Configuration");
+                        return qsTr("Settings");
                     }
                     font.bold: true
                     font.pixelSize: CherryStyle.basePixelSize + 2
@@ -1305,6 +1388,293 @@ QQC2.Popup {
                                 root.close();
                                 appController.showBackendSelectionDialog();
                             }
+                        }
+                    }
+                }
+
+                // ==========================================
+                // 5. AI COMMIT ASSISTANT TAB
+                // ==========================================
+                ColumnLayout {
+                    width: parent.width
+                    visible: root.currentTab === "ai"
+                    spacing: Kirigami.Units.mediumSpacing
+
+                    // AI Enable Switch Banner
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: aiEnableRow.implicitHeight + 16
+                        radius: CherryStyle.radiusMedium
+                        color: CherryStyle.surfaceCard
+                        border.color: CherryStyle.borderColor
+                        border.width: 1
+
+                        RowLayout {
+                            id: aiEnableRow
+                            anchors.fill: parent
+                            anchors.margins: Kirigami.Units.mediumSpacing
+                            spacing: Kirigami.Units.smallSpacing
+
+                            Kirigami.Icon {
+                                source: "tools-wizard"
+                                width: 22
+                                height: 22
+                                color: root.pendingAiEnabled ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 1
+
+                                QQC2.Label {
+                                    text: qsTr("AI Commit Message Generator")
+                                    font.bold: true
+                                    color: Kirigami.Theme.textColor
+                                }
+
+                                QQC2.Label {
+                                    text: qsTr("Generate commit titles and descriptions from selected file diffs.")
+                                    font.pixelSize: CherryStyle.smallFont.pixelSize
+                                    color: CherryStyle.secondaryTextColor
+                                }
+                            }
+
+                            QQC2.Switch {
+                                id: aiEnableCheckBox
+                                checked: root.pendingAiEnabled
+                                onToggled: root.pendingAiEnabled = checked
+                            }
+                        }
+                    }
+
+                    // Configuration Section (active when enabled)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.mediumSpacing
+                        enabled: root.pendingAiEnabled
+                        opacity: root.pendingAiEnabled ? 1.0 : 0.45
+
+                        QQC2.Label {
+                            text: qsTr("Provider & Authentication (BYOK)")
+                            font.bold: true
+                            color: Kirigami.Theme.textColor
+                        }
+
+                        // Provider Selection
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.mediumSpacing
+
+                            QQC2.Label {
+                                text: qsTr("Provider:")
+                                Layout.preferredWidth: 100
+                                color: Kirigami.Theme.textColor
+                            }
+
+                            QQC2.ComboBox {
+                                id: aiProviderCombo
+                                Layout.fillWidth: true
+                                textRole: "text"
+                                model: [
+                                    { text: "OpenAI", value: "openai" },
+                                    { text: "Anthropic (Claude)", value: "anthropic" },
+                                    { text: "Google Gemini", value: "gemini" },
+                                    { text: "Custom (OpenAI-Compatible)", value: "custom" }
+                                ]
+                                onActivated: {
+                                    root.pendingAiProvider = model[currentIndex].value;
+                                }
+                            }
+                        }
+
+                        // API Key
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.mediumSpacing
+
+                            QQC2.Label {
+                                text: qsTr("API Key:")
+                                Layout.preferredWidth: 100
+                                color: Kirigami.Theme.textColor
+                            }
+
+                            QQC2.TextField {
+                                id: aiApiKeyField
+                                Layout.fillWidth: true
+                                echoMode: root.showApiKeyPlain ? TextInput.Normal : TextInput.Password
+                                placeholderText: qsTr("Enter %1 API key...").arg(aiProviderCombo.displayText)
+                                text: root.pendingAiApiKey
+                                onTextChanged: root.pendingAiApiKey = text
+                                background: Rectangle {
+                                    color: CherryStyle.inputBackground
+                                    border.color: aiApiKeyField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
+                                    border.width: aiApiKeyField.activeFocus ? 2 : 1
+                                    radius: CherryStyle.radiusSmall
+                                }
+                            }
+
+                            QQC2.ToolButton {
+                                icon.name: root.showApiKeyPlain ? "visibility" : "hint"
+                                icon.width: 14
+                                icon.height: 14
+                                QQC2.ToolTip.text: root.showApiKeyPlain ? qsTr("Hide key") : qsTr("Show key")
+                                QQC2.ToolTip.visible: hovered
+                                onClicked: root.showApiKeyPlain = !root.showApiKeyPlain
+                            }
+                        }
+
+                        // Custom Endpoint Base URL
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.mediumSpacing
+
+                            QQC2.Label {
+                                text: qsTr("Endpoint URL:")
+                                Layout.preferredWidth: 100
+                                color: Kirigami.Theme.textColor
+                            }
+
+                            QQC2.TextField {
+                                id: aiEndpointField
+                                Layout.fillWidth: true
+                                placeholderText: {
+                                    if (root.pendingAiProvider === "anthropic") return "https://api.anthropic.com/v1/messages (Default)";
+                                    if (root.pendingAiProvider === "gemini") return "https://generativelanguage.googleapis.com (Default)";
+                                    if (root.pendingAiProvider === "custom") return "e.g. http://localhost:11434/v1 or https://my-gateway.com/v1";
+                                    return "https://api.openai.com/v1/chat/completions (Default)";
+                                }
+                                text: root.pendingAiEndpoint
+                                onTextChanged: root.pendingAiEndpoint = text
+                                background: Rectangle {
+                                    color: CherryStyle.inputBackground
+                                    border.color: aiEndpointField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
+                                    border.width: aiEndpointField.activeFocus ? 2 : 1
+                                    radius: CherryStyle.radiusSmall
+                                }
+                            }
+                        }
+
+                        // Model Slug Input
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.mediumSpacing
+
+                            QQC2.Label {
+                                text: qsTr("Model Slug:")
+                                Layout.preferredWidth: 100
+                                color: Kirigami.Theme.textColor
+                            }
+
+                            QQC2.TextField {
+                                id: aiModelField
+                                Layout.fillWidth: true
+                                placeholderText: {
+                                    if (root.pendingAiProvider === "anthropic") return "claude-sonnet-5 (Default)";
+                                    if (root.pendingAiProvider === "gemini") return "gemini-3.5-flash-lite (Default)";
+                                    if (root.pendingAiProvider === "custom") return "e.g. deepseek-v4-flash";
+                                    return "gpt-5.6-luna (Default)";
+                                }
+                                text: root.pendingAiModel
+                                onTextChanged: root.pendingAiModel = text
+                                background: Rectangle {
+                                    color: CherryStyle.inputBackground
+                                    border.color: aiModelField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
+                                    border.width: aiModelField.activeFocus ? 2 : 1
+                                    radius: CherryStyle.radiusSmall
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 1
+                            color: CherryStyle.subtleBorderColor
+                        }
+
+                        // Commit Format Style
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            QQC2.Label {
+                                text: qsTr("Commit Format Style")
+                                font.bold: true
+                                color: Kirigami.Theme.textColor
+                            }
+
+                            QQC2.ButtonGroup { id: settingsStyleGroup }
+
+                            QQC2.RadioButton {
+                                text: qsTr("Conventional Commits (feat:, fix:, chore:, refactor:, docs:, ...)")
+                                checked: root.pendingAiCommitStyle === "conventional"
+                                QQC2.ButtonGroup.group: settingsStyleGroup
+                                onClicked: root.pendingAiCommitStyle = "conventional"
+                            }
+
+                            QQC2.RadioButton {
+                                text: qsTr("Imperative Summary (e.g. \"Add feature X\", \"Fix crash in Y\")")
+                                checked: root.pendingAiCommitStyle === "summary"
+                                QQC2.ButtonGroup.group: settingsStyleGroup
+                                onClicked: root.pendingAiCommitStyle = "summary"
+                            }
+
+                            QQC2.RadioButton {
+                                text: qsTr("Concise Summary (Direct, brief plain text explanation)")
+                                checked: root.pendingAiCommitStyle === "concise"
+                                QQC2.ButtonGroup.group: settingsStyleGroup
+                                onClicked: root.pendingAiCommitStyle = "concise"
+                            }
+
+                            QQC2.RadioButton {
+                                text: qsTr("Gitmoji (Starts with relevant gitmoji: :sparkles:, :bug:, :recycle:, ...)")
+                                checked: root.pendingAiCommitStyle === "gitmoji"
+                                QQC2.ButtonGroup.group: settingsStyleGroup
+                                onClicked: root.pendingAiCommitStyle = "gitmoji"
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 1
+                            color: CherryStyle.subtleBorderColor
+                        }
+
+                        // Output Structure
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            QQC2.Label {
+                                text: qsTr("Output Structure")
+                                font.bold: true
+                                color: Kirigami.Theme.textColor
+                            }
+
+                            QQC2.ButtonGroup { id: settingsStructureGroup }
+
+                            QQC2.RadioButton {
+                                id: aiIncludeDescRadio
+                                text: qsTr("Title and Description (Title strictly under 40 chars + bullet points)")
+                                checked: root.pendingAiIncludeDescription
+                                QQC2.ButtonGroup.group: settingsStructureGroup
+                                onClicked: root.pendingAiIncludeDescription = true
+                            }
+
+                            QQC2.RadioButton {
+                                id: aiTitleOnlyRadio
+                                text: qsTr("Title Only (Single line commit summary)")
+                                checked: !root.pendingAiIncludeDescription
+                                QQC2.ButtonGroup.group: settingsStructureGroup
+                                onClicked: root.pendingAiIncludeDescription = false
+                            }
+                        }
+
+                        // History matching
+                        QQC2.CheckBox {
+                            id: aiFollowRepoCheck
+                            text: qsTr("Follow existing repository commit history (sends last 5 commits for style)")
+                            checked: root.pendingAiFollowRepoStyle
+                            onToggled: root.pendingAiFollowRepoStyle = checked
                         }
                     }
                 }

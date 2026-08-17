@@ -18,6 +18,7 @@ AppController::AppController(QObject *parent)
     : QObject(parent)
     , m_settings(std::make_unique<AppSettings>(this))
     , m_githubAvatarService(std::make_unique<GitHubAvatarService>())
+    , m_aiCommitService(std::make_unique<AiCommitService>(this))
     , m_gitCliService(std::make_unique<GitCliService>())
     , m_mockService(std::make_unique<MockGitService>())
 {
@@ -47,6 +48,27 @@ AppController::AppController(QObject *parent)
         emit selectedCommitShaChanged();
     });
 
+    connect(m_aiCommitService.get(), &AiCommitService::generationStarted, this, [this]() {
+        m_isAiGenerating = true;
+        emit aiGeneratingChanged();
+        emit operatingStateChanged();
+    });
+
+    connect(m_aiCommitService.get(), &AiCommitService::generationFinished, this, [this]() {
+        m_isAiGenerating = false;
+        emit aiGeneratingChanged();
+        emit operatingStateChanged();
+    });
+
+    connect(m_aiCommitService.get(), &AiCommitService::commitMessageGenerated, this, [this](const QString &summary, const QString &description) {
+        emit aiCommitMessageReady(summary, description);
+        showToast(tr("Commit message generated with AI"));
+    });
+
+    connect(m_aiCommitService.get(), &AiCommitService::generationFailed, this, [this](const QString &errorMessage) {
+        showToast(tr("AI generation failed: %1").arg(errorMessage), true);
+    });
+
     connectServiceSignals();
     updateCurrentState();
 
@@ -58,6 +80,15 @@ AppController::AppController(QObject *parent)
             }
             emit avatarProviderChanged();
         });
+        connect(m_settings.get(), &AppSettings::aiEnabledChanged, this, &AppController::aiSettingsChanged);
+        connect(m_settings.get(), &AppSettings::aiProviderChanged, this, &AppController::aiSettingsChanged);
+        connect(m_settings.get(), &AppSettings::aiApiKeyChanged, this, &AppController::aiSettingsChanged);
+        connect(m_settings.get(), &AppSettings::aiEndpointChanged, this, &AppController::aiSettingsChanged);
+        connect(m_settings.get(), &AppSettings::aiModelChanged, this, &AppController::aiSettingsChanged);
+        connect(m_settings.get(), &AppSettings::aiCommitStyleChanged, this, &AppController::aiSettingsChanged);
+        connect(m_settings.get(), &AppSettings::aiIncludeDescriptionChanged, this, &AppController::aiSettingsChanged);
+        connect(m_settings.get(), &AppSettings::aiFollowRepoStyleChanged, this, &AppController::aiSettingsChanged);
+        connect(m_settings.get(), &AppSettings::aiFirstRunConfiguredChanged, this, &AppController::aiSettingsChanged);
     }
 
     // Auto-refresh when app enters foreground / becomes active
@@ -544,6 +575,7 @@ QVariant AppController::selectedCommitData() const
     map["relativeTime"] = c->relativeTime;
     map["timestamp"] = c->timestamp.toString("yyyy-MM-dd hh:mm");
     map["coAuthors"] = c->coAuthors;
+    map["tags"] = c->tags;
 
     QVariantList files;
     for (const auto &f : c->changedFiles) {
@@ -833,6 +865,116 @@ void AppController::saveAvatarSettings(const QString &provider)
 {
     if (!m_settings) return;
     m_settings->setAvatarProvider(provider);
+}
+
+bool AppController::isAiEnabled() const { return m_settings ? m_settings->aiEnabled() : false; }
+QString AppController::aiProvider() const { return m_settings ? m_settings->aiProvider() : "openai"; }
+QString AppController::aiApiKey() const { return m_settings ? m_settings->aiApiKey() : ""; }
+QString AppController::aiEndpoint() const { return m_settings ? m_settings->aiEndpoint() : ""; }
+QString AppController::aiModel() const { return m_settings ? m_settings->aiModel() : ""; }
+QString AppController::aiCommitStyle() const { return m_settings ? m_settings->aiCommitStyle() : "conventional"; }
+bool AppController::aiIncludeDescription() const { return m_settings ? m_settings->aiIncludeDescription() : true; }
+bool AppController::aiFollowRepoStyle() const { return m_settings ? m_settings->aiFollowRepoStyle() : true; }
+bool AppController::aiFirstRunConfigured() const { return m_settings ? m_settings->aiFirstRunConfigured() : false; }
+
+void AppController::setAiFirstRunConfigured(bool configured)
+{
+    if (!m_settings) return;
+    m_settings->setAiFirstRunConfigured(configured);
+    emit aiSettingsChanged();
+}
+
+void AppController::saveAiSettings(bool enabled, const QString &provider, const QString &apiKey, const QString &endpoint, const QString &model, const QString &commitStyle, bool includeDescription, bool followRepoStyle, bool firstRunConfigured)
+{
+    if (!m_settings) return;
+    m_settings->setAiEnabled(enabled);
+    m_settings->setAiProvider(provider);
+    m_settings->setAiApiKey(apiKey);
+    m_settings->setAiEndpoint(endpoint);
+    m_settings->setAiModel(model);
+    m_settings->setAiCommitStyle(commitStyle);
+    m_settings->setAiIncludeDescription(includeDescription);
+    m_settings->setAiFollowRepoStyle(followRepoStyle);
+    m_settings->setAiFirstRunConfigured(firstRunConfigured);
+    emit aiSettingsChanged();
+}
+
+void AppController::cancelAiCommit()
+{
+    if (m_aiCommitService) {
+        m_aiCommitService->cancel();
+    }
+}
+
+void AppController::generateAiCommit()
+{
+    if (!m_activeService || !m_settings) return;
+
+    if (!m_settings->aiEnabled()) {
+        showToast(tr("AI Commit Assistant is disabled. Enable it in Settings."), true);
+        return;
+    }
+
+    auto changedFiles = m_activeService->getChangedFiles();
+    QList<FileChange> selectedFiles;
+    for (const auto &file : changedFiles) {
+        if (file.isSelected) {
+            selectedFiles.append(file);
+        }
+    }
+
+    if (selectedFiles.isEmpty()) {
+        showToast(tr("No files selected to generate commit message for"), true);
+        return;
+    }
+
+    QList<QPair<QString, QString>> selectedFileDiffs;
+    for (const auto &file : selectedFiles) {
+        QString diffContent;
+        if (file.status == FileChangeType::Untracked) {
+            QByteArray blob = m_activeService->getFileBlob(file.filePath);
+            diffContent = QString::fromUtf8(blob);
+            if (diffContent.size() > 6000) {
+                diffContent = diffContent.left(6000) + "\n... [content truncated]";
+            }
+        } else {
+            auto lines = m_activeService->getDiffForFile(file.filePath, file.oldFilePath);
+            QStringList formattedLines;
+            for (const auto &line : lines) {
+                if (line.type == DiffLineType::Addition) {
+                    formattedLines.append("+" + line.content);
+                } else if (line.type == DiffLineType::Deletion) {
+                    formattedLines.append("-" + line.content);
+                } else if (line.type == DiffLineType::HunkHeader) {
+                    formattedLines.append(line.content);
+                } else {
+                    formattedLines.append(" " + line.content);
+                }
+            }
+            diffContent = formattedLines.join("\n");
+            if (diffContent.size() > 6000) {
+                diffContent = diffContent.left(6000) + "\n... [diff truncated]";
+            }
+        }
+        selectedFileDiffs.append({file.filePath, diffContent});
+    }
+
+    QList<CommitItem> recentCommits;
+    if (m_settings->aiFollowRepoStyle()) {
+        recentCommits = m_activeService->getCommitHistory(5);
+    }
+
+    m_aiCommitService->generateCommitMessage(
+        m_settings->aiProvider(),
+        m_settings->aiApiKey(),
+        m_settings->aiEndpoint(),
+        m_settings->aiModel(),
+        m_settings->aiCommitStyle(),
+        m_settings->aiIncludeDescription(),
+        m_settings->aiFollowRepoStyle(),
+        recentCommits,
+        selectedFileDiffs
+    );
 }
 
 QString AppController::resolveAvatarUrl(const QString &name, const QString &email) const

@@ -1918,7 +1918,7 @@ QList<CommitItem> GitCliService::getCommitHistory(int limit)
 
     // Fast Git CLI query using porcelain record/unit separators
     locker.unlock();
-    GitResult logRes = runGit({"log", QString("-%1").arg(fetchCount), "--format=%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%at%x1e"}, QString(), 4000);
+    GitResult logRes = runGit({"log", QString("-%1").arg(fetchCount), "--format=%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%at%x1f%D%x1e"}, QString(), 4000);
     locker.relock();
     if (logRes.success && !logRes.stdOut.isEmpty()) {
         QList<CommitItem> list;
@@ -1937,6 +1937,19 @@ QList<CommitItem> GitCliService::getCommitHistory(int limit)
             qint64 epoch = fields[6].trimmed().toLongLong();
             item.timestamp = QDateTime::fromSecsSinceEpoch(epoch, QTimeZone::UTC);
             item.relativeTime = formatRelativeTime(item.timestamp);
+
+            if (fields.size() >= 8) {
+                const QString decorations = fields[7].trimmed();
+                if (!decorations.isEmpty()) {
+                    const QStringList parts = decorations.split(QLatin1Char(','), Qt::SkipEmptyParts);
+                    for (const QString &part : parts) {
+                        const QString tagRef = part.trimmed();
+                        if (tagRef.startsWith(QLatin1String("tag: "))) {
+                            item.tags.append(tagRef.mid(5).trimmed());
+                        }
+                    }
+                }
+            }
 
             static const QRegularExpression coRegex(R"(Co-authored-by:\s*(.*?)(?:<|$))", QRegularExpression::CaseInsensitiveOption);
             auto it = coRegex.globalMatch(item.description);
@@ -1969,7 +1982,7 @@ std::optional<CommitItem> GitCliService::getCommitDetails(const QString &sha)
     locker.unlock();
     // Fast CLI queries for commit metadata, numstat, and name-status
     const QString revision = sha.trimmed();
-    GitResult showRes = runGit({"show", "-s", "--format=%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%at", "--end-of-options", revision}, QString(), 4000);
+    GitResult showRes = runGit({"show", "-s", "--format=%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%at%x1f%D", "--end-of-options", revision}, QString(), 4000);
     GitResult statusRes = runGit({"diff-tree", "--no-commit-id", "--name-status", "-r", "-M", "-z", "--end-of-options", revision}, QString(), 4000);
     GitResult numstatRes = runGit({"diff-tree", "--no-commit-id", "--numstat", "-r", "-M", "-z", "--end-of-options", revision}, QString(), 4000);
     locker.relock();
@@ -1989,6 +2002,19 @@ std::optional<CommitItem> GitCliService::getCommitDetails(const QString &sha)
             const qint64 epoch = fields[6].trimmed().toLongLong();
             commit.timestamp = QDateTime::fromSecsSinceEpoch(epoch, QTimeZone::UTC);
             commit.relativeTime = formatRelativeTime(commit.timestamp);
+
+            if (fields.size() >= 8) {
+                const QString decorations = fields[7].trimmed();
+                if (!decorations.isEmpty()) {
+                    const QStringList parts = decorations.split(QLatin1Char(','), Qt::SkipEmptyParts);
+                    for (const QString &part : parts) {
+                        const QString tagRef = part.trimmed();
+                        if (tagRef.startsWith(QLatin1String("tag: "))) {
+                            commit.tags.append(tagRef.mid(5).trimmed());
+                        }
+                    }
+                }
+            }
 
             static const QRegularExpression coRegex(R"(Co-authored-by:\s*(.*?)(?:<|$))", QRegularExpression::CaseInsensitiveOption);
             auto it = coRegex.globalMatch(commit.description);

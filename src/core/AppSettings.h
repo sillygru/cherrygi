@@ -41,6 +41,17 @@ class AppSettings : public QObject {
     Q_PROPERTY(QStringList availableEditors READ availableEditors CONSTANT)
     Q_PROPERTY(QStringList availableTerminals READ availableTerminals CONSTANT)
 
+    // AI Commit Assistant Settings
+    Q_PROPERTY(bool aiEnabled READ aiEnabled WRITE setAiEnabled NOTIFY aiEnabledChanged)
+    Q_PROPERTY(QString aiProvider READ aiProvider WRITE setAiProvider NOTIFY aiProviderChanged)
+    Q_PROPERTY(QString aiApiKey READ aiApiKey WRITE setAiApiKey NOTIFY aiApiKeyChanged)
+    Q_PROPERTY(QString aiEndpoint READ aiEndpoint WRITE setAiEndpoint NOTIFY aiEndpointChanged)
+    Q_PROPERTY(QString aiModel READ aiModel WRITE setAiModel NOTIFY aiModelChanged)
+    Q_PROPERTY(QString aiCommitStyle READ aiCommitStyle WRITE setAiCommitStyle NOTIFY aiCommitStyleChanged)
+    Q_PROPERTY(bool aiIncludeDescription READ aiIncludeDescription WRITE setAiIncludeDescription NOTIFY aiIncludeDescriptionChanged)
+    Q_PROPERTY(bool aiFollowRepoStyle READ aiFollowRepoStyle WRITE setAiFollowRepoStyle NOTIFY aiFollowRepoStyleChanged)
+    Q_PROPERTY(bool aiFirstRunConfigured READ aiFirstRunConfigured WRITE setAiFirstRunConfigured NOTIFY aiFirstRunConfiguredChanged)
+
 public:
     explicit AppSettings(QObject *parent = nullptr);
     ~AppSettings() override = default;
@@ -80,6 +91,34 @@ public:
     QString avatarProvider() const { return m_avatarProvider; }
     void setAvatarProvider(const QString &provider);
 
+    // AI Commit Assistant Settings
+    bool aiEnabled() const { return m_aiEnabled; }
+    void setAiEnabled(bool enabled);
+
+    QString aiProvider() const { return m_aiProvider; }
+    void setAiProvider(const QString &provider);
+
+    QString aiApiKey() const { return m_aiApiKey; }
+    void setAiApiKey(const QString &apiKey);
+
+    QString aiEndpoint() const { return m_aiEndpoint; }
+    void setAiEndpoint(const QString &endpoint);
+
+    QString aiModel() const { return m_aiModel; }
+    void setAiModel(const QString &model);
+
+    QString aiCommitStyle() const { return m_aiCommitStyle; }
+    void setAiCommitStyle(const QString &style);
+
+    bool aiIncludeDescription() const { return m_aiIncludeDescription; }
+    void setAiIncludeDescription(bool includeDesc);
+
+    bool aiFollowRepoStyle() const { return m_aiFollowRepoStyle; }
+    void setAiFollowRepoStyle(bool follow);
+
+    bool aiFirstRunConfigured() const { return m_aiFirstRunConfigured; }
+    void setAiFirstRunConfigured(bool configured);
+
     // Discovery & Capabilities
     bool isGhAvailable() const;
     QStringList availableEditors() const;
@@ -99,6 +138,15 @@ signals:
     void tabSizeChanged();
     void startupBackendChanged();
     void avatarProviderChanged();
+    void aiEnabledChanged();
+    void aiProviderChanged();
+    void aiApiKeyChanged();
+    void aiEndpointChanged();
+    void aiModelChanged();
+    void aiCommitStyleChanged();
+    void aiIncludeDescriptionChanged();
+    void aiFollowRepoStyleChanged();
+    void aiFirstRunConfiguredChanged();
 
 private:
     void detectTools();
@@ -117,6 +165,17 @@ private:
     int m_tabSize{4};
     QString m_startupBackend{"real"};
     QString m_avatarProvider{"auto"};
+
+    // AI Commit Assistant
+    bool m_aiEnabled{false};
+    QString m_aiProvider{"openai"};
+    QString m_aiApiKey;
+    QString m_aiEndpoint;
+    QString m_aiModel;
+    QString m_aiCommitStyle{"conventional"};
+    bool m_aiIncludeDescription{true};
+    bool m_aiFollowRepoStyle{true};
+    bool m_aiFirstRunConfigured{false};
 
     QMap<QString, EditorInfo> m_knownEditors;
     QMap<QString, TerminalInfo> m_knownTerminals;

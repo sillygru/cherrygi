@@ -73,6 +73,47 @@ ColumnLayout {
                 wrapMode: Text.Wrap
             }
 
+            // Tags Row
+            RowLayout {
+                visible: Boolean(root.commitData && root.commitData.tags && root.commitData.tags.length > 0)
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+
+                Kirigami.Icon {
+                    source: "tag"
+                    implicitWidth: 14
+                    implicitHeight: 14
+                    color: CherryStyle.secondaryTextColor
+                }
+
+                Repeater {
+                    model: (root.commitData && root.commitData.tags) ? root.commitData.tags : []
+                    Rectangle {
+                        implicitWidth: inspectorTagRow.implicitWidth + 10
+                        implicitHeight: 22
+                        radius: CherryStyle.radiusSmall
+                        color: CherryStyle.surfaceCardElevated
+                        border.color: CherryStyle.borderColor
+                        border.width: 1
+
+                        RowLayout {
+                            id: inspectorTagRow
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            QQC2.Label {
+                                text: modelData
+                                font.pixelSize: CherryStyle.smallFont.pixelSize
+                                font.bold: true
+                                color: Kirigami.Theme.textColor
+                            }
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+            }
+
             Kirigami.Separator {
                 Layout.fillWidth: true
             }

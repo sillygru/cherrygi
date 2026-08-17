@@ -52,6 +52,7 @@ struct CommitItem {
     QDateTime timestamp;
     QString relativeTime;
     QStringList coAuthors;
+    QStringList tags;
     QList<FileChange> changedFiles;
 };
 

@@ -33,6 +33,19 @@ Rectangle {
 
     property var coAuthorsList: []
 
+    // AI Commit Style Dialog (first-run or configuration)
+    AiCommitStyleDialog {
+        id: aiStyleDialog
+    }
+
+    Connections {
+        target: appController
+        function onAiCommitMessageReady(summary, description) {
+            summaryField.text = summary;
+            descArea.text = description;
+        }
+    }
+
     // Popup for adding co-author
     QQC2.Popup {
         id: addCoAuthorPopup
@@ -255,10 +268,36 @@ Rectangle {
             }
         }
 
-        // Co-Authors Strip & Add button
+        // AI & Co-Authors Strip
         RowLayout {
             Layout.fillWidth: true
             spacing: 4
+
+            // AI Commit Message Generator Button
+            QQC2.ToolButton {
+                id: aiGenerateBtn
+                visible: appController.isAiEnabled
+                icon.name: "tools-wizard"
+                icon.width: 14
+                icon.height: 14
+                text: appController.isAiGenerating ? qsTr("Generating...") : qsTr("AI Generate")
+                font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                enabled: !appController.isCommitting && !appController.isAiGenerating && appController.changedFiles.selectedCount > 0
+
+                QQC2.ToolTip.text: {
+                    if (appController.changedFiles.selectedCount === 0) return qsTr("Select files above to generate AI commit message");
+                    return qsTr("Generate commit title and description with AI");
+                }
+                QQC2.ToolTip.visible: hovered
+
+                onClicked: {
+                    if (!appController.aiFirstRunConfigured || (appController.aiApiKey.trim().length === 0 && appController.aiProvider !== "custom")) {
+                        aiStyleDialog.open();
+                    } else {
+                        appController.generateAiCommit();
+                    }
+                }
+            }
 
             QQC2.ToolButton {
                 id: coAuthorBtn

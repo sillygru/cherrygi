@@ -61,6 +61,8 @@ set(CHERRYGI_SOURCES
     src/core/AvatarResolver.cpp
     src/core/GitHubAvatarService.h
     src/core/GitHubAvatarService.cpp
+    src/core/AiCommitService.h
+    src/core/AiCommitService.cpp
     src/core/GitImageProvider.h
     src/core/GitImageProvider.cpp
     src/core/AppController.h
@@ -116,6 +118,7 @@ qt_add_qml_module(cherrygi
         src/qml/components/MissingRepositoryView.qml
         src/qml/components/CloneRepositoryDialog.qml
         src/qml/components/UndoToast.qml
+        src/qml/components/AiCommitStyleDialog.qml
 )
 
 target_include_directories(cherrygi PRIVATE

@@ -89,6 +89,8 @@ QVariant CommitHistoryModel::data(const QModelIndex &index, int role) const
         return computeAuthorColor(commit.authorName);
     case AuthorInitialRole:
         return commit.authorName.isEmpty() ? QString("G") : QString(commit.authorName.at(0).toUpper());
+    case TagsRole:
+        return commit.tags;
     default:
         return QVariant();
     }
@@ -111,7 +113,8 @@ QHash<int, QByteArray> CommitHistoryModel::roleNames() const
         {ChangedFilesCountRole, "changedFilesCount"},
         {IsLocalRole, "isLocal"},
         {AuthorColorRole, "authorColor"},
-        {AuthorInitialRole, "authorInitial"}
+        {AuthorInitialRole, "authorInitial"},
+        {TagsRole, "tags"}
     };
 }
 
@@ -174,7 +177,8 @@ void CommitHistoryModel::reload()
         for (int i = 0; i < newCommits.size(); ++i) {
             if (newCommits[i].sha != m_allCommits[i].sha ||
                 newCommits[i].summary != m_allCommits[i].summary ||
-                newCommits[i].relativeTime != m_allCommits[i].relativeTime) {
+                newCommits[i].relativeTime != m_allCommits[i].relativeTime ||
+                newCommits[i].tags != m_allCommits[i].tags) {
                 identical = false;
                 break;
             }
@@ -225,7 +229,15 @@ void CommitHistoryModel::applyFilter()
         const QString filter = m_filterText.trimmed();
         m_filteredCommits.reserve(m_allCommits.size() / 2);
         for (const auto &c : m_allCommits) {
-            if (c.summary.contains(filter, Qt::CaseInsensitive) ||
+            bool tagMatch = false;
+            for (const auto &t : c.tags) {
+                if (t.contains(filter, Qt::CaseInsensitive)) {
+                    tagMatch = true;
+                    break;
+                }
+            }
+            if (tagMatch ||
+                c.summary.contains(filter, Qt::CaseInsensitive) ||
                 c.description.contains(filter, Qt::CaseInsensitive) ||
                 c.authorName.contains(filter, Qt::CaseInsensitive) ||
                 c.sha.startsWith(filter, Qt::CaseInsensitive) ||

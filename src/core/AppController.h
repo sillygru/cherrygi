@@ -13,6 +13,7 @@
 #include "MockGitService.h"
 #include "AppSettings.h"
 #include "GitHubAvatarService.h"
+#include "AiCommitService.h"
 #include "../models/RepositoryListModel.h"
 #include "../models/BranchListModel.h"
 #include "../models/ChangedFilesModel.h"
@@ -119,6 +120,18 @@ class AppController : public QObject {
     Q_PROPERTY(QString customTerminalCommand READ customTerminalCommand NOTIFY terminalSettingsChanged)
     Q_PROPERTY(QStringList availableEditors READ availableEditors CONSTANT)
     Q_PROPERTY(QStringList availableTerminals READ availableTerminals CONSTANT)
+
+    // AI Commit Assistant
+    Q_PROPERTY(bool isAiEnabled READ isAiEnabled NOTIFY aiSettingsChanged)
+    Q_PROPERTY(bool isAiGenerating READ isAiGenerating NOTIFY aiGeneratingChanged)
+    Q_PROPERTY(QString aiProvider READ aiProvider NOTIFY aiSettingsChanged)
+    Q_PROPERTY(QString aiApiKey READ aiApiKey NOTIFY aiSettingsChanged)
+    Q_PROPERTY(QString aiEndpoint READ aiEndpoint NOTIFY aiSettingsChanged)
+    Q_PROPERTY(QString aiModel READ aiModel NOTIFY aiSettingsChanged)
+    Q_PROPERTY(QString aiCommitStyle READ aiCommitStyle NOTIFY aiSettingsChanged)
+    Q_PROPERTY(bool aiIncludeDescription READ aiIncludeDescription NOTIFY aiSettingsChanged)
+    Q_PROPERTY(bool aiFollowRepoStyle READ aiFollowRepoStyle NOTIFY aiSettingsChanged)
+    Q_PROPERTY(bool aiFirstRunConfigured READ aiFirstRunConfigured NOTIFY aiSettingsChanged)
 
     // Author Config
     Q_PROPERTY(QString globalAuthorName READ globalAuthorName NOTIFY authorInfoChanged)
@@ -231,6 +244,18 @@ public:
     QStringList availableEditors() const;
     QStringList availableTerminals() const;
 
+    // AI Commit Assistant
+    bool isAiEnabled() const;
+    bool isAiGenerating() const { return m_isAiGenerating; }
+    QString aiProvider() const;
+    QString aiApiKey() const;
+    QString aiEndpoint() const;
+    QString aiModel() const;
+    QString aiCommitStyle() const;
+    bool aiIncludeDescription() const;
+    bool aiFollowRepoStyle() const;
+    bool aiFirstRunConfigured() const;
+
     QString globalAuthorName() const;
     QString globalAuthorEmail() const;
     QString localAuthorName() const;
@@ -282,6 +307,12 @@ public:
     Q_INVOKABLE void saveTerminalSettings(const QString &terminal, const QString &customCmd);
     Q_INVOKABLE void saveAvatarSettings(const QString &provider);
     Q_INVOKABLE QString resolveAvatarUrl(const QString &name, const QString &email) const;
+
+    // AI Commit Actions
+    Q_INVOKABLE void generateAiCommit();
+    Q_INVOKABLE void cancelAiCommit();
+    Q_INVOKABLE void saveAiSettings(bool enabled, const QString &provider, const QString &apiKey, const QString &endpoint, const QString &model, const QString &commitStyle, bool includeDescription, bool followRepoStyle, bool firstRunConfigured);
+    Q_INVOKABLE void setAiFirstRunConfigured(bool configured);
 
     Q_INVOKABLE void openLocalRepositoryDialog();
     Q_INVOKABLE void switchRepository(const QString &repoIdOrPath);
@@ -357,6 +388,9 @@ signals:
     void avatarProviderChanged();
     void authorInfoChanged();
     void toastChanged();
+    void aiSettingsChanged();
+    void aiGeneratingChanged();
+    void aiCommitMessageReady(const QString &summary, const QString &description);
 
 private:
     void updateCurrentState();
@@ -366,6 +400,7 @@ private:
 
     std::unique_ptr<AppSettings> m_settings;
     std::unique_ptr<GitHubAvatarService> m_githubAvatarService;
+    std::unique_ptr<AiCommitService> m_aiCommitService;
     std::unique_ptr<GitCliService> m_gitCliService;
     std::unique_ptr<MockGitService> m_mockService;
     IGitService *m_activeService{nullptr};
@@ -377,6 +412,7 @@ private:
     bool m_isPublishing{false};
     QString m_publishErrorMessage;
     bool m_isCommitting{false};
+    bool m_isAiGenerating{false};
     bool m_isLoadingRepository{false};
     QList<QThread *> m_workerThreads;
     QMutex m_workerMutex;

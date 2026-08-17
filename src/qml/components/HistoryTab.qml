@@ -150,6 +150,7 @@ ColumnLayout {
                 required property bool isLocal
                 required property color authorColor
                 required property string authorInitial
+                required property var tags
 
                 highlighted: appController.selectedCommitSha === commitDelegate.sha
 
@@ -189,39 +190,18 @@ ColumnLayout {
                     // Metadata
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 2
+                        spacing: 3
 
-                        RowLayout {
+                        // Commit Title / Summary (Full width, not crowded)
+                        QQC2.Label {
+                            text: commitDelegate.summary
+                            font.bold: true
+                            color: commitDelegate.highlighted ? CherryStyle.accentColor : Kirigami.Theme.textColor
+                            elide: Text.ElideRight
                             Layout.fillWidth: true
-                            spacing: Kirigami.Units.smallSpacing
-
-                            QQC2.Label {
-                                text: commitDelegate.summary
-                                font.bold: true
-                                color: commitDelegate.highlighted ? CherryStyle.accentColor : Kirigami.Theme.textColor
-                                elide: Text.ElideRight
-                                Layout.fillWidth: true
-                            }
-
-                            // Short SHA Badge
-                            Rectangle {
-                                implicitWidth: shaLabel.implicitWidth + 10
-                                implicitHeight: 20
-                                radius: CherryStyle.radiusSmall
-                                color: CherryStyle.surfaceCardElevated
-
-                                QQC2.Label {
-                                    id: shaLabel
-                                    anchors.centerIn: parent
-                                    text: commitDelegate.shortSha
-                                    font.family: CherryStyle.codeFont.family
-                                    font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                                    font.bold: true
-                                    color: commitDelegate.highlighted ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
-                                }
-                            }
                         }
 
+                        // Subtitle Metadata Line (Author, Date, Tags, Unpushed, Short SHA)
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 4
@@ -243,6 +223,41 @@ ColumnLayout {
                                 text: commitDelegate.relativeTime
                                 font.pixelSize: CherryStyle.smallFont.pixelSize
                                 color: CherryStyle.secondaryTextColor
+                            }
+
+                            // Tag Badges
+                            Repeater {
+                                model: commitDelegate.tags
+                                Rectangle {
+                                    implicitWidth: tagRow.implicitWidth + 8
+                                    implicitHeight: 18
+                                    radius: CherryStyle.radiusSmall
+                                    color: commitDelegate.highlighted ? Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.25) : CherryStyle.surfaceCardElevated
+                                    border.color: commitDelegate.highlighted ? CherryStyle.accentColor : CherryStyle.borderColor
+                                    border.width: 1
+
+                                    RowLayout {
+                                        id: tagRow
+                                        anchors.centerIn: parent
+                                        spacing: 3
+
+                                        Kirigami.Icon {
+                                            source: "tag"
+                                            implicitWidth: 10
+                                            implicitHeight: 10
+                                            color: commitDelegate.highlighted ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
+                                        }
+
+                                        QQC2.Label {
+                                            text: modelData
+                                            font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                            font.bold: true
+                                            color: commitDelegate.highlighted ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
+                                            elide: Text.ElideRight
+                                            Layout.maximumWidth: 100
+                                        }
+                                    }
+                                }
                             }
 
                             // Unpushed commit indicator
@@ -268,6 +283,24 @@ ColumnLayout {
                             }
 
                             Item { Layout.fillWidth: true }
+
+                            // Short SHA Badge (right-aligned in metadata row)
+                            Rectangle {
+                                implicitWidth: shaLabel.implicitWidth + 8
+                                implicitHeight: 18
+                                radius: CherryStyle.radiusSmall
+                                color: CherryStyle.surfaceCardElevated
+
+                                QQC2.Label {
+                                    id: shaLabel
+                                    anchors.centerIn: parent
+                                    text: commitDelegate.shortSha
+                                    font.family: CherryStyle.codeFont.family
+                                    font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                    font.bold: true
+                                    color: commitDelegate.highlighted ? CherryStyle.accentColor : CherryStyle.secondaryTextColor
+                                }
+                            }
                         }
                     }
                 }
