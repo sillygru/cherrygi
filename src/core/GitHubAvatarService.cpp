@@ -10,6 +10,14 @@
 #include <QTimer>
 #include <QUrl>
 
+#if defined(Q_OS_LINUX)
+#include <sys/prctl.h>
+#endif
+#if defined(Q_OS_UNIX)
+#include <unistd.h>
+#include <csignal>
+#endif
+
 namespace Cherry {
 
 GitHubAvatarService::GitHubAvatarService(QObject *parent)
@@ -20,10 +28,30 @@ GitHubAvatarService::GitHubAvatarService(QObject *parent)
     });
     connect(&m_ghAuthProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
         if (m_ghAuthInProgress) {
-            m_ghAuthProcess.kill();
+            cancelOperations();
             finishGitHubAuth();
         }
     });
+}
+
+GitHubAvatarService::~GitHubAvatarService()
+{
+    cancelOperations();
+}
+
+void GitHubAvatarService::cancelOperations()
+{
+    if (m_ghAuthProcess.state() != QProcess::NotRunning) {
+#if defined(Q_OS_UNIX)
+        const qint64 pid = m_ghAuthProcess.processId();
+        if (pid > 0) {
+            ::kill(-static_cast<pid_t>(pid), SIGKILL);
+            ::kill(static_cast<pid_t>(pid), SIGKILL);
+        }
+#endif
+        m_ghAuthProcess.kill();
+        m_ghAuthProcess.waitForFinished(100);
+    }
 }
 
 QString GitHubAvatarService::normalize(const QString &value)
@@ -84,10 +112,20 @@ void GitHubAvatarService::fetchForRemote(const QString &remoteUrl)
 
     if (!m_ghAuthInProgress) {
         m_ghAuthInProgress = true;
+#if defined(Q_OS_LINUX)
+        m_ghAuthProcess.setChildProcessModifier([]() {
+            ::setpgid(0, 0);
+            ::prctl(PR_SET_PDEATHSIG, SIGKILL);
+        });
+#elif defined(Q_OS_UNIX)
+        m_ghAuthProcess.setChildProcessModifier([]() {
+            ::setpgid(0, 0);
+        });
+#endif
         m_ghAuthProcess.start(QStringLiteral("gh"), {QStringLiteral("auth"), QStringLiteral("token"), QStringLiteral("--hostname"), QStringLiteral("github.com")});
         QTimer::singleShot(10000, &m_ghAuthProcess, [this]() {
             if (m_ghAuthInProgress && m_ghAuthProcess.state() != QProcess::NotRunning) {
-                m_ghAuthProcess.kill();
+                cancelOperations();
             }
         });
     }
@@ -139,7 +177,7 @@ void GitHubAvatarService::fetchPage(const QString &url, const QString &remoteKey
             fetchPage(url, remoteKey, false);
             return;
         }
-        if (reply->error() != QNetworkReply::NoError) {
+        if (reply->error() != QNetworkReply::NoError || !reply->isOpen() || !reply->isReadable()) {
             m_fetchedRemotes.remove(remoteKey);
             reply->deleteLater();
             return;

@@ -148,6 +148,8 @@ public:
     explicit AppController(QObject *parent = nullptr);
     ~AppController() override;
 
+    void cancelAllOperations();
+
     // Backend Mode
     QString backendMode() const { return m_backendMode; }
     void setBackendMode(const QString &mode);

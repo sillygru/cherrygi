@@ -12,6 +12,9 @@
 #include <QThread>
 #include <functional>
 #include <atomic>
+#include <QSet>
+
+class QProcess;
 
 namespace Cherry {
 
@@ -110,6 +113,11 @@ public:
     bool isCurrentRepoMissing() const { return m_isMissing; }
     void clearUndoState();
     void cancelOperations();
+
+    void registerActiveProcess(QProcess *process);
+    void unregisterActiveProcess(QProcess *process);
+    void killActiveProcesses();
+    static void killProcess(QProcess *process);
 
 private:
     QThread *trackWorker(QThread *thread);
@@ -219,6 +227,8 @@ private:
     mutable QMutex m_gitProcessMutex;
     std::atomic<quint64> m_repositoryGeneration{0};
     std::atomic_bool m_shuttingDown{false};
+    mutable QMutex m_activeProcessesMutex;
+    QSet<QProcess *> m_activeProcesses;
     QMutex m_workerMutex;
     QList<QThread *> m_workers;
 };

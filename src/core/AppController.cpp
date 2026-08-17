@@ -98,6 +98,11 @@ AppController::AppController(QObject *parent)
         }
     });
 
+    // Ensure all running git and helper processes are terminated when quitting
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
+        cancelAllOperations();
+    });
+
     // Select initial file
     auto files = m_activeService->getChangedFiles();
     if (!files.isEmpty()) {
@@ -113,11 +118,18 @@ AppController::AppController(QObject *parent)
     }
 }
 
-AppController::~AppController()
+void AppController::cancelAllOperations()
 {
     m_currentLoadSequence.fetch_add(1);
     if (m_diffModel) m_diffModel->cancelOperations();
     if (m_gitCliService) m_gitCliService->cancelOperations();
+    if (m_githubAvatarService) m_githubAvatarService->cancelOperations();
+    if (m_aiCommitService) m_aiCommitService->cancel();
+}
+
+AppController::~AppController()
+{
+    cancelAllOperations();
 
     QList<QThread *> workers;
     {

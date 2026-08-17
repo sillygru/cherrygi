@@ -14,6 +14,21 @@
 
 static void cherryMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
+    // Filter out known upstream framework or environment noise:
+    // 1. Spurious XDG Desktop Portal registration failure when running standalone dev builds
+    if (msg.contains(QLatin1String("Failed to register with host portal")) ||
+        msg.contains(QLatin1String("App info not found for 'org.kde.cherrygi'"))) {
+        return;
+    }
+    // 2. Internal Qt socket teardown warnings during asynchronous request aborts
+    if (msg.contains(QLatin1String("QIODevice::read (QSslSocket): device not open"))) {
+        return;
+    }
+    // 3. Upstream KDE qqc2-desktop-style MenuItem context menu standard key shortcut warnings
+    if (msg.contains(QLatin1String("Only binding to one of multiple key bindings associated with"))) {
+        return;
+    }
+
     const char *colorCode = "\033[0m";
     const char *levelStr = "INFO";
 
@@ -83,18 +98,14 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon(QStringLiteral(":/icons/cherrygi.svg")));
 
     Cherry::AppController appController;
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&appController]() {
+        appController.cancelAllOperations();
+    });
     qmlRegisterSingletonInstance("org.kde.cherrygi", 1, 0, "AppController", &appController);
 
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("gitimage"), new Cherry::GitImageProvider(&appController));
     engine.rootContext()->setContextProperty("appController", &appController);
-
-    // Forward all QML runtime warnings to the message handler with precise location details
-    QObject::connect(&engine, &QQmlApplicationEngine::warnings, [](const QList<QQmlError> &warnings) {
-        for (const auto &w : warnings) {
-            qWarning().noquote() << QString("[QML Warning] %1").arg(w.toString());
-        }
-    });
 
     // Register translation domain
     KLocalizedString::setApplicationDomain("cherrygi");

@@ -14,7 +14,9 @@ class GitHubAvatarService : public QObject {
 
 public:
     explicit GitHubAvatarService(QObject *parent = nullptr);
+    ~GitHubAvatarService() override;
 
+    void cancelOperations();
     void fetchForRemote(const QString &remoteUrl);
     QString avatarFor(const QString &authorName, const QString &authorEmail) const;
     QHash<QString, QString> avatarOverrides() const { return m_avatars; }

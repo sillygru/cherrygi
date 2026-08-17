@@ -15,6 +15,14 @@
 #include <QElapsedTimer>
 #include <QSet>
 
+#if defined(Q_OS_LINUX)
+#include <sys/prctl.h>
+#endif
+#if defined(Q_OS_UNIX)
+#include <unistd.h>
+#include <csignal>
+#endif
+
 namespace Cherry {
 
 namespace {
@@ -26,6 +34,40 @@ QString redactRemoteUrl(const QString &url)
     result.replace(QRegularExpression(R"((https?://)[^/\s@]+@)"), "\\1");
     return result;
 }
+
+void configureGitProcess(QProcess &process)
+{
+#if defined(Q_OS_LINUX)
+    process.setChildProcessModifier([]() {
+        ::setpgid(0, 0);
+        ::prctl(PR_SET_PDEATHSIG, SIGKILL);
+    });
+#elif defined(Q_OS_UNIX)
+    process.setChildProcessModifier([]() {
+        ::setpgid(0, 0);
+    });
+#endif
+}
+
+class ScopedProcessTracker {
+public:
+    ScopedProcessTracker(GitCliService *service, QProcess *process)
+        : m_service(service), m_process(process)
+    {
+        if (m_service && m_process) {
+            m_service->registerActiveProcess(m_process);
+        }
+    }
+    ~ScopedProcessTracker()
+    {
+        if (m_service && m_process) {
+            m_service->unregisterActiveProcess(m_process);
+        }
+    }
+private:
+    GitCliService *m_service{nullptr};
+    QProcess *m_process{nullptr};
+};
 }
 
 GitCliService::GitCliService(QObject *parent)
@@ -49,10 +91,52 @@ GitCliService::GitCliService(QObject *parent)
     discoverInitialRepository();
 }
 
+void GitCliService::killProcess(QProcess *process)
+{
+    if (!process) return;
+    const qint64 pid = process->processId();
+#if defined(Q_OS_UNIX)
+    if (pid > 0) {
+        ::kill(-static_cast<pid_t>(pid), SIGKILL);
+        ::kill(static_cast<pid_t>(pid), SIGKILL);
+    }
+#endif
+    if (process->state() != QProcess::NotRunning) {
+        process->kill();
+    }
+}
+
+void GitCliService::registerActiveProcess(QProcess *process)
+{
+    if (!process) return;
+    QMutexLocker locker(&m_activeProcessesMutex);
+    if (m_shuttingDown.load(std::memory_order_acquire)) {
+        killProcess(process);
+        return;
+    }
+    m_activeProcesses.insert(process);
+}
+
+void GitCliService::unregisterActiveProcess(QProcess *process)
+{
+    if (!process) return;
+    QMutexLocker locker(&m_activeProcessesMutex);
+    m_activeProcesses.remove(process);
+}
+
+void GitCliService::killActiveProcesses()
+{
+    QMutexLocker locker(&m_activeProcessesMutex);
+    for (QProcess *process : m_activeProcesses) {
+        killProcess(process);
+    }
+}
+
 void GitCliService::cancelOperations()
 {
     m_shuttingDown.store(true, std::memory_order_release);
     m_repositoryGeneration.fetch_add(1);
+    killActiveProcesses();
 }
 
 GitCliService::~GitCliService()
@@ -472,11 +556,22 @@ void GitCliService::refreshRepository()
 
 GitResult GitCliService::runGit(const QStringList &args, const QString &workingDir, int timeoutMs, quint64 cancellationGeneration)
 {
+    if (m_shuttingDown.load(std::memory_order_acquire)) {
+        return GitResult{-1, QString(), QStringLiteral("Shutting down"), false};
+    }
+
     // Refresh, diff, and network workers may all issue Git commands. A single
     // process lock prevents concurrent commands from observing half-updated
     // refs/index state or competing for Git's repository lock files.
     QMutexLocker processLocker(&m_gitProcessMutex);
+    if (m_shuttingDown.load(std::memory_order_acquire)) {
+        return GitResult{-1, QString(), QStringLiteral("Shutting down"), false};
+    }
+
     QProcess process;
+    configureGitProcess(process);
+    ScopedProcessTracker processTracker(this, &process);
+
     QString dir = workingDir.isEmpty() ? m_repoPath : workingDir;
     if (dir.isEmpty() || !QDir(dir).exists()) {
         dir = QDir::homePath();
@@ -503,8 +598,8 @@ GitResult GitCliService::runGit(const QStringList &args, const QString &workingD
             m_repositoryGeneration.load() != cancellationGeneration;
         if (m_shuttingDown.load(std::memory_order_acquire) || refreshCancelled || operationCancelled) {
             cancelled = true;
-            process.kill();
-            process.waitForFinished(500);
+            killProcess(&process);
+            process.waitForFinished(100);
             break;
         }
         process.waitForFinished(100);
@@ -512,8 +607,8 @@ GitResult GitCliService::runGit(const QStringList &args, const QString &workingD
     finished = !cancelled && process.state() == QProcess::NotRunning;
 
     if (!finished && process.state() != QProcess::NotRunning) {
-        process.kill();
-        process.waitForFinished(500);
+        killProcess(&process);
+        process.waitForFinished(100);
     }
 
     GitResult result;
@@ -524,9 +619,9 @@ GitResult GitCliService::runGit(const QStringList &args, const QString &workingD
 
     if (!result.success && !result.stdErr.trimmed().isEmpty()) {
         // Do not log the command arguments: remote URLs may contain credentials.
-        qWarning().noquote() << QString("[GitCliService] Git command failed (exit %1): %2")
-                                    .arg(result.exitCode)
-                                    .arg(redactRemoteUrl(result.stdErr.trimmed()));
+        qDebug().noquote() << QString("[GitCliService] Git command failed (exit %1): %2")
+                                  .arg(result.exitCode)
+                                  .arg(redactRemoteUrl(result.stdErr.trimmed()));
     }
 
     return result;
@@ -1079,6 +1174,10 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
         QDir().mkpath(parentDir);
     }
 
+    if (m_shuttingDown.load(std::memory_order_acquire)) {
+        return false;
+    }
+
     QString workingDir = parentDir;
     if (workingDir.isEmpty() || !QDir(workingDir).exists()) {
         workingDir = QDir::homePath();
@@ -1087,6 +1186,8 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
     emit cloneProgressUpdated(-1.0, tr("Connecting to repository..."), redactRemoteUrl(cleanUrl));
 
     QProcess process;
+    configureGitProcess(process);
+    ScopedProcessTracker processTracker(this, &process);
     process.setWorkingDirectory(workingDir);
 
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
@@ -1138,8 +1239,8 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
 
     while (process.state() != QProcess::NotRunning) {
         if (m_shuttingDown.load(std::memory_order_acquire)) {
-            process.kill();
-            process.waitForFinished(500);
+            killProcess(&process);
+            process.waitForFinished(100);
             break;
         }
         if (process.waitForReadyRead(100)) {
@@ -1871,9 +1972,12 @@ QByteArray GitCliService::getFileBlob(const QString &filePath, const QString &re
     }
 
     if (ref.startsWith('-')) return {};
+    if (m_shuttingDown.load(std::memory_order_acquire)) return {};
 
     // Capture binary output from git show <ref>:<path>
     QProcess process;
+    configureGitProcess(process);
+    ScopedProcessTracker processTracker(this, &process);
     process.setWorkingDirectory(m_repoPath);
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert("LC_ALL", "C");
@@ -1881,11 +1985,15 @@ QByteArray GitCliService::getFileBlob(const QString &filePath, const QString &re
     process.setProcessEnvironment(env);
 
     process.start("git", {"show", "--end-of-options", QString("%1:%2").arg(ref, filePath)});
-    bool finished = process.waitForFinished(5000);
-    if (!finished) {
-        process.kill();
-        process.waitForFinished(500);
-        return {};
+    while (process.state() != QProcess::NotRunning) {
+        if (m_shuttingDown.load(std::memory_order_acquire)) {
+            killProcess(&process);
+            process.waitForFinished(100);
+            return {};
+        }
+        if (process.waitForFinished(100)) {
+            break;
+        }
     }
 
     if (process.exitCode() == 0) {
@@ -2446,12 +2554,16 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
     const quint64 operationGeneration = m_repositoryGeneration.load();
 
     QThread *thread = QThread::create([this, dir, repoName, desc, isPrivate, operationRepoPath, operationGeneration]() {
+        if (m_shuttingDown.load(std::memory_order_acquire)) return;
+
         QStringList args = {"repo", "create", repoName, isPrivate ? "--private" : "--public", "--source=.", "--remote=origin", "--push"};
         if (!desc.isEmpty()) {
             args << "--description" << desc;
         }
 
         QProcess process;
+        configureGitProcess(process);
+        ScopedProcessTracker processTracker(this, &process);
         process.setWorkingDirectory(dir);
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
         env.insert("LC_ALL", "C");
@@ -2468,16 +2580,16 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
             if (m_shuttingDown.load(std::memory_order_acquire) ||
                 m_repositoryGeneration.load() != operationGeneration) {
                 cancelled = true;
-                process.kill();
-                process.waitForFinished(500);
+                killProcess(&process);
+                process.waitForFinished(100);
                 break;
             }
             process.waitForFinished(100);
         }
         const bool finished = !cancelled && process.state() == QProcess::NotRunning;
         if (!finished && process.state() != QProcess::NotRunning) {
-            process.kill();
-            process.waitForFinished(500);
+            killProcess(&process);
+            process.waitForFinished(100);
         }
 
         int exitCode = process.exitCode();
