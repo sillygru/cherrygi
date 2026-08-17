@@ -1032,6 +1032,11 @@ static void parseGitCloneProgress(const QString &rawLine, double &progress, QStr
     QString line = rawLine.trimmed();
     if (line.isEmpty()) return;
 
+    // Strip ANSI escape codes
+    line.remove(QRegularExpression(R"(\x1B\[[0-9;]*[a-zA-Z])"));
+    line = line.trimmed();
+    if (line.isEmpty()) return;
+
     if (line.endsWith(", done.")) {
         line = line.left(line.length() - 7).trimmed();
     } else if (line.endsWith("done.")) {
@@ -1039,25 +1044,25 @@ static void parseGitCloneProgress(const QString &rawLine, double &progress, QStr
     }
 
     // 1. Receiving objects:  45% (10830/24066), 5.21 MiB | 1.12 MiB/s
-    static const QRegularExpression rxReceiving(R"(Receiving objects:\s*(\d+)%(?:\s*\(([^)]+)\))?(?:,\s*(.+))?)");
+    static const QRegularExpression rxReceiving(R"((?:remote:\s*)?Receiving objects:\s*(\d+)%(?:\s*\(([^)]+)\))?(?:,\s*(.+))?)");
     auto matchReceiving = rxReceiving.match(line);
     if (matchReceiving.hasMatch()) {
         int pct = matchReceiving.captured(1).toInt();
         QString counts = matchReceiving.captured(2).trimmed();
-        QString speed = matchReceiving.captured(3).trimmed();
+        QString extra = matchReceiving.captured(3).trimmed();
 
         stage = QString("Receiving objects (%1%)").arg(pct);
         progress = 0.15 + (pct / 100.0) * 0.65; // 15% -> 80%
 
         QStringList parts;
         if (!counts.isEmpty()) parts << counts + " objects";
-        if (!speed.isEmpty()) parts << speed;
+        if (!extra.isEmpty()) parts << extra;
         details = parts.join(" • ");
         return;
     }
 
     // 2. Resolving deltas:  80% (1234/1542)
-    static const QRegularExpression rxDeltas(R"(Resolving deltas:\s*(\d+)%(?:\s*\(([^)]+)\))?)");
+    static const QRegularExpression rxDeltas(R"((?:remote:\s*)?Resolving deltas:\s*(\d+)%(?:\s*\(([^)]+)\))?)");
     auto matchDeltas = rxDeltas.match(line);
     if (matchDeltas.hasMatch()) {
         int pct = matchDeltas.captured(1).toInt();
@@ -1070,7 +1075,7 @@ static void parseGitCloneProgress(const QString &rawLine, double &progress, QStr
     }
 
     // 3. Updating / Checking out files:  60% (120/200)
-    static const QRegularExpression rxUpdating(R"((?:Updating files|Checking out files):\s*(\d+)%(?:\s*\(([^)]+)\))?)");
+    static const QRegularExpression rxUpdating(R"((?:remote:\s*)?(?:Updating files|Checking out files):\s*(\d+)%(?:\s*\(([^)]+)\))?)");
     auto matchUpdating = rxUpdating.match(line);
     if (matchUpdating.hasMatch()) {
         int pct = matchUpdating.captured(1).toInt();
@@ -1082,7 +1087,20 @@ static void parseGitCloneProgress(const QString &rawLine, double &progress, QStr
         return;
     }
 
-    // 4. Compressing objects:  33% (10/30)
+    // 4. Filtering content:  50% (5/10)
+    static const QRegularExpression rxFiltering(R"((?:remote:\s*)?Filtering content:\s*(\d+)%(?:\s*\(([^)]+)\))?)");
+    auto matchFiltering = rxFiltering.match(line);
+    if (matchFiltering.hasMatch()) {
+        int pct = matchFiltering.captured(1).toInt();
+        QString counts = matchFiltering.captured(2).trimmed();
+
+        stage = QString("Filtering content (%1%)").arg(pct);
+        progress = 0.95 + (pct / 100.0) * 0.05;
+        details = counts.isEmpty() ? QString() : (counts + " files");
+        return;
+    }
+
+    // 5. Compressing objects:  33% (10/30)
     static const QRegularExpression rxCompress(R"((?:remote:\s*)?Compressing objects:\s*(\d+)%(?:\s*\(([^)]+)\))?)");
     auto matchCompress = rxCompress.match(line);
     if (matchCompress.hasMatch()) {
@@ -1095,7 +1113,7 @@ static void parseGitCloneProgress(const QString &rawLine, double &progress, QStr
         return;
     }
 
-    // 5. Counting objects:  50% (15/31)
+    // 6. Counting objects:  50% (15/31)
     static const QRegularExpression rxCount(R"((?:remote:\s*)?Counting objects:\s*(\d+)%(?:\s*\(([^)]+)\))?)");
     auto matchCount = rxCount.match(line);
     if (matchCount.hasMatch()) {
@@ -1108,8 +1126,8 @@ static void parseGitCloneProgress(const QString &rawLine, double &progress, QStr
         return;
     }
 
-    // 6. Enumerating objects: 24066
-    static const QRegularExpression rxEnum(R"((?:remote:\s*)?Enumerating objects:\s*(\d+))");
+    // 7. Enumerating objects: 24066
+    static const QRegularExpression rxEnum(R"((?:remote:\s*)?Enumerating objects:\s*(\d+)(?:%\s*\(([^)]+)\))?)");
     auto matchEnum = rxEnum.match(line);
     if (matchEnum.hasMatch()) {
         stage = "Enumerating objects...";
@@ -1118,7 +1136,7 @@ static void parseGitCloneProgress(const QString &rawLine, double &progress, QStr
         return;
     }
 
-    // 7. Generic progress with percentage
+    // 8. Generic progress with percentage
     static const QRegularExpression rxGeneric(R"((.+?):\s*(\d+)%(?:\s*\(([^)]+)\))?(?:,\s*(.+))?)");
     auto matchGeneric = rxGeneric.match(line);
     if (matchGeneric.hasMatch()) {
@@ -1137,7 +1155,7 @@ static void parseGitCloneProgress(const QString &rawLine, double &progress, QStr
         return;
     }
 
-    // 8. Connecting / Initializing fallback
+    // 9. Connecting / Initializing fallback
     if (line.startsWith("Cloning into", Qt::CaseInsensitive)) {
         stage = "Connecting to repository...";
         progress = -1.0;
@@ -1243,9 +1261,14 @@ bool GitCliService::cloneRepository(const QString &url, const QString &targetPat
             process.waitForFinished(100);
             break;
         }
-        if (process.waitForReadyRead(100)) {
-            processStderrChunk(process.readAllStandardError());
-            fullStdOut += QString::fromUtf8(process.readAllStandardOutput());
+        process.waitForReadyRead(50);
+        QByteArray errChunk = process.readAllStandardError();
+        if (!errChunk.isEmpty()) {
+            processStderrChunk(errChunk);
+        }
+        QByteArray outChunk = process.readAllStandardOutput();
+        if (!outChunk.isEmpty()) {
+            fullStdOut += QString::fromUtf8(outChunk);
         }
     }
 

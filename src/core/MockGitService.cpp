@@ -412,18 +412,22 @@ bool MockGitService::cloneRepository(const QString &url, const QString &targetPa
     if (name.isEmpty()) name = "Cloned-Repo";
 
     emit cloneProgressUpdated(-1.0, tr("Connecting to repository..."), url);
+    QThread::msleep(120);
+    emit cloneProgressUpdated(0.02, tr("Enumerating objects..."), "24066 objects found");
+    QThread::msleep(100);
+    emit cloneProgressUpdated(0.05, tr("Counting objects (100%)"), "24066/24066 objects");
+    QThread::msleep(120);
+    emit cloneProgressUpdated(0.15, tr("Compressing objects (100%)"), "4520/4520 objects");
     QThread::msleep(150);
-    emit cloneProgressUpdated(0.05, tr("Counting objects (100%)"), "31/31 objects");
+    emit cloneProgressUpdated(0.35, tr("Receiving objects (30%)"), "7220/24066 objects • 3.6 MiB | 2.4 MiB/s");
     QThread::msleep(150);
-    emit cloneProgressUpdated(0.15, tr("Compressing objects (100%)"), "30/30 objects");
-    QThread::msleep(200);
-    emit cloneProgressUpdated(0.50, tr("Receiving objects (50%)"), "12000/24000 objects • 6.2 MiB | 2.5 MiB/s");
-    QThread::msleep(200);
-    emit cloneProgressUpdated(0.80, tr("Receiving objects (100%)"), "24000/24000 objects • 12.4 MiB | 2.5 MiB/s");
+    emit cloneProgressUpdated(0.55, tr("Receiving objects (60%)"), "14440/24066 objects • 7.8 MiB | 2.6 MiB/s");
     QThread::msleep(150);
-    emit cloneProgressUpdated(0.92, tr("Resolving deltas (100%)"), "1542/1542 deltas");
+    emit cloneProgressUpdated(0.80, tr("Receiving objects (100%)"), "24066/24066 objects • 14.2 MiB | 2.8 MiB/s");
     QThread::msleep(150);
-    emit cloneProgressUpdated(1.00, tr("Updating files (100%)"), "200/200 files");
+    emit cloneProgressUpdated(0.90, tr("Resolving deltas (100%)"), "1542/1542 deltas");
+    QThread::msleep(120);
+    emit cloneProgressUpdated(1.00, tr("Updating files (100%)"), "350/350 files");
     QThread::msleep(100);
 
     addRepository(name, targetPath);
