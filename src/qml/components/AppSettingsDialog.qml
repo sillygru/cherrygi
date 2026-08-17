@@ -7,8 +7,8 @@ import "../style"
 
 QQC2.Popup {
     id: root
-    width: 760
-    height: 600
+    width: 780
+    height: Math.min(680, parent ? parent.height - 32 : 680)
     anchors.centerIn: parent
     padding: 0
     modal: true
@@ -1594,7 +1594,7 @@ QQC2.Popup {
                         // Commit Format Style
                         ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: 6
+                            spacing: 4
 
                             QQC2.Label {
                                 text: qsTr("Commit Format Style")
@@ -1603,6 +1603,13 @@ QQC2.Popup {
                             }
 
                             QQC2.ButtonGroup { id: settingsStyleGroup }
+
+                            QQC2.RadioButton {
+                                text: qsTr("Based on last 5 commits (Directly match repository commit history style)")
+                                checked: root.pendingAiCommitStyle === "repo_history"
+                                QQC2.ButtonGroup.group: settingsStyleGroup
+                                onClicked: root.pendingAiCommitStyle = "repo_history"
+                            }
 
                             QQC2.RadioButton {
                                 text: qsTr("Conventional Commits (feat:, fix:, chore:, refactor:, docs:, ...)")
@@ -1642,7 +1649,7 @@ QQC2.Popup {
                         // Output Structure
                         ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: 6
+                            spacing: 4
 
                             QQC2.Label {
                                 text: qsTr("Output Structure")
@@ -1673,8 +1680,14 @@ QQC2.Popup {
                         QQC2.CheckBox {
                             id: aiFollowRepoCheck
                             text: qsTr("Follow existing repository commit history (sends last 5 commits for style)")
-                            checked: root.pendingAiFollowRepoStyle
-                            onToggled: root.pendingAiFollowRepoStyle = checked
+                            enabled: root.pendingAiCommitStyle !== "repo_history"
+                            opacity: enabled ? 1.0 : 0.5
+                            checked: root.pendingAiCommitStyle === "repo_history" ? true : root.pendingAiFollowRepoStyle
+                            onToggled: {
+                                if (enabled) {
+                                    root.pendingAiFollowRepoStyle = checked;
+                                }
+                            }
                         }
                     }
                 }

@@ -34,7 +34,9 @@ QString AiCommitService::buildSystemPrompt(const QString &style, bool includeDes
                   "# Constraints\n";
     }
 
-    if (style == "conventional") {
+    if (style == "repo_history") {
+        prompt += "- Style: Strictly emulate the exact naming, formatting conventions, casing, and style of the recent repository commits provided in the context.\n";
+    } else if (style == "conventional") {
         prompt += "- Style: Conventional Commits format with lowercase type and optional scope (e.g. feat(ui): ..., fix: ..., chore: ..., refactor: ..., docs: ..., test: ..., style: ..., build: ..., ci: ...).\n";
     } else if (style == "summary") {
         prompt += "- Style: Imperative mood summary sentence (e.g. \"Add support for...\", \"Fix crash when...\", \"Update dependency to...\").\n";

@@ -109,6 +109,13 @@ QQC2.Popup {
             QQC2.ButtonGroup { id: styleGroup }
 
             QQC2.RadioButton {
+                text: qsTr("Based on last 5 commits (Directly match repository commit history style)")
+                checked: root.selectedStyle === "repo_history"
+                QQC2.ButtonGroup.group: styleGroup
+                onClicked: root.selectedStyle = "repo_history"
+            }
+
+            QQC2.RadioButton {
                 text: qsTr("Conventional Commits (feat:, fix:, chore:, refactor:, docs:, ...)")
                 checked: root.selectedStyle === "conventional"
                 QQC2.ButtonGroup.group: styleGroup
@@ -177,8 +184,14 @@ QQC2.Popup {
         QQC2.CheckBox {
             id: followHistoryCheck
             text: qsTr("Follow existing repository commit history (sends last 5 commits for style)")
-            checked: root.followRepo
-            onToggled: root.followRepo = checked
+            enabled: root.selectedStyle !== "repo_history"
+            opacity: enabled ? 1.0 : 0.5
+            checked: root.selectedStyle === "repo_history" ? true : root.followRepo
+            onToggled: {
+                if (enabled) {
+                    root.followRepo = checked;
+                }
+            }
         }
 
         // API Key entry if missing

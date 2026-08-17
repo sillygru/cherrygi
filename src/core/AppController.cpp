@@ -960,7 +960,8 @@ void AppController::generateAiCommit()
     }
 
     QList<CommitItem> recentCommits;
-    if (m_settings->aiFollowRepoStyle()) {
+    bool shouldFollowRepo = m_settings->aiFollowRepoStyle() || m_settings->aiCommitStyle() == "repo_history";
+    if (shouldFollowRepo) {
         recentCommits = m_activeService->getCommitHistory(5);
     }
 
@@ -971,7 +972,7 @@ void AppController::generateAiCommit()
         m_settings->aiModel(),
         m_settings->aiCommitStyle(),
         m_settings->aiIncludeDescription(),
-        m_settings->aiFollowRepoStyle(),
+        shouldFollowRepo,
         recentCommits,
         selectedFileDiffs
     );
