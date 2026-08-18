@@ -33,7 +33,6 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
     Qml
     Quick
     QuickControls2
-    QuickEffects
     Widgets
 )
 
@@ -146,7 +145,6 @@ target_link_libraries(cherrygi PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
-    Qt6::QuickEffects
     Qt6::Widgets
     ZLIB::ZLIB
     KF6::Kirigami
