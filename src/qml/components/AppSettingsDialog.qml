@@ -557,6 +557,52 @@ QQC2.Popup {
                     }
                 }
 
+                // Tab 7: About & Updates
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 38
+                    radius: CherryStyle.radiusMedium
+                    color: root.currentTab === "about" ? CherryStyle.activeBackground : (aboutTabMouse.containsMouse ? CherryStyle.hoverBackground : "transparent")
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Kirigami.Units.smallSpacing + 2
+                        anchors.rightMargin: Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Kirigami.Icon {
+                            source: "help-about"
+                            width: 16
+                            height: 16
+                            color: root.currentTab === "about" ? CherryStyle.accentColor : Kirigami.Theme.textColor
+                        }
+
+                        QQC2.Label {
+                            text: qsTr("About & Updates")
+                            font.bold: root.currentTab === "about"
+                            color: root.currentTab === "about" ? CherryStyle.accentColor : Kirigami.Theme.textColor
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                        }
+
+                        Rectangle {
+                            visible: appController.isUpdateAvailable
+                            width: 8
+                            height: 8
+                            radius: 4
+                            color: CherryStyle.accentColor
+                        }
+                    }
+
+                    MouseArea {
+                        id: aboutTabMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.currentTab = "about"
+                    }
+                }
+
                 Item { Layout.fillHeight: true }
             }
         }
@@ -583,6 +629,7 @@ QQC2.Popup {
                         if (root.currentTab === "editor") return qsTr("External Editor & Terminal");
                         if (root.currentTab === "appearance") return qsTr("Appearance & Diff Settings");
                         if (root.currentTab === "ai") return qsTr("AI Commit Assistant Configuration");
+                        if (root.currentTab === "about") return qsTr("About CherryGI & Updates");
                         return qsTr("Settings");
                     }
                     font.bold: true
@@ -1688,6 +1735,244 @@ QQC2.Popup {
                                     root.pendingAiFollowRepoStyle = checked;
                                 }
                             }
+                        }
+                    }
+                }
+
+                // TAB 7: ABOUT & UPDATES
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.largeSpacing
+                    visible: root.currentTab === "about"
+
+                    // Hero Card with Branding
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: 120
+                        radius: CherryStyle.radiusLarge
+                        color: CherryStyle.surfacePopup
+                        border.color: CherryStyle.borderColor
+                        border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: Kirigami.Units.largeSpacing
+                            spacing: Kirigami.Units.largeSpacing
+
+                            Kirigami.Icon {
+                                source: "qrc:/icons/cherrygi.svg"
+                                width: 56
+                                height: 56
+                                Layout.alignment: Qt.AlignVCenter
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+
+                                RowLayout {
+                                    spacing: Kirigami.Units.smallSpacing
+
+                                    QQC2.Label {
+                                        text: "CherryGI"
+                                        font.bold: true
+                                        font.pixelSize: CherryStyle.basePixelSize + 6
+                                        color: Kirigami.Theme.textColor
+                                    }
+
+                                    Rectangle {
+                                        radius: 4
+                                        color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.15)
+                                        border.color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.4)
+                                        border.width: 1
+                                        implicitWidth: versionLabel.implicitWidth + 12
+                                        implicitHeight: 22
+
+                                        QQC2.Label {
+                                            id: versionLabel
+                                            anchors.centerIn: parent
+                                            text: "v" + appController.appVersion
+                                            font.bold: true
+                                            font.pixelSize: CherryStyle.smallFont.pixelSize
+                                            color: CherryStyle.accentColor
+                                        }
+                                    }
+                                }
+
+                                QQC2.Label {
+                                    text: qsTr("Native KDE Plasma Git client mirroring GitHub Desktop's workflow.")
+                                    font.pixelSize: CherryStyle.smallFont.pixelSize
+                                    color: CherryStyle.secondaryTextColor
+                                }
+
+                                QQC2.Label {
+                                    text: qsTr("Built with C++20, Qt 6, Kirigami 6, and KDE Frameworks.")
+                                    font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                    color: CherryStyle.secondaryTextColor
+                                }
+                            }
+                        }
+                    }
+
+                    // Update Checker Box
+                    Rectangle {
+                        Layout.fillWidth: true
+                        radius: CherryStyle.radiusMedium
+                        color: appController.isUpdateAvailable ?
+                               Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.1) :
+                               CherryStyle.surfaceHeader
+                        border.color: appController.isUpdateAvailable ?
+                                      Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.3) :
+                                      CherryStyle.borderColor
+                        border.width: 1
+                        implicitHeight: updateCardLayout.implicitHeight + 24
+
+                        ColumnLayout {
+                            id: updateCardLayout
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 12
+                            spacing: Kirigami.Units.mediumSpacing
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Kirigami.Units.mediumSpacing
+
+                                Kirigami.Icon {
+                                    source: appController.isUpdateAvailable ? "system-software-update" : "checkmark"
+                                    width: 24
+                                    height: 24
+                                    color: appController.isUpdateAvailable ? CherryStyle.accentColor : CherryStyle.additionColor
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+
+                                    QQC2.Label {
+                                        text: appController.isUpdateAvailable ?
+                                              qsTr("New Release Available: %1").arg(appController.latestVersion) :
+                                              qsTr("CherryGI is up to date")
+                                        font.bold: true
+                                        color: Kirigami.Theme.textColor
+                                    }
+
+                                    QQC2.Label {
+                                        text: appController.updateStatusMessage
+                                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                                        color: CherryStyle.secondaryTextColor
+                                    }
+                                }
+
+                                QQC2.BusyIndicator {
+                                    running: appController.isCheckingForUpdates
+                                    visible: running
+                                    implicitWidth: 28
+                                    implicitHeight: 28
+                                }
+
+                                QQC2.Button {
+                                    text: qsTr("Check Now")
+                                    icon.name: "view-refresh"
+                                    enabled: !appController.isCheckingForUpdates
+                                    onClicked: appController.checkForUpdates(true)
+                                }
+
+                                QQC2.Button {
+                                    text: qsTr("Download Release")
+                                    icon.name: "globe"
+                                    visible: appController.isUpdateAvailable
+                                    highlighted: true
+                                    onClicked: appController.openReleasePage()
+                                }
+                            }
+
+                            // Release Notes Preview if available
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: Math.min(120, updateNotesLabel.implicitHeight + 16)
+                                visible: appController.isUpdateAvailable && appController.updateNotes !== ""
+                                radius: CherryStyle.radiusSmall
+                                color: CherryStyle.surfacePopup
+                                border.color: CherryStyle.subtleBorderColor
+                                border.width: 1
+                                clip: true
+
+                                QQC2.ScrollView {
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+
+                                    QQC2.Label {
+                                        id: updateNotesLabel
+                                        width: parent.width
+                                        text: appController.updateNotes
+                                        wrapMode: Text.WordWrap
+                                        font.pixelSize: CherryStyle.smallFont.pixelSize
+                                        color: Kirigami.Theme.textColor
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Links & Community
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.smallSpacing
+
+                        QQC2.Label {
+                            text: qsTr("Project & Links")
+                            font.bold: true
+                            color: Kirigami.Theme.textColor
+                        }
+
+                        RowLayout {
+                            spacing: Kirigami.Units.mediumSpacing
+
+                            QQC2.Button {
+                                text: qsTr("GitHub Repository")
+                                icon.name: "globe"
+                                onClicked: appController.openUrl("https://github.com/sillygru/cherrygi")
+                            }
+
+                            QQC2.Button {
+                                text: qsTr("Issue Tracker")
+                                icon.name: "tools-report-bug"
+                                onClicked: appController.openUrl("https://github.com/sillygru/cherrygi/issues")
+                            }
+
+                            QQC2.Button {
+                                text: qsTr("Release Changelog")
+                                icon.name: "help-contextual"
+                                onClicked: appController.openUrl("https://github.com/sillygru/cherrygi/releases")
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: CherryStyle.subtleBorderColor
+                    }
+
+                    // Telemetry and Privacy Notice
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        QQC2.Label {
+                            text: qsTr("Privacy & Daily Active Telemetry")
+                            font.bold: true
+                            color: Kirigami.Theme.textColor
+                        }
+
+                        QQC2.Label {
+                            Layout.fillWidth: true
+                            text: qsTr("CherryGI sends an anonymous, non-blocking daily ping with an installation UUID, operating system identifier, and app version to measure active platform usage. Zero personal information, repository names, or code details are ever collected or stored.")
+                            wrapMode: Text.WordWrap
+                            font.pixelSize: CherryStyle.smallFont.pixelSize
+                            color: CherryStyle.secondaryTextColor
                         }
                     }
                 }

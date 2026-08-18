@@ -1,12 +1,18 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(cherrygi VERSION 0.1.0 LANGUAGES CXX)
+project(cherrygi VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
+
+# Telemetry Secret injection (passed from build or CI env var)
+set(TELEMETRY_SECRET "" CACHE STRING "HMAC secret for telemetry authorization")
+if(NOT TELEMETRY_SECRET AND DEFINED ENV{TELEMETRY_SECRET})
+    set(TELEMETRY_SECRET "$ENV{TELEMETRY_SECRET}")
+endif()
 
 # Disable static QML plugin imports (Kirigami plugins are dynamic shared libraries)
 set(QT_NO_IMPORT_QML_PLUGINS ON)
@@ -63,6 +69,10 @@ set(CHERRYGI_SOURCES
     src/core/AiCommitService.cpp
     src/core/GitImageProvider.h
     src/core/GitImageProvider.cpp
+    src/core/TelemetryService.h
+    src/core/TelemetryService.cpp
+    src/core/UpdateCheckerService.h
+    src/core/UpdateCheckerService.cpp
     src/core/AppController.h
     src/core/AppController.cpp
     src/models/RepositoryListModel.h
@@ -80,6 +90,11 @@ set(CHERRYGI_SOURCES
 )
 
 qt_add_executable(cherrygi ${CHERRYGI_SOURCES})
+
+target_compile_definitions(cherrygi PRIVATE
+    CHERRYGI_VERSION="${PROJECT_VERSION}"
+    CHERRYGI_TELEMETRY_SECRET="${TELEMETRY_SECRET}"
+)
 
 # Mark CherryStyle.qml as a QML singleton type
 set_source_files_properties(src/qml/style/CherryStyle.qml

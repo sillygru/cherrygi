@@ -39,6 +39,66 @@ Kirigami.ApplicationWindow {
         }
 
         // ==========================================
+        // UPDATE AVAILABLE BANNER
+        // ==========================================
+        Rectangle {
+            id: updateBanner
+            property bool dismissed: false
+            Layout.fillWidth: true
+            implicitHeight: (appController.isUpdateAvailable && !dismissed) ? 38 : 0
+            visible: implicitHeight > 0
+            clip: true
+            color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.14)
+            border.color: Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.35)
+            border.width: 1
+
+            Behavior on implicitHeight {
+                NumberAnimation { duration: 180; easing.type: Easing.InOutQuad }
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Kirigami.Units.largeSpacing
+                anchors.rightMargin: Kirigami.Units.largeSpacing
+                spacing: Kirigami.Units.mediumSpacing
+
+                Kirigami.Icon {
+                    source: "system-software-update"
+                    width: 16
+                    height: 16
+                    color: CherryStyle.accentColor
+                }
+
+                QQC2.Label {
+                    text: qsTr("CherryGI %1 is now available").arg(appController.latestVersion)
+                    font.bold: true
+                    color: Kirigami.Theme.textColor
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+
+                QQC2.Button {
+                    text: qsTr("View Release")
+                    icon.name: "globe"
+                    onClicked: appController.openReleasePage()
+                }
+
+                QQC2.Button {
+                    text: qsTr("About & Updates")
+                    icon.name: "help-about"
+                    onClicked: appController.showSettingsDialog("about")
+                }
+
+                QQC2.ToolButton {
+                    icon.name: "window-close"
+                    icon.width: 14
+                    icon.height: 14
+                    onClicked: updateBanner.dismissed = true
+                }
+            }
+        }
+
+        // ==========================================
         // MAIN WORKSPACE (Normal SplitView vs Missing Repository View)
         // ==========================================
         StackLayout {

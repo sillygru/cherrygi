@@ -19,6 +19,8 @@ AppController::AppController(QObject *parent)
     , m_settings(std::make_unique<AppSettings>(this))
     , m_githubAvatarService(std::make_unique<GitHubAvatarService>())
     , m_aiCommitService(std::make_unique<AiCommitService>(this))
+    , m_telemetryService(std::make_unique<TelemetryService>(this))
+    , m_updateCheckerService(std::make_unique<UpdateCheckerService>(this))
     , m_gitCliService(std::make_unique<GitCliService>())
 {
     m_activeService = m_gitCliService.get();
@@ -32,6 +34,23 @@ AppController::AppController(QObject *parent)
     m_commitHistoryModel = new CommitHistoryModel(m_activeService, this);
     m_diffModel = new DiffModel(m_activeService, this);
     m_stashModel = new StashModel(m_activeService, this);
+
+    connect(m_updateCheckerService.get(), &UpdateCheckerService::updateStateChanged, this, &AppController::updateStateChanged);
+    connect(m_updateCheckerService.get(), &UpdateCheckerService::checkingChanged, this, &AppController::updateCheckingChanged);
+    connect(m_updateCheckerService.get(), &UpdateCheckerService::statusMessageChanged, this, &AppController::updateStatusMessageChanged);
+    connect(m_updateCheckerService.get(), &UpdateCheckerService::updateAvailableNotification, this, [this](const QString &version, const QString &/*url*/) {
+        showToast(tr("Update available: CherryGI %1 is now ready to download").arg(version));
+    });
+
+    // Start daily telemetry ping
+    m_telemetryService->start();
+
+    // Check for updates shortly after startup
+    QTimer::singleShot(3000, this, [this]() {
+        if (m_updateCheckerService) {
+            m_updateCheckerService->checkForUpdates(false);
+        }
+    });
 
     connect(m_githubAvatarService.get(), &GitHubAvatarService::avatarsChanged, this, [this]() {
         if (m_commitHistoryModel) {
@@ -1653,6 +1672,65 @@ void AppController::showToast(const QString &message, bool isError)
     m_toastIsError = isError;
     m_toastVisible = true;
     emit toastChanged();
+}
+
+QString AppController::appVersion() const
+{
+    return QStringLiteral(CHERRYGI_VERSION);
+}
+
+bool AppController::isUpdateAvailable() const
+{
+    return m_updateCheckerService ? m_updateCheckerService->isUpdateAvailable() : false;
+}
+
+QString AppController::latestVersion() const
+{
+    return m_updateCheckerService ? m_updateCheckerService->latestVersion() : QStringLiteral(CHERRYGI_VERSION);
+}
+
+QString AppController::updateUrl() const
+{
+    return m_updateCheckerService ? m_updateCheckerService->updateUrl() : QStringLiteral("https://github.com/sillygru/cherrygi/releases");
+}
+
+QString AppController::updateNotes() const
+{
+    return m_updateCheckerService ? m_updateCheckerService->updateNotes() : QString();
+}
+
+bool AppController::isCheckingForUpdates() const
+{
+    return m_updateCheckerService ? m_updateCheckerService->isChecking() : false;
+}
+
+QString AppController::updateStatusMessage() const
+{
+    return m_updateCheckerService ? m_updateCheckerService->statusMessage() : QString();
+}
+
+void AppController::checkForUpdates(bool userInitiated)
+{
+    if (m_updateCheckerService) {
+        m_updateCheckerService->checkForUpdates(userInitiated);
+    }
+}
+
+void AppController::openReleasePage()
+{
+    const QString url = updateUrl();
+    if (!url.isEmpty()) {
+        QDesktopServices::openUrl(QUrl(url));
+    } else {
+        QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/sillygru/cherrygi/releases")));
+    }
+}
+
+void AppController::openUrl(const QString &url)
+{
+    if (!url.isEmpty()) {
+        QDesktopServices::openUrl(QUrl(url));
+    }
 }
 
 } // namespace Cherry

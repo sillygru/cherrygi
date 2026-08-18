@@ -13,6 +13,8 @@
 #include "AppSettings.h"
 #include "GitHubAvatarService.h"
 #include "AiCommitService.h"
+#include "TelemetryService.h"
+#include "UpdateCheckerService.h"
 #include "../models/RepositoryListModel.h"
 #include "../models/BranchListModel.h"
 #include "../models/ChangedFilesModel.h"
@@ -24,6 +26,15 @@ namespace Cherry {
 
 class AppController : public QObject {
     Q_OBJECT
+
+    // Application Metadata & Updates
+    Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
+    Q_PROPERTY(bool isUpdateAvailable READ isUpdateAvailable NOTIFY updateStateChanged)
+    Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY updateStateChanged)
+    Q_PROPERTY(QString updateUrl READ updateUrl NOTIFY updateStateChanged)
+    Q_PROPERTY(QString updateNotes READ updateNotes NOTIFY updateStateChanged)
+    Q_PROPERTY(bool isCheckingForUpdates READ isCheckingForUpdates NOTIFY updateCheckingChanged)
+    Q_PROPERTY(QString updateStatusMessage READ updateStatusMessage NOTIFY updateStatusMessageChanged)
 
     // Models
     Q_PROPERTY(Cherry::RepositoryListModel* repositories READ repositories CONSTANT)
@@ -144,6 +155,15 @@ public:
     ~AppController() override;
 
     void cancelAllOperations();
+
+    // Application & Updates
+    QString appVersion() const;
+    bool isUpdateAvailable() const;
+    QString latestVersion() const;
+    QString updateUrl() const;
+    QString updateNotes() const;
+    bool isCheckingForUpdates() const;
+    QString updateStatusMessage() const;
 
     // Getters
     RepositoryListModel* repositories() const { return m_repoModel; }
@@ -342,6 +362,11 @@ public:
     Q_INVOKABLE void hideToast();
     Q_INVOKABLE void showToast(const QString &message, bool isError = false);
 
+    // Updates
+    Q_INVOKABLE void checkForUpdates(bool userInitiated = true);
+    Q_INVOKABLE void openReleasePage();
+    Q_INVOKABLE void openUrl(const QString &url);
+
 signals:
     void currentRepoChanged();
     void currentBranchChanged();
@@ -377,6 +402,9 @@ signals:
     void aiSettingsChanged();
     void aiGeneratingChanged();
     void aiCommitMessageReady(const QString &summary, const QString &description);
+    void updateStateChanged();
+    void updateCheckingChanged();
+    void updateStatusMessageChanged();
 
 private:
     void updateCurrentState();
@@ -389,6 +417,8 @@ private:
     std::unique_ptr<AppSettings> m_settings;
     std::unique_ptr<GitHubAvatarService> m_githubAvatarService;
     std::unique_ptr<AiCommitService> m_aiCommitService;
+    std::unique_ptr<TelemetryService> m_telemetryService;
+    std::unique_ptr<UpdateCheckerService> m_updateCheckerService;
     std::unique_ptr<GitCliService> m_gitCliService;
     IGitService *m_activeService{nullptr};
 

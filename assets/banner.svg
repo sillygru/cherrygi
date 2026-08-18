@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1b1d24"/>
+      <stop offset="50%" stop-color="#16181f"/>
+      <stop offset="100%" stop-color="#111217"/>
+    </linearGradient>
+    <linearGradient id="cherryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff4d6d"/>
+      <stop offset="100%" stop-color="#c9184a"/>
+    </linearGradient>
+    <linearGradient id="accentLine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ff4d6d" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#ff4d6d" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#ff4d6d" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="320" rx="16" fill="url(#bg)"/>
+  <rect x="1" y="1" width="1198" height="318" rx="15" fill="none" stroke="#2d3139" stroke-width="2"/>
+  
+  <!-- Subtle accent line under header -->
+  <line x1="100" y1="318" x2="1100" y2="318" stroke="url(#accentLine)" stroke-width="2"/>
+
+  <!-- Logo Group -->
+  <g transform="translate(110, 40) scale(0.62)">
+    <!-- Stem -->
+    <path d="M253 151 C255 132 260 115 270 102 C276 95 281 91 285 89"
+      fill="none" stroke="#8b5e3c" stroke-width="12" stroke-linecap="round"/>
+    <!-- Fruit body -->
+    <path
+      d="M254 145 C228 121 192 112 158 123 C114 137 85 174 84 222 C83 283 108 352 163 390 C195 412 228 414 255 393 C282 415 317 412 349 388 C402 350 429 281 426 220 C424 171 397 133 353 120 C319 110 285 118 254 145 Z"
+      fill="url(#cherryGrad)"/>
+    <!-- Top cleft -->
+    <path d="M221 145 C230 159 242 167 255 166 C268 165 279 156 286 143"
+      fill="none" stroke="#7e0f33" stroke-width="10" stroke-linecap="round"/>
+    <!-- Leaf -->
+    <path d="M285 89 C298 62 325 45 354 50 C350 77 324 99 285 89 Z" fill="#38b000"/>
+    <!-- Git graph nodes inside cherry -->
+    <g fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" opacity="0.85">
+      <path d="M159 263 L256 205 L353 263"/>
+      <path d="M256 205 V326"/>
+    </g>
+    <g fill="#ffffff">
+      <circle cx="159" cy="263" r="13"/>
+      <circle cx="256" cy="205" r="14"/>
+      <circle cx="353" cy="263" r="13"/>
+      <circle cx="256" cy="326" r="13"/>
+    </g>
+    <g fill="#c9184a">
+      <circle cx="159" cy="263" r="5"/>
+      <circle cx="256" cy="205" r="5.5"/>
+      <circle cx="353" cy="263" r="5"/>
+      <circle cx="256" cy="326" r="5"/>
+    </g>
+  </g>
+
+  <!-- Text & Titles -->
+  <text x="430" y="130" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', sans-serif" font-size="64" font-weight="800" fill="#ffffff" letter-spacing="-0.02em">cherrygi</text>
+  <text x="430" y="178" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', sans-serif" font-size="22" font-weight="500" fill="#a0a6b5">GitHub Desktop workflow built natively for KDE Plasma 6</text>
+  
+  <!-- Mini tags -->
+  <g transform="translate(430, 212)">
+    <rect x="0" y="0" width="84" height="28" rx="6" fill="#252932" stroke="#373d49" stroke-width="1"/>
+    <text x="42" y="19" font-family="monospace" font-size="13" font-weight="600" fill="#e2e8f0" text-anchor="middle">C++20</text>
+
+    <rect x="94" y="0" width="70" height="28" rx="6" fill="#252932" stroke="#373d49" stroke-width="1"/>
+    <text x="129" y="19" font-family="monospace" font-size="13" font-weight="600" fill="#e2e8f0" text-anchor="middle">Qt 6</text>
+
+    <rect x="174" y="0" width="105" height="28" rx="6" fill="#252932" stroke="#373d49" stroke-width="1"/>
+    <text x="226" y="19" font-family="monospace" font-size="13" font-weight="600" fill="#e2e8f0" text-anchor="middle">Kirigami 6</text>
+
+    <rect x="289" y="0" width="80" height="28" rx="6" fill="#252932" stroke="#373d49" stroke-width="1"/>
+    <text x="329" y="19" font-family="monospace" font-size="13" font-weight="600" fill="#e2e8f0" text-anchor="middle">v1.0.0</text>
+  </g>
+</svg>
