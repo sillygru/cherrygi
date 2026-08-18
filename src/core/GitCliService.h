@@ -72,10 +72,10 @@ public:
     bool undoLastCommit() override;
     bool revertCommit(const QString &sha) override;
     bool canUndoCommit() const override;
-    QString getLastUndoCommitSha() const override { return m_lastUndoCommitSha; }
-    QString getLastUndoCommitSummary() const override { return m_lastUndoCommitSummary; }
-    QString getLastUndoCommitDescription() const override { return m_lastUndoCommitDescription; }
-    QStringList getLastUndoCommitCoAuthors() const override { return m_lastUndoCommitCoAuthors; }
+    QString getLastUndoCommitSha() const override;
+    QString getLastUndoCommitSummary() const override;
+    QString getLastUndoCommitDescription() const override;
+    QStringList getLastUndoCommitCoAuthors() const override;
 
     // Remote Operations & Publishing
     RemoteStatus getRemoteStatus() override;

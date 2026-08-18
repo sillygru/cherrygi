@@ -15,11 +15,12 @@ ColumnLayout {
         property string targetSha: ""
         property string targetSummary: ""
         property bool targetIsLocal: false
+        property bool targetIsHead: false
 
         QQC2.MenuItem {
             text: qsTr("Undo Commit")
             icon.name: "edit-undo"
-            visible: commitContextMenu.targetIsLocal
+            visible: commitContextMenu.targetIsHead && commitContextMenu.targetIsLocal && appController.canUndoCommit
             onTriggered: appController.undoLastCommit()
         }
 
@@ -315,6 +316,7 @@ ColumnLayout {
                         commitContextMenu.targetSha = commitDelegate.sha;
                         commitContextMenu.targetSummary = commitDelegate.summary;
                         commitContextMenu.targetIsLocal = commitDelegate.isLocal;
+                        commitContextMenu.targetIsHead = (index === 0);
                         commitContextMenu.popup();
                     }
                 }

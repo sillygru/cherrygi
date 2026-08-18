@@ -65,10 +65,26 @@ public:
     bool undoLastCommit() override;
     bool revertCommit(const QString &sha) override;
     bool canUndoCommit() const override;
-    QString getLastUndoCommitSha() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.sha; }
-    QString getLastUndoCommitSummary() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.summary; }
-    QString getLastUndoCommitDescription() const override { return m_undoStack.isEmpty() ? QString() : m_undoStack.top().commit.description; }
-    QStringList getLastUndoCommitCoAuthors() const override { return m_undoStack.isEmpty() ? QStringList() : m_undoStack.top().commit.coAuthors; }
+    QString getLastUndoCommitSha() const override {
+        if (!m_undoStack.isEmpty()) return m_undoStack.top().commit.sha;
+        auto *state = const_cast<MockGitService*>(this)->activeState();
+        return (state && !state->commitHistory.isEmpty()) ? state->commitHistory.first().sha : QString();
+    }
+    QString getLastUndoCommitSummary() const override {
+        if (!m_undoStack.isEmpty()) return m_undoStack.top().commit.summary;
+        auto *state = const_cast<MockGitService*>(this)->activeState();
+        return (state && !state->commitHistory.isEmpty()) ? state->commitHistory.first().summary : QString();
+    }
+    QString getLastUndoCommitDescription() const override {
+        if (!m_undoStack.isEmpty()) return m_undoStack.top().commit.description;
+        auto *state = const_cast<MockGitService*>(this)->activeState();
+        return (state && !state->commitHistory.isEmpty()) ? state->commitHistory.first().description : QString();
+    }
+    QStringList getLastUndoCommitCoAuthors() const override {
+        if (!m_undoStack.isEmpty()) return m_undoStack.top().commit.coAuthors;
+        auto *state = const_cast<MockGitService*>(this)->activeState();
+        return (state && !state->commitHistory.isEmpty()) ? state->commitHistory.first().coAuthors : QStringList();
+    }
 
     // Remote Operations & Publishing
     RemoteStatus getRemoteStatus() override;

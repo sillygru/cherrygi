@@ -798,25 +798,31 @@ bool MockGitService::createCommit(const QString &summary, const QString &descrip
 bool MockGitService::undoLastCommit()
 {
     auto *state = activeState();
-    if (!state || m_undoStack.isEmpty()) {
+    if (!state || !canUndoCommit()) {
         emit operationFailed("No commit available to undo");
         return false;
     }
 
-    UndoSnapshot snap = m_undoStack.pop();
+    CommitItem undoneCommit;
+    if (!m_undoStack.isEmpty()) {
+        UndoSnapshot snap = m_undoStack.pop();
+        undoneCommit = snap.commit;
+        // Restore files
+        for (const auto &f : snap.restoredFiles) {
+            state->changedFiles.append(f);
+        }
+    } else if (!state->commitHistory.isEmpty()) {
+        undoneCommit = state->commitHistory.first();
+    }
 
     // Remove from history
     for (int i = 0; i < state->commitHistory.size(); ++i) {
-        if (state->commitHistory[i].sha == snap.commit.sha) {
+        if (state->commitHistory[i].sha == undoneCommit.sha) {
             state->commitHistory.removeAt(i);
             break;
         }
     }
 
-    // Restore files
-    for (const auto &f : snap.restoredFiles) {
-        state->changedFiles.append(f);
-    }
     state->info.changedFilesCount = state->changedFiles.size();
 
     if (state->remoteStatus.ahead > 0) {
@@ -827,15 +833,15 @@ bool MockGitService::undoLastCommit()
     emit commitHistoryUpdated();
     emit changedFilesUpdated();
     emit remoteStatusUpdated(state->remoteStatus);
-    emit operationSucceeded(QString("Undid commit %1").arg(snap.commit.shortSha));
+    emit operationSucceeded(QString("Undid commit %1").arg(undoneCommit.shortSha.isEmpty() ? undoneCommit.sha.left(7) : undoneCommit.shortSha));
     return true;
 }
 
 bool MockGitService::canUndoCommit() const
 {
-    if (m_undoStack.isEmpty()) return false;
     auto *state = const_cast<MockGitService*>(this)->activeState();
-    return state ? (state->remoteStatus.ahead > 0) : false;
+    if (!state) return false;
+    return (!m_undoStack.isEmpty()) || (state->remoteStatus.ahead > 0 && !state->commitHistory.isEmpty());
 }
 
 void MockGitService::refreshRepository()

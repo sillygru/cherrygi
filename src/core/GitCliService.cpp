@@ -2359,16 +2359,15 @@ bool GitCliService::createCommit(const QString &summary, const QString &descript
 
 bool GitCliService::canUndoCommit() const
 {
-    if (m_repoPath.isEmpty() || m_lastUndoCommitSha.isEmpty()) return false;
+    if (m_repoPath.isEmpty() || m_isMissing) return false;
 
-    // Check if HEAD exists and matches the recorded undo commit SHA
+    // Check if HEAD exists
     GitResult headRes = const_cast<GitCliService*>(this)->runGit({"rev-parse", "--verify", "HEAD"}, QString(), 2000);
-    if (!headRes.success) return false;
-    if (headRes.stdOut.trimmed() != m_lastUndoCommitSha) return false;
+    if (!headRes.success || headRes.stdOut.trimmed().isEmpty()) return false;
 
-    // If upstream tracking branch is present, verify it has not been pushed
+    // If upstream tracking branch is present, verify HEAD has not been pushed
     GitResult upstreamRes = const_cast<GitCliService*>(this)->runGit({"rev-parse", "--verify", "@{upstream}"}, QString(), 2000);
-    if (upstreamRes.success) {
+    if (upstreamRes.success && !upstreamRes.stdOut.trimmed().isEmpty()) {
         GitResult ancestorRes = const_cast<GitCliService*>(this)->runGit({"merge-base", "--is-ancestor", "HEAD", "@{upstream}"}, QString(), 2000);
         if (ancestorRes.success) {
             return false; // Already pushed to remote upstream
@@ -2376,9 +2375,84 @@ bool GitCliService::canUndoCommit() const
         if (m_remoteStatus.ahead <= 0) {
             return false;
         }
+        return true;
     }
 
+    // Branch has no upstream tracking branch. Check if remotes exist.
+    GitResult remoteRes = const_cast<GitCliService*>(this)->runGit({"remote"}, QString(), 2000);
+    if (remoteRes.success && !remoteRes.stdOut.trimmed().isEmpty()) {
+        GitResult unpushedRes = const_cast<GitCliService*>(this)->runGit({"rev-list", "--count", "HEAD", "--not", "--remotes"}, QString(), 2000);
+        if (unpushedRes.success) {
+            return unpushedRes.stdOut.trimmed().toInt() > 0;
+        }
+    }
+
+    // No remotes configured or fresh repository: any commit on HEAD is local/unpushed
     return true;
+}
+
+QString GitCliService::getLastUndoCommitSha() const
+{
+    if (!m_lastUndoCommitSha.isEmpty()) {
+        return m_lastUndoCommitSha;
+    }
+    if (canUndoCommit()) {
+        if (m_commitHistoryCacheValid && !m_commitHistoryCache.isEmpty()) {
+            return m_commitHistoryCache.first().sha;
+        }
+        GitResult res = const_cast<GitCliService*>(this)->runGit({"rev-parse", "HEAD"}, QString(), 2000);
+        if (res.success) {
+            return res.stdOut.trimmed();
+        }
+    }
+    return QString();
+}
+
+QString GitCliService::getLastUndoCommitSummary() const
+{
+    if (!m_lastUndoCommitSummary.isEmpty()) {
+        return m_lastUndoCommitSummary;
+    }
+    if (canUndoCommit()) {
+        if (m_commitHistoryCacheValid && !m_commitHistoryCache.isEmpty()) {
+            return m_commitHistoryCache.first().summary;
+        }
+        GitResult res = const_cast<GitCliService*>(this)->runGit({"log", "-1", "--format=%s", "HEAD"}, QString(), 2000);
+        if (res.success) {
+            return res.stdOut.trimmed();
+        }
+    }
+    return QString();
+}
+
+QString GitCliService::getLastUndoCommitDescription() const
+{
+    if (!m_lastUndoCommitDescription.isEmpty()) {
+        return m_lastUndoCommitDescription;
+    }
+    if (canUndoCommit()) {
+        if (m_commitHistoryCacheValid && !m_commitHistoryCache.isEmpty()) {
+            return m_commitHistoryCache.first().description;
+        }
+        GitResult res = const_cast<GitCliService*>(this)->runGit({"log", "-1", "--format=%b", "HEAD"}, QString(), 2000);
+        if (res.success) {
+            return res.stdOut.trimmed();
+        }
+    }
+    return QString();
+}
+
+QStringList GitCliService::getLastUndoCommitCoAuthors() const
+{
+    if (!m_lastUndoCommitCoAuthors.isEmpty()) {
+        return m_lastUndoCommitCoAuthors;
+    }
+    if (canUndoCommit()) {
+        if (m_commitHistoryCacheValid && !m_commitHistoryCache.isEmpty()) {
+            return m_commitHistoryCache.first().coAuthors;
+        }
+    }
+    return QStringList();
 }
 
 bool GitCliService::undoLastCommit()
