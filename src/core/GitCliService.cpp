@@ -1567,8 +1567,8 @@ QList<FileChange> GitCliService::getChangedFiles()
 
     locker.unlock();
 
-    // Query changed & untracked files with normal untracked scanning for max speed in huge repos
-    GitResult statusRes = runGit({"--no-optional-locks", "status", "--porcelain=v1", "-unormal", "-z"}, QString(), 10000);
+    // Query changed & untracked files with all untracked scanning to list nested files
+    GitResult statusRes = runGit({"--no-optional-locks", "status", "--porcelain=v1", "-uall", "-z"}, QString(), 10000);
     if (!statusRes.success) {
         locker.relock();
         m_changedFilesCacheValid = false;
@@ -1734,8 +1734,8 @@ bool GitCliService::discardFileChanges(const QString &filePath)
 {
     if (m_repoPath.isEmpty() || !isSafeRepositoryPath(filePath)) return false;
 
-    GitResult check = runGit({"--no-optional-locks", "status", "--porcelain=v1", "-z", "--", filePath}, QString(), 3000);
-    const bool isUntracked = check.stdOut.startsWith("?? ");
+    GitResult check = runGit({"--no-optional-locks", "status", "--porcelain=v1", "-uall", "-z", "--", filePath}, QString(), 3000);
+    const bool isUntracked = check.stdOut.startsWith("??");
     const bool isAdded = check.stdOut.startsWith("A ") || check.stdOut.startsWith(" A");
     if (isUntracked || isAdded) {
         const GitResult remove = runGit({"rm", "-f", "--ignore-unmatch", "--", filePath}, QString(), 3000);
@@ -1869,7 +1869,7 @@ QList<DiffLine> GitCliService::getDiffForFile(const QString &filePath, const QSt
     QString effectivePath = filePath.isEmpty() ? oldFilePath : filePath;
 
     // If untracked file or folder, read safely from disk
-    GitResult statusCheck = runGit({"--no-optional-locks", "status", "--porcelain=v1", "--", effectivePath}, QString(), 2000);
+    GitResult statusCheck = runGit({"--no-optional-locks", "status", "--porcelain=v1", "-uall", "--", effectivePath}, QString(), 2000);
     if (statusCheck.stdOut.startsWith("??")) {
         QString fullPath = m_repoPath + "/" + effectivePath;
         QFileInfo fi(fullPath);

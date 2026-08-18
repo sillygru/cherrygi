@@ -24,7 +24,7 @@ void MockGitService::initializeMockData()
         "desktop",
         "/home/developer/workspace/desktop",
         "file-status-tooltip",
-        3, // changedFilesCount
+        4, // changedFilesCount
         0, // aheadCount
         3, // behindCount
         "Last fetched 8 minutes ago",
@@ -127,7 +127,25 @@ void MockGitService::initializeMockData()
         {91, 93, DiffLineType::Context, "  return <span onMouseEnter={onMouseEnter}>{props.children}</span>"}
     };
 
-    desktopRepo.changedFiles = {change1, change2, change3};
+    // --- Changed File 4: review-badge.tsx (Untracked in folder) ---
+    FileChange change4;
+    change4.id = "fc-4";
+    change4.filePath = "app/src/ui/badges/review-badge.tsx";
+    change4.status = FileChangeType::Untracked;
+    change4.isSelected = true;
+    change4.additions = 6;
+    change4.deletions = 0;
+    change4.diffLines = {
+        {-1, -1, DiffLineType::HunkHeader, "@@ -0,0 +1,6 @@"},
+        {-1, 1, DiffLineType::Addition, "import * as React from 'react';"},
+        {-1, 2, DiffLineType::Addition, ""},
+        {-1, 3, DiffLineType::Addition, "export const ReviewBadge: React.FC = () => ("},
+        {-1, 4, DiffLineType::Addition, "  <span className=\"review-badge\">Pending</span>"},
+        {-1, 5, DiffLineType::Addition, ");"},
+        {-1, 6, DiffLineType::Addition, ""}
+    };
+
+    desktopRepo.changedFiles = {change1, change2, change3, change4};
 
     // Stashed Changes
     StashItem stash1;
