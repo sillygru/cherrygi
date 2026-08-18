@@ -44,6 +44,8 @@ AppController::AppController(QObject *parent)
         if (m_commitHistoryModel) {
             m_commitHistoryModel->setAvatarOverrides(m_githubAvatarService->avatarOverrides());
         }
+        m_cachedCommitData.clear();
+        m_cachedCommitDataSha.clear();
         emit currentRepoChanged();
         emit selectedCommitShaChanged();
     });
@@ -74,10 +76,13 @@ AppController::AppController(QObject *parent)
 
     if (m_settings) {
         connect(m_settings.get(), &AppSettings::avatarProviderChanged, this, [this]() {
+            m_cachedCommitData.clear();
+            m_cachedCommitDataSha.clear();
             emit currentRepoChanged();
             if (m_commitHistoryModel) {
                 m_commitHistoryModel->reload();
             }
+            emit selectedCommitShaChanged();
             emit avatarProviderChanged();
         });
         connect(m_settings.get(), &AppSettings::aiEnabledChanged, this, &AppController::aiSettingsChanged);
@@ -459,13 +464,28 @@ QString AppController::currentAuthorInitial() const
     return name.left(1).toUpper();
 }
 
-QString AppController::currentAuthorAvatarUrl() const
+QString AppController::avatarForAuthor(const QString &authorName, const QString &authorEmail) const
 {
+    if (m_commitHistoryModel) {
+        return m_commitHistoryModel->avatarForAuthor(authorName, authorEmail);
+    }
     if (m_githubAvatarService) {
-        const QString avatar = m_githubAvatarService->avatarFor(currentAuthorName(), currentAuthorEmail());
+        const QString avatar = m_githubAvatarService->avatarFor(authorName, authorEmail);
         if (!avatar.isEmpty()) return avatar;
     }
-    return AvatarResolver::resolve(currentAuthorName(), currentAuthorEmail(), m_remoteStatus.remoteUrl);
+    const bool sameEmail = !currentAuthorEmail().isEmpty() &&
+        authorEmail.compare(currentAuthorEmail(), Qt::CaseInsensitive) == 0;
+    const bool sameName = !currentAuthorName().isEmpty() &&
+        authorName.compare(currentAuthorName(), Qt::CaseSensitive) == 0;
+    if ((sameEmail || sameName) && !m_remoteStatus.remoteUrl.isEmpty()) {
+        return AvatarResolver::resolve(authorName, authorEmail, m_remoteStatus.remoteUrl);
+    }
+    return AvatarResolver::resolve(authorName, authorEmail);
+}
+
+QString AppController::currentAuthorAvatarUrl() const
+{
+    return avatarForAuthor(currentAuthorName(), currentAuthorEmail());
 }
 
 QString AppController::avatarProvider() const
@@ -578,12 +598,7 @@ QVariant AppController::selectedCommitData() const
     map["description"] = c->description;
     map["authorName"] = c->authorName;
     map["authorEmail"] = c->authorEmail;
-    QString authorAvatarUrl = c->authorAvatarUrl;
-    if (m_githubAvatarService) {
-        const QString githubAvatar = m_githubAvatarService->avatarFor(c->authorName, c->authorEmail);
-        if (!githubAvatar.isEmpty()) authorAvatarUrl = githubAvatar;
-    }
-    map["authorAvatarUrl"] = authorAvatarUrl;
+    map["authorAvatarUrl"] = avatarForAuthor(c->authorName, c->authorEmail);
     map["relativeTime"] = c->relativeTime;
     map["timestamp"] = c->timestamp.toString("yyyy-MM-dd hh:mm");
     map["coAuthors"] = c->coAuthors;
@@ -992,7 +1007,7 @@ void AppController::generateAiCommit()
 
 QString AppController::resolveAvatarUrl(const QString &name, const QString &email) const
 {
-    return AvatarResolver::resolve(name, email, m_remoteStatus.remoteUrl);
+    return avatarForAuthor(name, email);
 }
 
 void AppController::openLocalRepositoryDialog()

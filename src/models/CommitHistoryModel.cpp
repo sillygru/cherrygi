@@ -54,25 +54,8 @@ QVariant CommitHistoryModel::data(const QModelIndex &index, int role) const
         return commit.authorName;
     case AuthorEmailRole:
         return commit.authorEmail;
-    case AuthorAvatarUrlRole: {
-        const QString emailKey = commit.authorEmail.trimmed().toCaseFolded();
-        if (!emailKey.isEmpty() && m_avatarOverrides.contains(emailKey)) {
-            return m_avatarOverrides.value(emailKey);
-        }
-        const QString nameKey = commit.authorName.trimmed().toCaseFolded();
-        if (!nameKey.isEmpty() && m_avatarOverrides.contains(nameKey)) {
-            return m_avatarOverrides.value(nameKey);
-        }
-
-        const bool sameEmail = !m_currentAuthorEmail.isEmpty() &&
-            commit.authorEmail.compare(m_currentAuthorEmail, Qt::CaseInsensitive) == 0;
-        const bool sameName = !m_currentAuthorName.isEmpty() &&
-            commit.authorName.compare(m_currentAuthorName, Qt::CaseSensitive) == 0;
-        if ((sameEmail || sameName) && !m_remoteUrl.isEmpty()) {
-            return AvatarResolver::resolve(commit.authorName, commit.authorEmail, m_remoteUrl);
-        }
-        return !commit.authorAvatarUrl.isEmpty() ? commit.authorAvatarUrl : AvatarResolver::resolve(commit.authorName, commit.authorEmail);
-    }
+    case AuthorAvatarUrlRole:
+        return avatarForAuthor(commit.authorName, commit.authorEmail);
     case RelativeTimeRole:
         return commit.relativeTime;
     case TimestampRole:
@@ -135,6 +118,37 @@ void CommitHistoryModel::setAvatarOverrides(const QHash<QString, QString> &overr
     if (!m_filteredCommits.isEmpty()) {
         emit dataChanged(index(0, 0), index(m_filteredCommits.size() - 1, 0), {AuthorAvatarUrlRole});
     }
+}
+
+QString CommitHistoryModel::avatarForAuthor(const QString &authorName, const QString &authorEmail) const
+{
+    const QString emailKey = authorEmail.trimmed().toCaseFolded();
+    if (!emailKey.isEmpty() && m_avatarOverrides.contains(emailKey)) {
+        return m_avatarOverrides.value(emailKey);
+    }
+    const QString nameKey = authorName.trimmed().toCaseFolded();
+    if (!nameKey.isEmpty() && m_avatarOverrides.contains(nameKey)) {
+        return m_avatarOverrides.value(nameKey);
+    }
+
+    const bool sameEmail = !m_currentAuthorEmail.isEmpty() &&
+        authorEmail.compare(m_currentAuthorEmail, Qt::CaseInsensitive) == 0;
+    const bool sameName = !m_currentAuthorName.isEmpty() &&
+        authorName.compare(m_currentAuthorName, Qt::CaseSensitive) == 0;
+    if ((sameEmail || sameName) && !m_remoteUrl.isEmpty()) {
+        return AvatarResolver::resolve(authorName, authorEmail, m_remoteUrl);
+    }
+    return AvatarResolver::resolve(authorName, authorEmail);
+}
+
+QString CommitHistoryModel::avatarForSha(const QString &sha) const
+{
+    for (const auto &commit : m_allCommits) {
+        if (commit.sha == sha) {
+            return avatarForAuthor(commit.authorName, commit.authorEmail);
+        }
+    }
+    return QString();
 }
 
 void CommitHistoryModel::setFilterText(const QString &text)

@@ -42,6 +42,8 @@ public:
 
     void setAheadCount(int count);
     void setAvatarOverrides(const QHash<QString, QString> &overrides);
+    QString avatarForAuthor(const QString &authorName, const QString &authorEmail) const;
+    QString avatarForSha(const QString &sha) const;
 
     Q_INVOKABLE QString getSha(int index) const;
     Q_INVOKABLE void reload();

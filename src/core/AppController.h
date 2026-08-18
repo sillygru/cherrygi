@@ -401,6 +401,7 @@ private:
     void connectServiceSignals();
     void setRepositoryModelsSuspended(bool suspended);
     QThread *trackWorker(QThread *thread);
+    QString avatarForAuthor(const QString &authorName, const QString &authorEmail) const;
 
     std::unique_ptr<AppSettings> m_settings;
     std::unique_ptr<GitHubAvatarService> m_githubAvatarService;
