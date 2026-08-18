@@ -701,6 +701,7 @@ void GitCliService::saveRepositories()
     settings.endGroup();
 
     settings.setValue("General/lastRepository", m_repoPath);
+    settings.sync();
 }
 
 void GitCliService::loadFetchTimes()
@@ -889,7 +890,13 @@ bool GitCliService::openRepository(const QString &pathOrId)
     if (!m_repositoryReader.open(targetPath)) {
         // Directory missing or not a valid Git repo -> enter missing repository state
         m_repoPath = targetPath;
-        m_repoName = m_knownRepos.value(targetPath, QFileInfo(targetPath).fileName());
+        if (m_knownRepos.contains(targetPath) && !m_knownRepos.value(targetPath).trimmed().isEmpty()) {
+            m_repoName = m_knownRepos.value(targetPath).trimmed();
+        } else if (m_knownRepos.contains(pathOrId) && !m_knownRepos.value(pathOrId).trimmed().isEmpty()) {
+            m_repoName = m_knownRepos.value(pathOrId).trimmed();
+        } else {
+            m_repoName = QFileInfo(targetPath).fileName();
+        }
         if (m_repoName.isEmpty()) m_repoName = "Repository";
         m_isMissing = true;
         m_refreshInProgress = false;
@@ -930,8 +937,31 @@ bool GitCliService::openRepository(const QString &pathOrId)
         ? QDir::cleanPath(targetPath)
         : m_repositoryReader.workTreePath();
     m_repoPath = discoveredPath;
-    m_repoName = QFileInfo(m_repoPath).fileName();
+
+    if (m_knownRepos.contains(m_repoPath) && !m_knownRepos.value(m_repoPath).trimmed().isEmpty()) {
+        m_repoName = m_knownRepos.value(m_repoPath).trimmed();
+    } else if (m_knownRepos.contains(targetPath) && !m_knownRepos.value(targetPath).trimmed().isEmpty()) {
+        m_repoName = m_knownRepos.value(targetPath).trimmed();
+    } else if (m_knownRepos.contains(pathOrId) && !m_knownRepos.value(pathOrId).trimmed().isEmpty()) {
+        m_repoName = m_knownRepos.value(pathOrId).trimmed();
+    } else {
+        m_repoName = QFileInfo(m_repoPath).fileName();
+    }
     if (m_repoName.isEmpty()) m_repoName = "Repository";
+
+    if (targetPath != m_repoPath && m_knownRepos.contains(targetPath)) {
+        m_knownRepos.remove(targetPath);
+        if (m_repoRemotes.contains(targetPath) && !m_repoRemotes.contains(m_repoPath)) {
+            m_repoRemotes.insert(m_repoPath, m_repoRemotes.take(targetPath));
+        }
+        if (m_repoFetchTimes.contains(targetPath) && !m_repoFetchTimes.contains(m_repoPath)) {
+            m_repoFetchTimes.insert(m_repoPath, m_repoFetchTimes.take(targetPath));
+        }
+        if (m_repositoryMetadata.contains(targetPath) && !m_repositoryMetadata.contains(m_repoPath)) {
+            m_repositoryMetadata.insert(m_repoPath, m_repositoryMetadata.take(targetPath));
+        }
+    }
+
     // Preserve a complete session snapshot for this repository so switching
     // back can restore it immediately. The new repository's live caches still
     // need to be rebuilt below.
@@ -985,7 +1015,13 @@ bool GitCliService::addRepository(const QString &name, const QString &path)
     }
 
     QString realPath = reader.workTreePath();
-    QString realName = name.trimmed().isEmpty() ? QFileInfo(realPath).fileName() : name.trimmed();
+    QString realName = name.trimmed();
+    if (realName.isEmpty()) {
+        realName = m_knownRepos.value(realPath, m_knownRepos.value(targetPath, QFileInfo(realPath).fileName()));
+    }
+    if (realName.isEmpty()) {
+        realName = QFileInfo(realPath).fileName();
+    }
     m_knownRepos.insert(realPath, realName);
     saveRepositories();
 
@@ -1035,10 +1071,15 @@ bool GitCliService::renameRepository(const QString &repoIdOrPath, const QString 
     }
 
     if (!m_knownRepos.contains(targetPath)) {
-        for (auto it = m_knownRepos.begin(); it != m_knownRepos.end(); ++it) {
-            if (it.value() == repoIdOrPath) {
-                targetPath = it.key();
-                break;
+        QString clean = QDir::cleanPath(targetPath);
+        if (m_knownRepos.contains(clean)) {
+            targetPath = clean;
+        } else {
+            for (auto it = m_knownRepos.begin(); it != m_knownRepos.end(); ++it) {
+                if (it.value() == repoIdOrPath || QDir::cleanPath(it.key()) == clean) {
+                    targetPath = it.key();
+                    break;
+                }
             }
         }
     }
@@ -1054,7 +1095,7 @@ bool GitCliService::renameRepository(const QString &repoIdOrPath, const QString 
     }
 
     m_knownRepos.insert(targetPath, cleanName);
-    if (m_repoPath == targetPath) {
+    if (m_repoPath == targetPath || (!m_repoPath.isEmpty() && QDir::cleanPath(m_repoPath) == QDir::cleanPath(targetPath))) {
         m_repoName = cleanName;
     }
 
