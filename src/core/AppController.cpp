@@ -101,19 +101,8 @@ AppController::AppController(QObject *parent)
         cancelAllOperations();
     });
 
-    // Select initial file
-    auto files = m_activeService->getChangedFiles();
-    if (!files.isEmpty()) {
-        setSelectedFilePath(files.first().filePath);
-    } else {
-        m_diffModel->clear();
-    }
-
-    // Select initial commit
-    auto commits = m_activeService->getCommitHistory(1);
-    if (!commits.isEmpty()) {
-        m_selectedCommitSha = commits.first().sha;
-    }
+    // Select initial file and commit
+    syncSelectionAfterRepositoryChange();
 }
 
 void AppController::cancelAllOperations()
@@ -290,6 +279,42 @@ void AppController::updateCurrentState()
     emit undoStateChanged();
     emit authorInfoChanged();
     emit gitConfigChanged();
+}
+
+void AppController::syncSelectionAfterRepositoryChange()
+{
+    if (!m_activeService) return;
+
+    auto files = m_activeService->getChangedFiles();
+    if (files.isEmpty()) {
+        m_selectedFilePath.clear();
+        emit selectedFilePathChanged();
+        m_diffModel->clear();
+    } else {
+        bool found = false;
+        for (const auto &f : files) {
+            if (!m_selectedFilePath.isEmpty() && f.filePath == m_selectedFilePath) {
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            m_diffModel->loadDiffForFile(m_selectedFilePath);
+        } else {
+            setSelectedFilePath(files.first().filePath);
+            m_diffModel->loadDiffForFile(m_selectedFilePath);
+        }
+    }
+
+    auto commits = m_activeService->getCommitHistory(1);
+    if (!commits.isEmpty()) {
+        if (m_selectedCommitSha.isEmpty()) {
+            setSelectedCommitSha(commits.first().sha);
+        }
+    } else {
+        m_selectedCommitSha.clear();
+        emit selectedCommitShaChanged();
+    }
 }
 
 bool AppController::isGitHubRemote() const
@@ -480,7 +505,21 @@ void AppController::setActiveTab(const QString &tab)
 
 void AppController::setSelectedFilePath(const QString &path)
 {
-    if (m_selectedFilePath == path) return;
+    if (m_selectedFilePath == path) {
+        if (!path.isEmpty()) {
+            QString oldPath;
+            if (m_activeService) {
+                for (const auto &f : m_activeService->getChangedFiles()) {
+                    if (f.filePath == path) {
+                        oldPath = f.oldFilePath;
+                        break;
+                    }
+                }
+            }
+            m_diffModel->loadDiffForFile(m_selectedFilePath, oldPath);
+        }
+        return;
+    }
     m_selectedFilePath = path;
     emit selectedFilePathChanged();
 
@@ -1033,6 +1072,7 @@ void AppController::switchRepository(const QString &repoIdOrPath)
                 // the models from its background refresh. Avoid querying status
                 // or history synchronously on this GUI callback.
                 self->updateCurrentState();
+                self->syncSelectionAfterRepositoryChange();
             }
         }, Qt::QueuedConnection);
     });
@@ -1100,6 +1140,7 @@ void AppController::addRepository(const QString &name, const QString &path)
                 // the models from its background refresh. Avoid querying status
                 // or history synchronously on this GUI callback.
                 self->updateCurrentState();
+                self->syncSelectionAfterRepositoryChange();
             }
         }, Qt::QueuedConnection);
     });
@@ -1239,6 +1280,7 @@ bool AppController::relocateCurrentRepository(const QString &newPath)
     bool ok = m_activeService->relocateRepository(oldPath, newPath);
     if (ok) {
         updateCurrentState();
+        syncSelectionAfterRepositoryChange();
         showToast(tr("Repository location updated successfully"), false);
     }
     return ok;
@@ -1251,6 +1293,7 @@ void AppController::recheckMissingRepository()
     bool ok = m_activeService->recheckRepository(target);
     if (ok) {
         updateCurrentState();
+        syncSelectionAfterRepositoryChange();
         showToast(tr("Repository found and opened"), false);
     }
 }

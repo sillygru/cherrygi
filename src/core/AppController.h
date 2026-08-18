@@ -380,6 +380,7 @@ signals:
 
 private:
     void updateCurrentState();
+    void syncSelectionAfterRepositoryChange();
     void connectServiceSignals();
     void setRepositoryModelsSuspended(bool suspended);
     QThread *trackWorker(QThread *thread);
