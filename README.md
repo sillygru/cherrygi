@@ -7,7 +7,7 @@
   <a href="https://github.com/sillygru/cherrygi/releases/latest"><img src="https://img.shields.io/badge/release-v1.0.0-c9184a?style=flat-square" alt="Version v1.0.0"></a>
   <a href="https://kde.org"><img src="https://img.shields.io/badge/KDE-Plasma%206%20%26%20Kirigami-3daee9?style=flat-square" alt="KDE Plasma 6"></a>
   <a href="https://qt.io"><img src="https://img.shields.io/badge/Qt-6.5+-41cd52?style=flat-square" alt="Qt 6.5+"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square" alt="License: GPL-3.0-or-later"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License: GPL-3.0"></a>
 </p>
 
 ---

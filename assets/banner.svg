@@ -69,8 +69,5 @@
 
     <rect x="174" y="0" width="105" height="28" rx="6" fill="#252932" stroke="#373d49" stroke-width="1"/>
     <text x="226" y="19" font-family="monospace" font-size="13" font-weight="600" fill="#e2e8f0" text-anchor="middle">Kirigami 6</text>
-
-    <rect x="289" y="0" width="80" height="28" rx="6" fill="#252932" stroke="#373d49" stroke-width="1"/>
-    <text x="329" y="19" font-family="monospace" font-size="13" font-weight="600" fill="#e2e8f0" text-anchor="middle">v1.0.0</text>
   </g>
 </svg>

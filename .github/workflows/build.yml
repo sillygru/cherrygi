@@ -13,39 +13,38 @@ concurrency:
 
 jobs:
   build-linux:
-    name: Ubuntu 24.04 (Qt6 & KF6)
-    runs-on: ubuntu-24.04
+    name: Linux (Qt6 & KF6)
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:40
 
     steps:
+      - name: Install system dependencies
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            gcc-c++ \
+            cmake \
+            ninja-build \
+            extra-cmake-modules \
+            qt6-qtbase-devel \
+            qt6-qtdeclarative-devel \
+            kf6-kirigami-devel \
+            kf6-kcoreaddons-devel \
+            kf6-ki18n-devel \
+            kf6-kiconthemes-devel \
+            kf6-kcolorscheme-devel \
+            kf6-kconfig-devel \
+            zlib-devel \
+            git
+
+      - name: Configure Git Safe Directory
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            cmake \
-            ninja-build \
-            extra-cmake-modules \
-            qt6-base-dev \
-            qt6-declarative-dev \
-            qt6-quickcontrols2-dev \
-            qml6-module-qtquick \
-            qml6-module-qtquick-controls \
-            qml6-module-qtquick-layouts \
-            qml6-module-qtquick-window \
-            qml6-module-qtquick-effects \
-            libkf6coreaddons-dev \
-            libkf6i18n-dev \
-            libkf6iconthemes-dev \
-            libkf6colorscheme-dev \
-            libkf6config-dev \
-            libkf6kirigami-dev \
-            qml6-module-org-kde-kirigami \
-            zlib1g-dev
 
       - name: Configure CMake
         env:
