@@ -349,16 +349,6 @@ QQC2.Popup {
                     appController.showCloneDialog();
                 }
             }
-
-            QQC2.Button {
-                Layout.fillWidth: true
-                text: qsTr("Backend...")
-                icon.name: "view-refresh"
-                onClicked: {
-                    repoDropdownPopup.close();
-                    appController.showBackendSelectionDialog();
-                }
-            }
         }
     }
 }

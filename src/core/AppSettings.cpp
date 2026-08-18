@@ -108,7 +108,6 @@ void AppSettings::loadSettings()
     m_diffViewMode = settings.value("General/diffViewMode", "unified").toString();
     m_showWhitespace = settings.value("General/showWhitespace", true).toBool();
     m_tabSize = settings.value("General/tabSize", 4).toInt();
-    m_startupBackend = settings.value("General/startupBackend", "real").toString();
     m_avatarProvider = settings.value("General/avatarProvider", "auto").toString();
 
     // AI Commit Assistant
@@ -133,7 +132,6 @@ void AppSettings::saveSettings()
     settings.setValue("General/diffViewMode", m_diffViewMode);
     settings.setValue("General/showWhitespace", m_showWhitespace);
     settings.setValue("General/tabSize", m_tabSize);
-    settings.setValue("General/startupBackend", m_startupBackend);
     settings.setValue("General/avatarProvider", m_avatarProvider);
 
     // AI Commit Assistant
@@ -274,14 +272,6 @@ void AppSettings::setTabSize(int size)
     m_tabSize = size;
     saveSettings();
     emit tabSizeChanged();
-}
-
-void AppSettings::setStartupBackend(const QString &backend)
-{
-    if (m_startupBackend == backend) return;
-    m_startupBackend = backend;
-    saveSettings();
-    emit startupBackendChanged();
 }
 
 void AppSettings::setAvatarProvider(const QString &provider)

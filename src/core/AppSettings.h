@@ -35,7 +35,6 @@ class AppSettings : public QObject {
     Q_PROPERTY(QString diffViewMode READ diffViewMode WRITE setDiffViewMode NOTIFY diffViewModeChanged)
     Q_PROPERTY(bool showWhitespace READ showWhitespace WRITE setShowWhitespace NOTIFY showWhitespaceChanged)
     Q_PROPERTY(int tabSize READ tabSize WRITE setTabSize NOTIFY tabSizeChanged)
-    Q_PROPERTY(QString startupBackend READ startupBackend WRITE setStartupBackend NOTIFY startupBackendChanged)
     Q_PROPERTY(QString avatarProvider READ avatarProvider WRITE setAvatarProvider NOTIFY avatarProviderChanged)
     Q_PROPERTY(bool isGhAvailable READ isGhAvailable CONSTANT)
     Q_PROPERTY(QStringList availableEditors READ availableEditors CONSTANT)
@@ -85,9 +84,6 @@ public:
     int tabSize() const { return m_tabSize; }
     void setTabSize(int size);
 
-    QString startupBackend() const { return m_startupBackend; }
-    void setStartupBackend(const QString &backend);
-
     QString avatarProvider() const { return m_avatarProvider; }
     void setAvatarProvider(const QString &provider);
 
@@ -136,7 +132,6 @@ signals:
     void diffViewModeChanged();
     void showWhitespaceChanged();
     void tabSizeChanged();
-    void startupBackendChanged();
     void avatarProviderChanged();
     void aiEnabledChanged();
     void aiProviderChanged();
@@ -163,7 +158,6 @@ private:
     QString m_diffViewMode{"unified"};
     bool m_showWhitespace{true};
     int m_tabSize{4};
-    QString m_startupBackend{"real"};
     QString m_avatarProvider{"auto"};
 
     // AI Commit Assistant

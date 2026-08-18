@@ -10,7 +10,6 @@
 
 #include "IGitService.h"
 #include "GitCliService.h"
-#include "MockGitService.h"
 #include "AppSettings.h"
 #include "GitHubAvatarService.h"
 #include "AiCommitService.h"
@@ -25,10 +24,6 @@ namespace Cherry {
 
 class AppController : public QObject {
     Q_OBJECT
-
-    // Backend Mode & Startup Dialog
-    Q_PROPERTY(QString backendMode READ backendMode WRITE setBackendMode NOTIFY backendModeChanged)
-    Q_PROPERTY(bool isBackendDialogVisible READ isBackendDialogVisible WRITE setBackendDialogVisible NOTIFY backendDialogVisibleChanged)
 
     // Models
     Q_PROPERTY(Cherry::RepositoryListModel* repositories READ repositories CONSTANT)
@@ -149,13 +144,6 @@ public:
     ~AppController() override;
 
     void cancelAllOperations();
-
-    // Backend Mode
-    QString backendMode() const { return m_backendMode; }
-    void setBackendMode(const QString &mode);
-
-    bool isBackendDialogVisible() const { return m_isBackendDialogVisible; }
-    void setBackendDialogVisible(bool visible);
 
     // Getters
     RepositoryListModel* repositories() const { return m_repoModel; }
@@ -281,10 +269,6 @@ public:
     bool toastVisible() const { return m_toastVisible; }
 
     // Invocable Actions for QML
-    Q_INVOKABLE void showBackendSelectionDialog();
-    Q_INVOKABLE void hideBackendSelectionDialog();
-    Q_INVOKABLE void selectBackend(const QString &mode); // "real" | "mock"
-
     Q_INVOKABLE void showSettingsDialog(const QString &tab = "repository");
     Q_INVOKABLE void hideSettingsDialog();
 
@@ -359,8 +343,6 @@ public:
     Q_INVOKABLE void showToast(const QString &message, bool isError = false);
 
 signals:
-    void backendModeChanged();
-    void backendDialogVisibleChanged();
     void currentRepoChanged();
     void currentBranchChanged();
     void remoteStatusChanged();
@@ -407,11 +389,8 @@ private:
     std::unique_ptr<GitHubAvatarService> m_githubAvatarService;
     std::unique_ptr<AiCommitService> m_aiCommitService;
     std::unique_ptr<GitCliService> m_gitCliService;
-    std::unique_ptr<MockGitService> m_mockService;
     IGitService *m_activeService{nullptr};
 
-    QString m_backendMode{"real"};
-    bool m_isBackendDialogVisible{true};
     bool m_isSettingsDialogVisible{false};
     bool m_isPublishDialogVisible{false};
     bool m_isPublishing{false};

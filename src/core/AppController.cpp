@@ -20,15 +20,8 @@ AppController::AppController(QObject *parent)
     , m_githubAvatarService(std::make_unique<GitHubAvatarService>())
     , m_aiCommitService(std::make_unique<AiCommitService>(this))
     , m_gitCliService(std::make_unique<GitCliService>())
-    , m_mockService(std::make_unique<MockGitService>())
 {
-    // Default to real git, but isBackendDialogVisible is true on startup
     m_activeService = m_gitCliService.get();
-    m_backendMode = m_settings->startupBackend() == "mock" ? "mock" : "real";
-    m_isBackendDialogVisible = (m_settings->startupBackend() == "ask");
-    if (m_backendMode == "mock") {
-        m_activeService = m_mockService.get();
-    }
 
     m_diffViewMode = m_settings->diffViewMode();
     m_showWhitespace = m_settings->showWhitespace();
@@ -168,74 +161,6 @@ QThread *AppController::trackWorker(QThread *thread)
         thread->deleteLater();
     });
     return thread;
-}
-
-void AppController::setBackendMode(const QString &mode)
-{
-    QString normalized = (mode.toLower() == "mock") ? "mock" : "real";
-    if (m_backendMode == normalized && m_activeService) return;
-
-    m_backendMode = normalized;
-    if (m_backendMode == "mock") {
-        m_activeService = m_mockService.get();
-    } else {
-        m_activeService = m_gitCliService.get();
-    }
-
-    // Rebind all models to the newly active service
-    m_repoModel->setService(m_activeService);
-    m_branchModel->setService(m_activeService);
-    m_changedFilesModel->setService(m_activeService);
-    m_commitHistoryModel->setService(m_activeService);
-    m_diffModel->setService(m_activeService);
-    m_stashModel->setService(m_activeService);
-
-    m_selectedFilePath.clear();
-    m_selectedCommitSha.clear();
-    m_selectedStashId.clear();
-    emit selectedFilePathChanged();
-    emit selectedCommitShaChanged();
-    emit selectedStashIdChanged();
-
-    connectServiceSignals();
-    updateCurrentState();
-
-    auto files = m_activeService->getChangedFiles();
-    if (!files.isEmpty()) {
-        setSelectedFilePath(files.first().filePath);
-    } else {
-        m_diffModel->clear();
-    }
-
-    auto commits = m_activeService->getCommitHistory(1);
-    if (!commits.isEmpty()) {
-        setSelectedCommitSha(commits.first().sha);
-    }
-
-    emit backendModeChanged();
-}
-
-void AppController::setBackendDialogVisible(bool visible)
-{
-    if (m_isBackendDialogVisible == visible) return;
-    m_isBackendDialogVisible = visible;
-    emit backendDialogVisibleChanged();
-}
-
-void AppController::showBackendSelectionDialog()
-{
-    setBackendDialogVisible(true);
-}
-
-void AppController::hideBackendSelectionDialog()
-{
-    setBackendDialogVisible(false);
-}
-
-void AppController::selectBackend(const QString &mode)
-{
-    setBackendMode(mode);
-    hideBackendSelectionDialog();
 }
 
 void AppController::connectServiceSignals()

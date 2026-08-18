@@ -493,7 +493,7 @@ Rectangle {
         // ==========================================
         RowLayout {
             Layout.alignment: Qt.AlignVCenter
-            Layout.rightMargin: Kirigami.Units.smallSpacing
+            Layout.rightMargin: Kirigami.Units.largeSpacing
             spacing: 2
 
             QQC2.ToolButton {
@@ -521,58 +521,6 @@ Rectangle {
                 QQC2.ToolTip.text: qsTr("Settings")
                 QQC2.ToolTip.visible: hovered
                 onClicked: appController.showSettingsDialog()
-            }
-        }
-
-        // ==========================================
-        // BACKEND MODE SWITCHER PILL
-        // ==========================================
-        Rectangle {
-            Layout.alignment: Qt.AlignVCenter
-            Layout.rightMargin: Kirigami.Units.largeSpacing
-            implicitHeight: 28
-            implicitWidth: modeRow.implicitWidth + 14
-            radius: 14
-            color: appController.backendMode === "mock" ? CherryStyle.warningBg : Qt.rgba(CherryStyle.accentColor.r, CherryStyle.accentColor.g, CherryStyle.accentColor.b, 0.15)
-            border.color: appController.backendMode === "mock" ? CherryStyle.warningColor : CherryStyle.accentColor
-            border.width: 1
-
-            RowLayout {
-                id: modeRow
-                anchors.centerIn: parent
-                spacing: 4
-
-                Kirigami.Icon {
-                    source: appController.backendMode === "mock" ? "system-run" : "folder-git"
-                    width: 12
-                    height: 12
-                    color: appController.backendMode === "mock" ? CherryStyle.warningColor : CherryStyle.accentColor
-                }
-
-                QQC2.Label {
-                    text: appController.backendMode === "mock" ? qsTr("Mock Demo") : qsTr("Real Git")
-                    font.pixelSize: CherryStyle.smallFont.pixelSize - 1
-                    font.bold: true
-                    color: appController.backendMode === "mock" ? CherryStyle.warningColor : CherryStyle.accentColor
-                }
-
-                Kirigami.Icon {
-                    source: "view-refresh"
-                    width: 10
-                    height: 10
-                    color: CherryStyle.secondaryTextColor
-                }
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                QQC2.ToolTip.text: qsTr("Click to switch between Real Git and Mock Demo mode")
-                QQC2.ToolTip.visible: containsMouse
-                onClicked: {
-                    appController.showBackendSelectionDialog();
-                }
             }
         }
     }

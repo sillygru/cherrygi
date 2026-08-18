@@ -19,7 +19,6 @@ QQC2.Popup {
     property string currentTab: appController.settingsTab
     property bool remoteFieldsUpdating: false
     property string pendingDiffViewMode: "unified"
-    property string pendingBackendMode: "real"
 
     // AI Commit Assistant pending state
     property bool pendingAiEnabled: false
@@ -166,10 +165,6 @@ QQC2.Popup {
             appController.showWhitespace = showWhitespaceCheckBox.checked;
         }
 
-        if (pendingBackendMode !== appController.backendMode) {
-            appController.setBackendMode(pendingBackendMode);
-        }
-
         // Save AI Commit Assistant settings
         appController.saveAiSettings(
             pendingAiEnabled,
@@ -206,7 +201,6 @@ QQC2.Popup {
 
         pendingDiffViewMode = appController.diffViewMode;
         showWhitespaceCheckBox.checked = appController.showWhitespace;
-        pendingBackendMode = appController.backendMode;
 
         // AI Commit Assistant fields
         pendingAiEnabled = appController.isAiEnabled;
@@ -1395,52 +1389,6 @@ QQC2.Popup {
                     QQC2.CheckBox {
                         id: showWhitespaceCheckBox
                         text: qsTr("Show whitespace changes by default")
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 1
-                        color: CherryStyle.subtleBorderColor
-                    }
-
-                    QQC2.Label {
-                        text: qsTr("Startup Backend")
-                        font.bold: true
-                        color: Kirigami.Theme.textColor
-                    }
-
-                    QQC2.Label {
-                        text: qsTr("Configure how cherrygi starts up by default:")
-                        font.pixelSize: CherryStyle.smallFont.pixelSize
-                        color: CherryStyle.secondaryTextColor
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Kirigami.Units.smallSpacing
-
-                        QQC2.Button {
-                            text: qsTr("Use Real Git Backend")
-                            icon.name: "folder-git"
-                            highlighted: root.pendingBackendMode === "real"
-                            onClicked: root.pendingBackendMode = "real"
-                        }
-
-                        QQC2.Button {
-                            text: qsTr("Use Mock Sandbox")
-                            icon.name: "system-run"
-                            highlighted: root.pendingBackendMode === "mock"
-                            onClicked: root.pendingBackendMode = "mock"
-                        }
-
-                        QQC2.Button {
-                            text: qsTr("Show Startup Choice...")
-                            icon.name: "view-refresh"
-                            onClicked: {
-                                root.close();
-                                appController.showBackendSelectionDialog();
-                            }
-                        }
                     }
                 }
 

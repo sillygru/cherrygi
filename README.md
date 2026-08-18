@@ -35,10 +35,8 @@
   - Whitespace change visibility toggle.
   - **Commit Inspector**: View full commit metadata, copy commit SHA, list changed files in that commit, and view historical diffs.
   - **Stash Inspector**: Click on any stash to view stashed files, browse line-by-line diffs, and restore or discard the stash with 1 click.
-- **Dual Backend Support (Real Git & Mock Demo)**:
-  - **Real Git Backend (`GitCliService`)**: A hybrid local backend. It reads `.git` directly for repository discovery, `HEAD`, branches, commit history/details, and stash metadata, avoiding a process spawn for frequent read-only work. The existing Git CLI remains in charge of status/index handling, diffs, commits, branch mutations, stash actions, configuration, and remote sync, so behavior stays compatible with normal Git repositories.
-  - **Mock Demo Mode (`MockGitService`)**: Explore `cherrygi` with pre-loaded mock repositories (`desktop`, `cherrygi-core`, `plasma-workspace`) without modifying real files.
-  - **On-Startup Mode Selection Modal**: Dialog on launch to choose your working mode, with runtime switching via the header bar.
+- **Git Backend (`GitCliService`)**:
+  - **Hybrid Architecture**: Reads `.git` directly for repository discovery, `HEAD`, branches, commit history/details, and stash metadata, avoiding a process spawn for frequent read-only work. The Git CLI remains in charge of status/index handling, diffs, commits, branch mutations, stash actions, configuration, and remote sync, so behavior stays compatible with normal Git repositories.
   - **Persistent & Non-Intrusive Storage**: User repository bookmarks and preferences are stored cleanly in XDG user config (`~/.config/KDE/cherrygi.conf`).
   - **Native Local Repository Picker**: Add local repositories with native Qt folder selection dialogs and manage repositories with contextual actions (Open in Terminal, Open in File Manager, Remove from list).
 
@@ -98,7 +96,7 @@ cherrygi/
 ├── docs/
 │   ├── architecture.md            # C++ service layer and QML architecture
 │   ├── ui_guide.md                # Mapping GitHub Desktop to KDE Plasma Breeze
-│   └── git_service_transition.md  # Transitioning from Mock to real Git backends
+│   └── git_service_transition.md  # Git service architecture documentation
 └── src/
     ├── main.cpp                   # App entry point
     ├── core/
@@ -106,7 +104,6 @@ cherrygi/
     │   ├── IGitService.h          # Abstract Git service interface
     │   ├── GitCliService.h/.cpp   # Hybrid CLI operations and direct-read integration
     │   ├── GitRepositoryReader.h/.cpp # Native .git object/ref reader
-    │   ├── MockGitService.h/.cpp  # Stateful in-memory Git simulation
     │   └── AppController.h/.cpp   # Central coordinator for UI and models
     ├── models/
     │   ├── RepositoryListModel    # List of repositories

@@ -6,14 +6,14 @@ Native KDE Plasma Git client (Kirigami 6 / Qt Quick) mirroring GitHub Desktop's 
 
 - C++20, Qt 6.5+, KF6 (Kirigami, CoreAddons, I18n, IconThemes, ColorScheme, Config), CMake 3.20+, zlib.
 - QML/Quick module `org.kde.cherrygi`; `CherryStyle.qml` is a QML singleton (see `QT_QML_SINGLETON_TYPE` in CMakeLists).
-- Two interchangeable backends behind `IGitService`: `GitCliService` (default; hybrid — CLI mutations plus direct `.git` reader for reads) and `MockGitService` (in-memory demo).
+- Backend behind `IGitService`: `GitCliService` (hybrid — CLI mutations plus direct `.git` reader for reads).
 - Git I/O is local via the `git` CLI or `GitRepositoryReader`; optional GitHub avatar metadata is fetched from the repository `mentionables/users` API using an in-memory `gh auth token` when available, with anonymous fallback.
 
 ## Commands
 
 - Configure: `cmake -B build`
-- Build (the only automated check): `cmake --build build`
-- Clean build: `rm -rf build && cmake -B build && cmake --build build`
+- Build (incremental, default validation gate): `cmake --build build`
+- Clean build (only when deleting files, modifying CMakeLists, or encountering stale cache issues): `rm -rf build && cmake -B build && cmake --build build`
 - There is no test target and no `ctest`. Do not invent one. Build success is the validation gate.
 - Do **not** launch/execute the UI unless explicitly asked.
 
@@ -52,7 +52,6 @@ GitHubAvatarService → AppController → Qt Item Models/QML
 ```
 
 - QML never calls `IGitService` or Git directly; only `AppController` talks to the service.
-- New features must work on both `GitCliService` and `MockGitService`.
 - Renames carry `oldFilePath` on `FileChange`; pass it through (`getDiffForFile(path, oldPath)`, `getDiffForCommitFile(sha, path, oldPath)`).
 - Image diffs render via `GitImageProvider` + `ImageDiffViewer.qml`; keep blob reads on the service layer.
 

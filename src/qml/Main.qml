@@ -91,17 +91,6 @@ Kirigami.ApplicationWindow {
     }
 
     // ==========================================
-    // STARTUP BACKEND SELECTION MODAL
-    // ==========================================
-    BackendSelectionDialog {
-        id: backendDialog
-        visible: appController.isBackendDialogVisible
-        onClosed: {
-            appController.isBackendDialogVisible = false;
-        }
-    }
-
-    // ==========================================
     // APP SETTINGS MODAL DIALOG
     // ==========================================
     AppSettingsDialog {

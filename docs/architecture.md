@@ -31,7 +31,6 @@ graph TD
         IGit["IGitService (Abstract Interface)"]
         GitCli["GitCliService (CLI mutations / status / diffs)"]
         GitReader["GitRepositoryReader (direct .git reads)"]
-        MockGit["MockGitService (Demo Implementation)"]
     end
 
     Main --> HeaderBar
@@ -69,7 +68,6 @@ graph TD
     StashMdl --> IGit
 
     IGit <|-- GitCli
-    IGit <|-- MockGit
     GitCli --> GitReader
 ```
 
@@ -110,18 +108,9 @@ The `IGitService` interface acts as an abstraction barrier between the backend a
 - Git CLI remains the compatibility boundary for index/worktree status, diffs, staging, commits, checkout/branch mutations, stash mutations, configuration, and fetch/pull/push. This keeps Git's edge-case behavior while removing the process overhead from frequent read-only queries.
 - The reader accepts ordinary repositories, `.git` files used by linked worktrees/submodules, loose objects, and Git packfiles. Its caches are invalidated whenever the service refreshes or mutates repository state.
 
-## 4. Mock Service Implementation (`src/core/MockGitService.h` & `.cpp`)
-
-The mock service provides an in-memory Git simulator with state transitions:
-1. **Interactive Commits**: Calling `createCommit()` removes selected files from `changedFiles`, creates a historical commit, increments `aheadCount`, and pushes a snapshot to an internal `m_undoStack`.
-2. **Undo Commit**: Calling `undoLastCommit()` removes the tip commit from history, restores previous staged files and commit summary/description, and decrements `aheadCount`.
-3. **Stash Management**: Calling `stashChanges()`, `popStash()`, or `dropStash()` updates in-memory stash lists and emits reactive signals.
-4. **Branch Switching & Creation**: Allows switching between mock branches (`file-status-tooltip`, `main`, `feat/diff-split-view`, etc.) or creating new branches seamlessly.
-5. **Remote Synchronization**: Simulates network latency with `QTimer::singleShot` for `fetchOrigin()`, `pullOrigin()`, and `pushOrigin()`.
-
 ---
 
-## 5. Models Layer (`src/models/`)
+## 4. Models Layer (`src/models/`)
 
 To provide reactive bindings in QML without overhead, specialized `QAbstractListModel` subclasses are used:
 - `RepositoryListModel`: Exposes repository lists and active repo state.
@@ -133,7 +122,7 @@ To provide reactive bindings in QML without overhead, specialized `QAbstractList
 
 ---
 
-## 6. QML UI Layer (`src/qml/`)
+## 5. QML UI Layer (`src/qml/`)
 
 The QML structure implements GitHub Desktop's workflow using KDE Plasma Breeze design language:
 - `Main.qml`: `Kirigami.ApplicationWindow` containing the top header and split workspace.
