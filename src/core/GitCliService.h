@@ -38,6 +38,7 @@ public:
     bool addRepository(const QString &name, const QString &path) override;
     bool removeRepository(const QString &repoIdOrPath) override;
     bool relocateRepository(const QString &oldPath, const QString &newPath) override;
+    bool renameRepository(const QString &repoIdOrPath, const QString &newName) override;
     bool cloneRepository(const QString &url, const QString &targetPath) override;
     bool recheckRepository(const QString &pathOrId) override;
     void refreshRepository() override;

@@ -63,6 +63,9 @@ QQC2.Popup {
             text: qsTr("Repository Settings...")
             icon.name: "settings-configure"
             onTriggered: {
+                if (repoContextMenu.targetRepoId !== "" && repoContextMenu.targetRepoId !== appController.currentRepoPath) {
+                    appController.switchRepository(repoContextMenu.targetRepoId);
+                }
                 appController.showSettingsDialog("repository");
             }
         }

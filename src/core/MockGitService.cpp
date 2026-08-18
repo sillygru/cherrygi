@@ -406,6 +406,33 @@ bool MockGitService::relocateRepository(const QString &oldPath, const QString &n
     return false;
 }
 
+bool MockGitService::renameRepository(const QString &repoIdOrPath, const QString &newName)
+{
+    QString targetId = repoIdOrPath.trimmed();
+    if (targetId.isEmpty()) {
+        targetId = m_currentRepoId;
+    }
+
+    for (auto it = m_repositories.begin(); it != m_repositories.end(); ++it) {
+        if (it.key() == targetId || it.value().info.path == targetId || it.value().info.id == targetId || it.value().info.name == targetId) {
+            QString cleanName = newName.trimmed();
+            if (cleanName.isEmpty()) {
+                cleanName = QFileInfo(it.value().info.path).fileName();
+                if (cleanName.isEmpty()) cleanName = "repository";
+            }
+            it.value().info.name = cleanName;
+            if (m_currentRepoId == it.key()) {
+                emit repositoryChanged(it.value().info);
+            } else {
+                emit repositoryChanged(activeState() ? activeState()->info : RepositoryInfo{});
+            }
+            emit operationSucceeded("Repository display name updated");
+            return true;
+        }
+    }
+    return false;
+}
+
 bool MockGitService::cloneRepository(const QString &url, const QString &targetPath)
 {
     QString name = QFileInfo(targetPath).fileName();

@@ -320,6 +320,8 @@ public:
     Q_INVOKABLE void switchRepository(const QString &repoIdOrPath);
     Q_INVOKABLE void addRepository(const QString &name, const QString &path);
     Q_INVOKABLE void removeRepository(const QString &repoIdOrPath);
+    Q_INVOKABLE bool renameRepository(const QString &repoIdOrPath, const QString &newName);
+    Q_INVOKABLE bool renameCurrentRepository(const QString &newName);
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void refreshRepository();
 

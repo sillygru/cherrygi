@@ -1173,6 +1173,26 @@ void AppController::removeRepository(const QString &repoIdOrPath)
     updateCurrentState();
 }
 
+bool AppController::renameRepository(const QString &repoIdOrPath, const QString &newName)
+{
+    if (!m_activeService) return false;
+    bool ok = m_activeService->renameRepository(repoIdOrPath, newName);
+    if (ok) {
+        if (m_isCurrentRepoMissing && (m_missingRepoPath == repoIdOrPath || m_missingRepoName == repoIdOrPath)) {
+            m_missingRepoName = newName.trimmed().isEmpty() ? QFileInfo(m_missingRepoPath).fileName() : newName.trimmed();
+        }
+        updateCurrentState();
+    }
+    return ok;
+}
+
+bool AppController::renameCurrentRepository(const QString &newName)
+{
+    if (!m_activeService) return false;
+    QString target = m_isCurrentRepoMissing ? m_missingRepoPath : currentRepoPath();
+    return renameRepository(target, newName);
+}
+
 void AppController::setCloneDialogVisible(bool visible)
 {
     if (m_isCloneDialogVisible == visible) return;

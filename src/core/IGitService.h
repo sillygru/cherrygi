@@ -20,6 +20,7 @@ public:
     virtual bool addRepository(const QString &name, const QString &path) = 0;
     virtual bool removeRepository(const QString &repoIdOrPath) = 0;
     virtual bool relocateRepository(const QString &oldPath, const QString &newPath) = 0;
+    virtual bool renameRepository(const QString &repoIdOrPath, const QString &newName) = 0;
     virtual bool cloneRepository(const QString &url, const QString &targetPath) = 0;
     virtual bool recheckRepository(const QString &pathOrId) = 0;
     virtual void refreshRepository() = 0;

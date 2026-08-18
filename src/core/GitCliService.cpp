@@ -1027,6 +1027,44 @@ bool GitCliService::relocateRepository(const QString &oldPath, const QString &ne
     return openRepository(realPath);
 }
 
+bool GitCliService::renameRepository(const QString &repoIdOrPath, const QString &newName)
+{
+    QString targetPath = repoIdOrPath.trimmed();
+    if (targetPath.isEmpty()) {
+        targetPath = m_repoPath;
+    }
+
+    if (!m_knownRepos.contains(targetPath)) {
+        for (auto it = m_knownRepos.begin(); it != m_knownRepos.end(); ++it) {
+            if (it.value() == repoIdOrPath) {
+                targetPath = it.key();
+                break;
+            }
+        }
+    }
+
+    if (targetPath.isEmpty() || !m_knownRepos.contains(targetPath)) {
+        emit operationFailed(QString("Repository '%1' not found").arg(repoIdOrPath));
+        return false;
+    }
+
+    QString cleanName = newName.trimmed();
+    if (cleanName.isEmpty()) {
+        cleanName = QFileInfo(targetPath).fileName();
+    }
+
+    m_knownRepos.insert(targetPath, cleanName);
+    if (m_repoPath == targetPath) {
+        m_repoName = cleanName;
+    }
+
+    saveRepositories();
+
+    auto cur = getCurrentRepository();
+    emit repositoryChanged(cur ? *cur : RepositoryInfo{});
+    return true;
+}
+
 static void parseGitCloneProgress(const QString &rawLine, double &progress, QString &stage, QString &details)
 {
     QString line = rawLine.trimmed();

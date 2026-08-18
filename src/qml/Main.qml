@@ -19,19 +19,9 @@ Kirigami.ApplicationWindow {
     minimumHeight: 600
 
     // Refresh shortcuts (F5, Ctrl+R, StandardKey.Refresh)
-    QQC2.Action {
-        shortcut: "F5"
-        onTriggered: appController.refresh()
-    }
-
-    QQC2.Action {
-        shortcut: "Ctrl+R"
-        onTriggered: appController.refresh()
-    }
-
-    QQC2.Action {
-        shortcut: StandardKey.Refresh
-        onTriggered: appController.refresh()
+    Shortcut {
+        sequences: ["F5", "Ctrl+R", StandardKey.Refresh]
+        onActivated: appController.refresh()
     }
 
     // Main Column Layout

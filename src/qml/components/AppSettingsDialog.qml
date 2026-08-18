@@ -32,6 +32,14 @@ QQC2.Popup {
     property bool pendingAiFollowRepoStyle: true
     property bool showApiKeyPlain: false
 
+    function folderName(path) {
+        if (!path || path.length === 0) return "";
+        var clean = path.replace(/\\/g, "/");
+        while (clean.endsWith("/")) clean = clean.substring(0, clean.length - 1);
+        var lastSlash = clean.lastIndexOf("/");
+        return lastSlash >= 0 ? clean.substring(lastSlash + 1) : clean;
+    }
+
     function updateRemoteUrlFromParts() {
         if (remoteFieldsUpdating || remotePresetCombo.currentIndex < 0) return;
         var preset = remotePresetCombo.model[remotePresetCombo.currentIndex].split("|");
@@ -95,6 +103,14 @@ QQC2.Popup {
     }
 
     function saveSettingsAndClose() {
+        var newRepoName = repoDisplayNameField.text.trim();
+        if (newRepoName.length === 0) {
+            newRepoName = root.folderName(appController.currentRepoPath);
+        }
+        if (newRepoName.length > 0 && newRepoName !== appController.currentRepoName && appController.currentRepoPath.length > 0) {
+            appController.renameCurrentRepository(newRepoName);
+        }
+
         var url = repoUrlField.text.trim();
         if (url.length > 0 && url !== appController.remoteUrl) {
             if (!appController.saveRemoteUrl(url)) return;
@@ -171,6 +187,7 @@ QQC2.Popup {
     }
 
     onAboutToShow: {
+        repoDisplayNameField.text = appController.currentRepoName;
         remoteFieldsUpdating = true;
         currentTab = appController.settingsTab;
         repoUrlField.text = appController.remoteUrl;
@@ -622,24 +639,59 @@ QQC2.Popup {
                             id: repoInfoCol
                             anchors.fill: parent
                             anchors.margins: Kirigami.Units.mediumSpacing
-                            spacing: 4
+                            spacing: Kirigami.Units.smallSpacing
 
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: Kirigami.Units.smallSpacing
 
                                 QQC2.Label {
-                                    text: qsTr("Repository:")
+                                    text: qsTr("Local Display Name")
                                     font.bold: true
                                     color: Kirigami.Theme.textColor
                                 }
 
-                                QQC2.Label {
-                                    text: appController.currentRepoName
-                                    font.bold: true
-                                    color: CherryStyle.accentColor
-                                    Layout.fillWidth: true
+                                Item { Layout.fillWidth: true }
+
+                                QQC2.ToolButton {
+                                    icon.name: "edit-undo"
+                                    icon.width: 14
+                                    icon.height: 14
+                                    text: qsTr("Reset to folder name")
+                                    display: QQC2.AbstractButton.IconOnly
+                                    visible: repoDisplayNameField.text !== root.folderName(appController.currentRepoPath) && appController.currentRepoPath.length > 0
+                                    QQC2.ToolTip.text: qsTr("Reset display name to '%1'").arg(root.folderName(appController.currentRepoPath))
+                                    QQC2.ToolTip.visible: hovered
+                                    onClicked: {
+                                        repoDisplayNameField.text = root.folderName(appController.currentRepoPath);
+                                    }
                                 }
+                            }
+
+                            QQC2.TextField {
+                                id: repoDisplayNameField
+                                Layout.fillWidth: true
+                                placeholderText: root.folderName(appController.currentRepoPath)
+                                background: Rectangle {
+                                    color: CherryStyle.inputBackground
+                                    border.color: repoDisplayNameField.activeFocus ? CherryStyle.accentColor : CherryStyle.borderColor
+                                    border.width: repoDisplayNameField.activeFocus ? 2 : 1
+                                    radius: CherryStyle.radiusSmall
+                                }
+                            }
+
+                            QQC2.Label {
+                                text: qsTr("This is only the local display name used in cherrygi and does not change the repository folder or remote.")
+                                font.pixelSize: CherryStyle.smallFont.pixelSize - 1
+                                color: CherryStyle.secondaryTextColor
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 1
+                                color: CherryStyle.subtleBorderColor
                             }
 
                             RowLayout {
