@@ -1,3 +1,10 @@
+> ## CherryGI has moved to GitLab
+>
+> This repository is no longer maintained on GitHub.
+>
+> The active repository is now on GitLab:
+> **https://gitlab.com/sillygru/cherrygi**
+
 <p align="center">
   <img src="assets/banner.svg" alt="CherryGI Banner" width="100%">
 </p>
