@@ -1907,6 +1907,7 @@ QQC2.Popup {
                                         id: updateNotesLabel
                                         width: parent.width
                                         text: appController.updateNotes
+                                        textFormat: Text.PlainText
                                         wrapMode: Text.WordWrap
                                         font.pixelSize: CherryStyle.smallFont.pixelSize
                                         color: Kirigami.Theme.textColor

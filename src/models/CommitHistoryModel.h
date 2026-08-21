@@ -2,6 +2,9 @@
 
 #include <QAbstractListModel>
 #include <QHash>
+#include <QMutex>
+#include <QThread>
+#include <atomic>
 #include "../core/IGitService.h"
 
 namespace Cherry {
@@ -10,6 +13,7 @@ class CommitHistoryModel : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
     Q_PROPERTY(QString filterText READ filterText WRITE setFilterText NOTIFY filterTextChanged)
+    Q_PROPERTY(bool isLoading READ isLoading NOTIFY isLoadingChanged)
 
 public:
     enum CommitRoles {
@@ -32,6 +36,7 @@ public:
     };
 
     explicit CommitHistoryModel(IGitService *service, QObject *parent = nullptr);
+    ~CommitHistoryModel() override;
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -47,17 +52,23 @@ public:
 
     Q_INVOKABLE QString getSha(int index) const;
     Q_INVOKABLE void reload();
+    void cancelOperations();
     void clear();
     void setUpdatesSuspended(bool suspended);
     void setService(IGitService *service);
+
+    bool isLoading() const { return m_isLoading; }
 
 signals:
     void countChanged();
     void filterTextChanged();
     void aheadCountChanged();
+    void isLoadingChanged();
 
 private:
     void applyFilter();
+    void applyReload(QList<CommitItem> commits, bool identityChanged);
+    QThread *trackWorker(QThread *thread);
 
     IGitService *m_service;
     QList<CommitItem> m_allCommits;
@@ -69,6 +80,10 @@ private:
     QHash<QString, QString> m_avatarOverrides;
     int m_aheadCount{0};
     bool m_updatesSuspended{false};
+    bool m_isLoading{false};
+    std::atomic<quint64> m_loadGeneration{0};
+    QMutex m_workerMutex;
+    QList<QThread *> m_workers;
 };
 
 } // namespace Cherry

@@ -189,7 +189,8 @@ ColumnLayout {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    appController.showToast(qsTr("Commit SHA copied to clipboard"));
+                                    var shaToCopy = (root.commitData && root.commitData.sha) ? root.commitData.sha : ((root.commitData && root.commitData.shortSha) ? root.commitData.shortSha : "");
+                                    appController.copyToClipboard(shaToCopy, qsTr("Commit SHA copied to clipboard"));
                                 }
                             }
                         }
@@ -207,6 +208,20 @@ ColumnLayout {
                     onClicked: {
                         if (root.commitData && root.commitData.sha) {
                             appController.revertCommit(root.commitData.sha);
+                        }
+                    }
+                }
+
+                QQC2.Button {
+                    text: qsTr("Checkout Commit")
+                    icon.name: "vcs-branch"
+                    implicitHeight: 28
+                    enabled: !appController.isOperating
+                    QQC2.ToolTip.text: qsTr("Reset hard to this commit")
+                    QQC2.ToolTip.visible: hovered
+                    onClicked: {
+                        if (root.commitData && root.commitData.sha) {
+                            appController.checkoutCommit(root.commitData.sha);
                         }
                     }
                 }

@@ -1,6 +1,7 @@
 #include "CommitHistoryModel.h"
 #include "AvatarResolver.h"
 #include <QColor>
+#include <QPointer>
 
 namespace Cherry {
 
@@ -25,6 +26,47 @@ CommitHistoryModel::CommitHistoryModel(IGitService *service, QObject *parent)
         connect(m_service, &IGitService::commitHistoryUpdated, this, &CommitHistoryModel::reload);
         reload();
     }
+}
+
+CommitHistoryModel::~CommitHistoryModel()
+{
+    cancelOperations();
+}
+
+void CommitHistoryModel::cancelOperations()
+{
+    ++m_loadGeneration;
+    QList<QThread *> workers;
+    {
+        QMutexLocker locker(&m_workerMutex);
+        workers = m_workers;
+    }
+    for (QThread *worker : workers) {
+        if (worker && worker->isRunning()) worker->wait();
+    }
+    {
+        QMutexLocker locker(&m_workerMutex);
+        workers = m_workers;
+        m_workers.clear();
+    }
+    for (QThread *worker : workers) {
+        delete worker;
+    }
+}
+
+QThread *CommitHistoryModel::trackWorker(QThread *thread)
+{
+    if (!thread) return nullptr;
+    {
+        QMutexLocker locker(&m_workerMutex);
+        m_workers.append(thread);
+    }
+    connect(thread, &QThread::finished, this, [this, thread]() {
+        QMutexLocker locker(&m_workerMutex);
+        m_workers.removeAll(thread);
+        thread->deleteLater();
+    });
+    return thread;
 }
 
 int CommitHistoryModel::rowCount(const QModelIndex &parent) const
@@ -169,6 +211,7 @@ void CommitHistoryModel::reload()
 {
     if (m_updatesSuspended) return;
     if (!m_service) {
+        ++m_loadGeneration;
         if (!m_allCommits.isEmpty()) {
             m_allCommits.clear();
             applyFilter();
@@ -185,23 +228,45 @@ void CommitHistoryModel::reload()
     m_currentAuthorEmail = currentAuthorEmail;
     m_remoteUrl = remoteUrl;
 
-    auto newCommits = m_service->getCommitHistory();
-    if (newCommits.size() == m_allCommits.size()) {
+    const quint64 generation = ++m_loadGeneration;
+    if (!m_isLoading) {
+        m_isLoading = true;
+        emit isLoadingChanged();
+    }
+
+    QPointer<CommitHistoryModel> self(this);
+    QPointer<IGitService> service = m_service;
+    QThread *thread = QThread::create([self, service, generation, identityChanged]() {
+        QList<CommitItem> commits;
+        if (self && service) commits = service->getCommitHistory();
+        QMetaObject::invokeMethod(self, [self, generation, commits, identityChanged]() {
+            if (!self || self->m_loadGeneration.load() != generation) return;
+            self->applyReload(std::move(commits), identityChanged);
+            self->m_isLoading = false;
+            emit self->isLoadingChanged();
+        }, Qt::QueuedConnection);
+    });
+    trackWorker(thread)->start();
+}
+
+void CommitHistoryModel::applyReload(QList<CommitItem> commits, bool identityChanged)
+{
+    if (!identityChanged && commits.size() == m_allCommits.size()) {
         bool identical = true;
-        for (int i = 0; i < newCommits.size(); ++i) {
-            if (newCommits[i].sha != m_allCommits[i].sha ||
-                newCommits[i].summary != m_allCommits[i].summary ||
-                newCommits[i].relativeTime != m_allCommits[i].relativeTime ||
-                newCommits[i].tags != m_allCommits[i].tags) {
+        for (int i = 0; i < commits.size(); ++i) {
+            if (commits[i].sha != m_allCommits[i].sha ||
+                commits[i].summary != m_allCommits[i].summary ||
+                commits[i].relativeTime != m_allCommits[i].relativeTime ||
+                commits[i].tags != m_allCommits[i].tags) {
                 identical = false;
                 break;
             }
         }
-        if (identical && !identityChanged) {
+        if (identical) {
             return;
         }
     }
-    m_allCommits = std::move(newCommits);
+    m_allCommits = std::move(commits);
     applyFilter();
 }
 
@@ -219,6 +284,7 @@ void CommitHistoryModel::setService(IGitService *service)
 
 void CommitHistoryModel::clear()
 {
+    ++m_loadGeneration;
     m_allCommits.clear();
     m_currentAuthorName.clear();
     m_currentAuthorEmail.clear();

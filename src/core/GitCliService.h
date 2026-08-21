@@ -71,6 +71,7 @@ public:
     bool createCommit(const QString &summary, const QString &description, const QStringList &coAuthors) override;
     bool undoLastCommit() override;
     bool revertCommit(const QString &sha) override;
+    bool checkoutCommit(const QString &sha) override;
     bool canUndoCommit() const override;
     QString getLastUndoCommitSha() const override;
     QString getLastUndoCommitSummary() const override;
@@ -87,6 +88,7 @@ public:
     void fetchOrigin() override;
     void pullOrigin() override;
     void pushOrigin() override;
+    void forcePushOrigin() override;
 
     // Stashing
     QList<StashItem> getStashes() override;
@@ -108,7 +110,7 @@ public:
 
     // Helper utilities
     GitResult runGit(const QStringList &args, const QString &workingDir = QString(), int timeoutMs = 30000, quint64 cancellationGeneration = 0);
-    void runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback, quint64 cancellationGeneration = 0);
+    void runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback, quint64 cancellationGeneration = 0, bool serialize = true);
 
     QString activeRepoPath() const { return m_repoPath; }
     bool isCurrentRepoMissing() const { return m_isMissing; }
@@ -148,6 +150,8 @@ private:
     void loadFetchTimes();
     void saveFetchTimes();
 
+    GitResult runGitInternal(const QStringList &args, const QString &workingDir, int timeoutMs, quint64 cancellationGeneration, bool serialize);
+
     struct RepositoryMetadata {
         QString currentBranch;
         QString remoteName{"origin"};
@@ -170,7 +174,9 @@ private:
         RemoteStatus remoteStatus;
     };
 
-    bool m_suppressRefreshSignals{false};
+    // Touched from both the GUI thread and network workers; atomic so a
+    // worker's suppression window cannot race concurrent readers.
+    std::atomic_bool m_suppressRefreshSignals{false};
     std::atomic_bool m_refreshInProgress{false};
     std::atomic_bool m_initialLoadPending{false};
     bool m_changedFilesCacheValid{false};
@@ -192,6 +198,14 @@ private:
 
     bool preloadRepositoryCaches();
     void emitRepositoryRefreshSignals(bool changedFilesChanged = true);
+    void pushOriginInternal(bool force);
+    // Recompute the remote status without emitting: used by network workers so
+    // the fresh status can be applied and announced from the GUI thread.
+    RemoteStatus computeRemoteStatusNoEmit();
+    // Rebuild the expensive views after a network mutation while still on the
+    // worker thread, so GUI-thread signal handlers hit warm caches instead of
+    // issuing blocking git commands.
+    void warmCachesAfterNetworkMutation();
 
     bool m_isMissing{false};
     QString m_repoPath;
@@ -224,7 +238,9 @@ private:
     // Protect repository transitions from overlapping switch/add/clone calls.
     mutable QMutex m_repositoryOpenMutex;
     // Git CLI calls can originate from refresh, diff, and sync workers at the
-    // same time. Serialize them so a mutation cannot race a status/read call.
+    // same time. Serialize local commands so a mutation cannot race a
+    // status/read call. Network commands (fetch/push/pull) skip this lock so
+    // the GUI never queues behind remote I/O.
     mutable QMutex m_gitProcessMutex;
     std::atomic<quint64> m_repositoryGeneration{0};
     std::atomic_bool m_shuttingDown{false};

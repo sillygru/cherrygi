@@ -50,7 +50,7 @@ Rectangle {
             text: qsTr("Copy Relative Path")
             icon.name: "edit-copy"
             enabled: root.filePath.length > 0
-            onTriggered: appController.showToast(qsTr("Path copied to clipboard"))
+            onTriggered: appController.copyToClipboard(root.filePath, qsTr("Path copied to clipboard"))
         }
 
         QQC2.MenuItem {

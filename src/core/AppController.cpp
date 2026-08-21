@@ -9,6 +9,7 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QGuiApplication>
+#include <QClipboard>
 #include <QPointer>
 #include <QThread>
 
@@ -1430,6 +1431,11 @@ void AppController::pushOrigin()
     if (m_activeService) m_activeService->pushOrigin();
 }
 
+void AppController::forcePushOrigin()
+{
+    if (m_activeService) m_activeService->forcePushOrigin();
+}
+
 void AppController::discardFileChanges(const QString &filePath)
 {
     if (!m_activeService) return;
@@ -1557,6 +1563,12 @@ void AppController::revertCommit(const QString &sha)
     emit operatingStateChanged();
 }
 
+void AppController::checkoutCommit(const QString &sha)
+{
+    if (!m_activeService) return;
+    m_activeService->checkoutCommit(sha);
+}
+
 void AppController::openInEditor(const QString &filePath)
 {
     if (!m_settings) return;
@@ -1672,6 +1684,16 @@ void AppController::showToast(const QString &message, bool isError)
     m_toastIsError = isError;
     m_toastVisible = true;
     emit toastChanged();
+}
+
+void AppController::copyToClipboard(const QString &text, const QString &toastMessage)
+{
+    if (auto *clipboard = QGuiApplication::clipboard()) {
+        clipboard->setText(text);
+    }
+    if (!toastMessage.isEmpty()) {
+        showToast(toastMessage);
+    }
 }
 
 QString AppController::appVersion() const

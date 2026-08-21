@@ -91,7 +91,7 @@ ColumnLayout {
             text: qsTr("Copy Relative Path")
             icon.name: "edit-copy"
             onTriggered: {
-                appController.showToast(qsTr("Path copied to clipboard"));
+                appController.copyToClipboard(fileContextMenu.targetFilePath, qsTr("Path copied to clipboard"));
             }
         }
     }

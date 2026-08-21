@@ -14,6 +14,7 @@ ColumnLayout {
         id: commitContextMenu
         property string targetSha: ""
         property string targetSummary: ""
+        property string targetDescription: ""
         property bool targetIsLocal: false
         property bool targetIsHead: false
 
@@ -30,18 +31,30 @@ ColumnLayout {
             onTriggered: appController.revertCommit(commitContextMenu.targetSha)
         }
 
+        QQC2.MenuItem {
+            text: qsTr("Checkout Commit (Reset Hard)")
+            icon.name: "vcs-branch"
+            onTriggered: appController.checkoutCommit(commitContextMenu.targetSha)
+        }
+
         QQC2.MenuSeparator {}
 
         QQC2.MenuItem {
             text: qsTr("Copy SHA (%1)").arg(commitContextMenu.targetSha.substring(0, 7))
             icon.name: "edit-copy"
-            onTriggered: appController.showToast(qsTr("Commit SHA copied"))
+            onTriggered: appController.copyToClipboard(commitContextMenu.targetSha, qsTr("Commit SHA copied"))
         }
 
         QQC2.MenuItem {
             text: qsTr("Copy Commit Message")
             icon.name: "edit-copy"
-            onTriggered: appController.showToast(qsTr("Commit message copied"))
+            onTriggered: {
+                var msg = commitContextMenu.targetSummary;
+                if (commitContextMenu.targetDescription && commitContextMenu.targetDescription.length > 0) {
+                    msg += "\n\n" + commitContextMenu.targetDescription;
+                }
+                appController.copyToClipboard(msg, qsTr("Commit message copied"));
+            }
         }
 
         QQC2.MenuSeparator {}
@@ -315,6 +328,7 @@ ColumnLayout {
                     onTapped: {
                         commitContextMenu.targetSha = commitDelegate.sha;
                         commitContextMenu.targetSummary = commitDelegate.summary;
+                        commitContextMenu.targetDescription = commitDelegate.description;
                         commitContextMenu.targetIsLocal = commitDelegate.isLocal;
                         commitContextMenu.targetIsHead = (index === 0);
                         commitContextMenu.popup();
@@ -324,4 +338,3 @@ ColumnLayout {
         }
     }
 }
-

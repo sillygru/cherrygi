@@ -91,6 +91,48 @@ void RepositoryListModel::reload()
     emit countChanged();
 }
 
+QString RepositoryListModel::findFirstMatchingRepoId(const QString &filter) const
+{
+    if (m_repos.isEmpty()) {
+        return QString();
+    }
+
+    const QString trimmed = filter.trimmed();
+    if (trimmed.isEmpty()) {
+        return m_repos.first().id;
+    }
+
+    // 1. Exact name match (case-insensitive)
+    for (const auto &repo : m_repos) {
+        if (repo.name.compare(trimmed, Qt::CaseInsensitive) == 0) {
+            return repo.id;
+        }
+    }
+
+    // 2. Starts with name match (case-insensitive)
+    for (const auto &repo : m_repos) {
+        if (repo.name.startsWith(trimmed, Qt::CaseInsensitive)) {
+            return repo.id;
+        }
+    }
+
+    // 3. Name contains match (case-insensitive)
+    for (const auto &repo : m_repos) {
+        if (repo.name.contains(trimmed, Qt::CaseInsensitive)) {
+            return repo.id;
+        }
+    }
+
+    // 4. Path contains match (case-insensitive)
+    for (const auto &repo : m_repos) {
+        if (repo.path.contains(trimmed, Qt::CaseInsensitive)) {
+            return repo.id;
+        }
+    }
+
+    return QString();
+}
+
 void RepositoryListModel::setService(IGitService *service)
 {
     if (m_service) {

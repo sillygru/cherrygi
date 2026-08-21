@@ -20,6 +20,11 @@ QQC2.Popup {
     onAboutToShow: {
         searchField.text = "";
         filterText = "";
+        searchField.forceActiveFocus();
+    }
+
+    onOpened: {
+        searchField.forceActiveFocus();
     }
 
     // Repository Context Menu
@@ -53,7 +58,7 @@ QQC2.Popup {
             text: qsTr("Copy Path")
             icon.name: "edit-copy"
             onTriggered: {
-                appController.showToast(qsTr("Path copied to clipboard"));
+                appController.copyToClipboard(repoContextMenu.targetRepoPath, qsTr("Path copied to clipboard"));
             }
         }
 
@@ -112,6 +117,7 @@ QQC2.Popup {
         // Search Box
         QQC2.TextField {
             id: searchField
+            focus: true
             Layout.fillWidth: true
             placeholderText: qsTr("Filter repositories...")
             leftPadding: Kirigami.Units.largeSpacing + 12
@@ -149,6 +155,14 @@ QQC2.Popup {
 
             onTextChanged: {
                 repoDropdownPopup.filterText = text.trim().toLowerCase();
+            }
+
+            onAccepted: {
+                var targetId = appController.repositories.findFirstMatchingRepoId(searchField.text.trim());
+                if (targetId !== "") {
+                    appController.switchRepository(targetId);
+                    repoDropdownPopup.close();
+                }
             }
         }
 

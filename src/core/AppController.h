@@ -339,6 +339,7 @@ public:
     Q_INVOKABLE void fetchOrigin();
     Q_INVOKABLE void pullOrigin();
     Q_INVOKABLE void pushOrigin();
+    Q_INVOKABLE void forcePushOrigin();
 
     Q_INVOKABLE void discardFileChanges(const QString &filePath);
     Q_INVOKABLE void discardAllChanges();
@@ -352,6 +353,7 @@ public:
     Q_INVOKABLE void selectStash(const QString &stashId);
     Q_INVOKABLE void clearStashSelection();
     Q_INVOKABLE void revertCommit(const QString &sha);
+    Q_INVOKABLE void checkoutCommit(const QString &sha);
 
     Q_INVOKABLE void openInEditor(const QString &filePath = QString());
     Q_INVOKABLE void openInTerminal(const QString &path = QString());
@@ -361,6 +363,7 @@ public:
 
     Q_INVOKABLE void hideToast();
     Q_INVOKABLE void showToast(const QString &message, bool isError = false);
+    Q_INVOKABLE void copyToClipboard(const QString &text, const QString &toastMessage = QString());
 
     // Updates
     Q_INVOKABLE void checkForUpdates(bool userInitiated = true);

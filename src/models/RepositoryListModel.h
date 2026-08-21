@@ -31,6 +31,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     Q_INVOKABLE void reload();
+    Q_INVOKABLE QString findFirstMatchingRepoId(const QString &filter) const;
     void setService(IGitService *service);
 
 signals:

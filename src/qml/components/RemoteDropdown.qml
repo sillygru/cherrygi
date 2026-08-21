@@ -24,7 +24,7 @@ QQC2.Menu {
     QQC2.MenuItem {
         text: appController.behindCount > 0 ? qsTr("Pull origin (%1 commits behind)").arg(appController.behindCount) : qsTr("Pull origin")
         icon.name: "vcs-pull-symbolic"
-        enabled: appController.hasRemote && appController.behindCount > 0
+        enabled: appController.hasRemote
         onTriggered: appController.pullOrigin()
     }
 
@@ -33,6 +33,13 @@ QQC2.Menu {
         icon.name: "vcs-push-symbolic"
         enabled: appController.hasRemote && appController.aheadCount > 0
         onTriggered: appController.pushOrigin()
+    }
+
+    QQC2.MenuItem {
+        text: qsTr("Force Push origin")
+        icon.name: "vcs-push-symbolic"
+        enabled: appController.hasRemote
+        onTriggered: appController.forcePushOrigin()
     }
 
     QQC2.MenuSeparator {}

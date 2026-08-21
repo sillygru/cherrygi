@@ -326,7 +326,9 @@ bool GitCliService::restoreSession(const QString &repoPath)
 
 bool GitCliService::shouldReturnStaleCache() const
 {
-    return m_refreshInProgress && QThread::currentThread() == thread();
+    if (QThread::currentThread() != thread()) return false;
+    return m_refreshInProgress || m_remoteStatus.isFetching ||
+        m_remoteStatus.isPulling || m_remoteStatus.isPushing;
 }
 
 bool GitCliService::shouldDeferExpensiveInitialRead() const
@@ -520,14 +522,20 @@ void GitCliService::refreshRepository()
         // decision. A repository switch must wait instead of changing the
         // shared caches underneath this worker.
         QMutexLocker repositoryLocker(&m_repositoryOpenMutex);
-        if (m_repositoryGeneration.load() != generation || m_repoPath != repoPath) return;
+        if (m_repositoryGeneration.load() != generation || m_repoPath != repoPath) {
+            m_refreshInProgress = false;
+            return;
+        }
 
         const bool hadFilesCache = m_changedFilesCacheValid;
         const QList<FileChange> previousFiles = m_changedFilesCache;
         s_refreshGeneration = generation;
         const bool loaded = preloadRepositoryCaches();
         s_refreshGeneration = 0;
-        if (!loaded) return;
+        if (!loaded) {
+            m_refreshInProgress = false;
+            return;
+        }
 
         bool filesChanged = !hadFilesCache || previousFiles.size() != m_changedFilesCache.size();
         if (!filesChanged) {
@@ -544,10 +552,13 @@ void GitCliService::refreshRepository()
             }
         }
 
-        if (m_repositoryGeneration.load() != generation || m_repoPath != repoPath) return;
-        QMetaObject::invokeMethod(this, [this, filesChanged, repoPath, generation]() {
-            if (m_repositoryGeneration.load() != generation || m_repoPath != repoPath) return;
+        if (m_repositoryGeneration.load() != generation || m_repoPath != repoPath) {
             m_refreshInProgress = false;
+            return;
+        }
+        QMetaObject::invokeMethod(this, [this, filesChanged, repoPath, generation]() {
+            m_refreshInProgress = false;
+            if (m_repositoryGeneration.load() != generation || m_repoPath != repoPath) return;
             emitRepositoryRefreshSignals(filesChanged);
         }, Qt::QueuedConnection);
     });
@@ -556,14 +567,23 @@ void GitCliService::refreshRepository()
 
 GitResult GitCliService::runGit(const QStringList &args, const QString &workingDir, int timeoutMs, quint64 cancellationGeneration)
 {
+    return runGitInternal(args, workingDir, timeoutMs, cancellationGeneration, true);
+}
+
+GitResult GitCliService::runGitInternal(const QStringList &args, const QString &workingDir, int timeoutMs, quint64 cancellationGeneration, bool serialize)
+{
     if (m_shuttingDown.load(std::memory_order_acquire)) {
         return GitResult{-1, QString(), QStringLiteral("Shutting down"), false};
     }
 
     // Refresh, diff, and network workers may all issue Git commands. A single
-    // process lock prevents concurrent commands from observing half-updated
-    // refs/index state or competing for Git's repository lock files.
-    QMutexLocker processLocker(&m_gitProcessMutex);
+    // process lock prevents concurrent local commands from observing
+    // half-updated refs/index state or competing for Git's repository lock
+    // files. Network commands (fetch/push/pull) skip it: they can block for
+    // minutes on remote I/O and Git already serializes repository access via
+    // its own lock files.
+    std::optional<QMutexLocker<QMutex>> processLocker;
+    if (serialize) processLocker.emplace(&m_gitProcessMutex);
     if (m_shuttingDown.load(std::memory_order_acquire)) {
         return GitResult{-1, QString(), QStringLiteral("Shutting down"), false};
     }
@@ -627,11 +647,11 @@ GitResult GitCliService::runGit(const QStringList &args, const QString &workingD
     return result;
 }
 
-void GitCliService::runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback, quint64 cancellationGeneration)
+void GitCliService::runGitAsync(const QStringList &args, std::function<void(const GitResult &)> callback, quint64 cancellationGeneration, bool serialize)
 {
     QString dir = m_repoPath;
-    QThread *thread = QThread::create([this, args, dir, callback, cancellationGeneration]() {
-        GitResult res = const_cast<GitCliService*>(this)->runGit(args, dir, 120000, cancellationGeneration);
+    QThread *thread = QThread::create([this, args, dir, callback, cancellationGeneration, serialize]() {
+        GitResult res = const_cast<GitCliService*>(this)->runGitInternal(args, dir, 120000, cancellationGeneration, serialize);
         QMetaObject::invokeMethod(this, [callback, res]() {
             if (callback) callback(res);
         }, Qt::QueuedConnection);
@@ -2594,6 +2614,34 @@ bool GitCliService::revertCommit(const QString &sha)
     return false;
 }
 
+bool GitCliService::checkoutCommit(const QString &sha)
+{
+    static const QRegularExpression revisionRegex("^[0-9a-fA-F]{4,64}$");
+    if (m_repoPath.isEmpty() || !revisionRegex.match(sha.trimmed()).hasMatch()) {
+        emit operationFailed("Invalid commit SHA");
+        return false;
+    }
+
+    const QString targetSha = sha.trimmed();
+    GitResult res = runGit({"reset", "--hard", targetSha}, QString(), 15000);
+    if (res.success) {
+        clearUndoState();
+        invalidateRepositoryCaches();
+        emit commitHistoryUpdated();
+        emit changedFilesUpdated();
+        emit branchListChanged();
+        if (auto b = getCurrentBranch()) {
+            emit currentBranchChanged(*b);
+        }
+        getRemoteStatus();
+        emit operationSucceeded(QString("Checked out commit %1").arg(targetSha.left(7)));
+        return true;
+    }
+
+    emit operationFailed(formatGitError(res.stdErr, "Failed to checkout commit"));
+    return false;
+}
+
 bool GitCliService::hasRemote() const
 {
     if (m_repoPath.isEmpty()) return false;
@@ -2772,18 +2820,33 @@ bool GitCliService::publishRepository(const QString &name, const QString &descri
         QString stdOut = QString::fromUtf8(process.readAllStandardOutput());
         QString stdErr = QString::fromUtf8(process.readAllStandardError());
 
-        QMetaObject::invokeMethod(this, [this, finished, exitCode, stdOut, stdErr, repoName, operationRepoPath, operationGeneration]() {
-            if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
+        // Rebuild the expensive views here so the queued handlers below hit
+        // warm caches instead of issuing blocking git commands.
+        const bool published = finished && exitCode == 0;
+        if (published) invalidateRepositoryCaches();
+        const RemoteStatus status = computeRemoteStatusNoEmit();
+        warmCachesAfterNetworkMutation();
+
+        QMetaObject::invokeMethod(this, [this, published, status, stdOut, stdErr, repoName, operationRepoPath, operationGeneration]() {
+            if (m_repoPath == operationRepoPath) {
+                m_remoteStatus.isPushing = false;
+            }
+            if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) {
+                if (m_repoPath == operationRepoPath) {
+                    emit remoteStatusUpdated(m_remoteStatus);
+                }
+                return;
+            }
+            m_remoteStatus = status;
             m_remoteStatus.isPushing = false;
-            if (finished && exitCode == 0) {
+            if (published) {
                 clearUndoState();
-                invalidateRepositoryCaches();
-                getRemoteStatus();
+                emit remoteStatusUpdated(m_remoteStatus);
                 emit branchListChanged();
                 emit commitHistoryUpdated();
                 emit operationSucceeded(QString("Published repository '%1'").arg(repoName));
             } else {
-                getRemoteStatus();
+                emit remoteStatusUpdated(m_remoteStatus);
                 QString errorMsg = stdErr.trimmed().isEmpty() ? stdOut.trimmed() : stdErr.trimmed();
                 emit operationFailed(QString("Failed to publish with gh CLI: %1").arg(errorMsg.isEmpty() ? "Process timed out or unknown error" : errorMsg));
             }
@@ -2854,75 +2917,186 @@ RemoteStatus GitCliService::getRemoteStatus()
     return m_remoteStatus;
 }
 
+RemoteStatus GitCliService::computeRemoteStatusNoEmit()
+{
+    m_suppressRefreshSignals = true;
+    RemoteStatus status = getRemoteStatus();
+    status.isFetching = false;
+    status.isPulling = false;
+    status.isPushing = false;
+    m_suppressRefreshSignals = false;
+    return status;
+}
+
+void GitCliService::warmCachesAfterNetworkMutation()
+{
+    m_suppressRefreshSignals = true;
+    getCurrentBranch();
+    getCommitHistory();
+    getChangedFiles();
+    m_suppressRefreshSignals = false;
+}
+
 void GitCliService::fetchOrigin()
 {
     if (m_repoPath.isEmpty() || m_remoteStatus.isFetching || m_remoteStatus.isPulling || m_remoteStatus.isPushing) return;
 
-    if (!hasRemote()) {
+    // Fast-fail without touching git when the cached status already knows
+    // there is no remote; otherwise the authoritative check runs in the
+    // worker below so the GUI never blocks on repository inspection.
+    if ((m_remoteStatusCacheValid || shouldReturnStaleCache()) && !m_remoteStatus.hasRemote) {
         emit operationFailed("No remote repository configured. Set a remote URL in Repository Settings to fetch.");
         return;
     }
 
     const QString operationRepoPath = m_repoPath;
     const quint64 operationGeneration = m_repositoryGeneration.load();
-    const QString remoteName = preferredRemoteName();
+    QString dir = m_repoPath;
     m_remoteStatus.isFetching = true;
     emit remoteStatusUpdated(m_remoteStatus);
 
-    runGitAsync({"fetch", remoteName, "--prune"}, [this, operationRepoPath, operationGeneration, remoteName](const GitResult &res) {
-        if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
-        m_remoteStatus.isFetching = false;
-        if (res.success) {
-            m_lastFetchTime = QDateTime::currentDateTime();
-            m_repoFetchTimes[operationRepoPath] = m_lastFetchTime;
-            saveFetchTimes();
-            m_remoteStatus.lastFetchedText = "Last fetched just now";
-            invalidateRepositoryCaches();
-            getRemoteStatus();
-            emit branchListChanged();
-        } else {
-            m_remoteStatus.lastFetchedText = "Fetch failed";
-            emit remoteStatusUpdated(m_remoteStatus);
-            emit operationFailed(formatGitError(res.stdErr, "Fetch failed"));
+    QThread *thread = QThread::create([this, dir, operationRepoPath, operationGeneration]() {
+        if (m_shuttingDown.load(std::memory_order_acquire)) return;
+
+        if (!hasRemote()) {
+            QMetaObject::invokeMethod(this, [this, operationRepoPath, operationGeneration]() {
+                if (m_repoPath == operationRepoPath) {
+                    m_remoteStatus.isFetching = false;
+                    emit remoteStatusUpdated(m_remoteStatus);
+                }
+                if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
+                emit operationFailed("No remote repository configured. Set a remote URL in Repository Settings to fetch.");
+            }, Qt::QueuedConnection);
+            return;
         }
-    }, operationGeneration);
+
+        const QString remoteName = preferredRemoteName();
+        GitResult res = runGitInternal({"fetch", remoteName, "--prune"}, dir, 120000, operationGeneration, false);
+
+        // Rebuild the expensive views here so the queued handlers below hit
+        // warm caches instead of issuing blocking git commands.
+        RemoteStatus status;
+        if (res.success) {
+            invalidateRepositoryCaches();
+            status = computeRemoteStatusNoEmit();
+            warmCachesAfterNetworkMutation();
+        }
+
+        QMetaObject::invokeMethod(this, [this, res, status, operationRepoPath, operationGeneration]() {
+            if (m_repoPath == operationRepoPath) {
+                m_remoteStatus.isFetching = false;
+            }
+            if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) {
+                if (m_repoPath == operationRepoPath) {
+                    emit remoteStatusUpdated(m_remoteStatus);
+                }
+                return;
+            }
+            if (res.success) {
+                m_lastFetchTime = QDateTime::currentDateTime();
+                m_repoFetchTimes[operationRepoPath] = m_lastFetchTime;
+                saveFetchTimes();
+                m_remoteStatus = status;
+                m_remoteStatus.isFetching = false;
+                m_remoteStatus.lastFetchedText = "Last fetched just now";
+                emit remoteStatusUpdated(m_remoteStatus);
+                emit branchListChanged();
+            } else {
+                m_remoteStatus.isFetching = false;
+                m_remoteStatus.lastFetchedText = "Fetch failed";
+                emit remoteStatusUpdated(m_remoteStatus);
+                emit operationFailed(formatGitError(res.stdErr, "Fetch failed"));
+            }
+        }, Qt::QueuedConnection);
+    });
+    trackWorker(thread)->start();
 }
 
 void GitCliService::pullOrigin()
 {
     if (m_repoPath.isEmpty() || m_remoteStatus.isFetching || m_remoteStatus.isPulling || m_remoteStatus.isPushing) return;
 
-    if (!hasRemote()) {
+    if ((m_remoteStatusCacheValid || shouldReturnStaleCache()) && !m_remoteStatus.hasRemote) {
         emit operationFailed("No remote repository configured. Cannot pull.");
         return;
     }
 
     const QString operationRepoPath = m_repoPath;
     const quint64 operationGeneration = m_repositoryGeneration.load();
+    QString dir = m_repoPath;
     m_remoteStatus.isPulling = true;
     emit remoteStatusUpdated(m_remoteStatus);
 
-    runGitAsync({"pull", "--ff-only"}, [this, operationRepoPath, operationGeneration](const GitResult &res) {
-        if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
-        m_remoteStatus.isPulling = false;
-        if (res.success) {
-            clearUndoState();
-            m_lastFetchTime = QDateTime::currentDateTime();
-            m_remoteStatus.lastFetchedText = "Last fetched just now";
-            invalidateRepositoryCaches();
-            getRemoteStatus();
-            emit commitHistoryUpdated();
-            emit changedFilesUpdated();
-            emit branchListChanged();
-        } else {
-            m_remoteStatus.lastFetchedText = "Pull failed";
-            emit remoteStatusUpdated(m_remoteStatus);
-            emit operationFailed(formatGitError(res.stdErr, "Pull failed"));
+    QThread *thread = QThread::create([this, dir, operationRepoPath, operationGeneration]() {
+        if (m_shuttingDown.load(std::memory_order_acquire)) return;
+
+        if (!hasRemote()) {
+            QMetaObject::invokeMethod(this, [this, operationRepoPath, operationGeneration]() {
+                if (m_repoPath == operationRepoPath) {
+                    m_remoteStatus.isPulling = false;
+                    emit remoteStatusUpdated(m_remoteStatus);
+                }
+                if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
+                emit operationFailed("No remote repository configured. Cannot pull.");
+            }, Qt::QueuedConnection);
+            return;
         }
-    }, operationGeneration);
+
+        GitResult res = runGitInternal({"pull", "--ff-only"}, dir, 120000, operationGeneration, false);
+
+        // Rebuild the expensive views here so the queued handlers below hit
+        // warm caches instead of issuing blocking git commands.
+        RemoteStatus status;
+        if (res.success) {
+            invalidateRepositoryCaches();
+            status = computeRemoteStatusNoEmit();
+            warmCachesAfterNetworkMutation();
+        }
+
+        QMetaObject::invokeMethod(this, [this, res, status, operationRepoPath, operationGeneration]() {
+            if (m_repoPath == operationRepoPath) {
+                m_remoteStatus.isPulling = false;
+            }
+            if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) {
+                if (m_repoPath == operationRepoPath) {
+                    emit remoteStatusUpdated(m_remoteStatus);
+                }
+                return;
+            }
+            if (res.success) {
+                clearUndoState();
+                m_lastFetchTime = QDateTime::currentDateTime();
+                m_repoFetchTimes[operationRepoPath] = m_lastFetchTime;
+                saveFetchTimes();
+                m_remoteStatus = status;
+                m_remoteStatus.isPulling = false;
+                m_remoteStatus.lastFetchedText = "Last fetched just now";
+                emit remoteStatusUpdated(m_remoteStatus);
+                emit commitHistoryUpdated();
+                emit changedFilesUpdated();
+                emit branchListChanged();
+            } else {
+                m_remoteStatus.isPulling = false;
+                m_remoteStatus.lastFetchedText = "Pull failed";
+                emit remoteStatusUpdated(m_remoteStatus);
+                emit operationFailed(formatGitError(res.stdErr, "Pull failed"));
+            }
+        }, Qt::QueuedConnection);
+    });
+    trackWorker(thread)->start();
 }
 
 void GitCliService::pushOrigin()
+{
+    pushOriginInternal(false);
+}
+
+void GitCliService::forcePushOrigin()
+{
+    pushOriginInternal(true);
+}
+
+void GitCliService::pushOriginInternal(bool force)
 {
     if (m_repoPath.isEmpty() || m_remoteStatus.isFetching || m_remoteStatus.isPulling || m_remoteStatus.isPushing) return;
 
@@ -2947,14 +3121,16 @@ void GitCliService::pushOrigin()
 
     const QString operationRepoPath = m_repoPath;
     const quint64 operationGeneration = m_repositoryGeneration.load();
-    QThread *thread = QThread::create([this, dir, branchName, remoteName, operationRepoPath, operationGeneration]() {
+    QThread *thread = QThread::create([this, dir, branchName, remoteName, operationRepoPath, operationGeneration, force]() {
         // Fetch remote origin before pushing to avoid stale refs and pushing against unseen changes
-        GitResult fetchRes = const_cast<GitCliService*>(this)->runGit({"fetch", remoteName, "--prune"}, dir, 120000, operationGeneration);
+        GitResult fetchRes = const_cast<GitCliService*>(this)->runGitInternal({"fetch", remoteName, "--prune"}, dir, 120000, operationGeneration, false);
         if (!fetchRes.success) {
             QMetaObject::invokeMethod(this, [this, fetchRes, operationRepoPath, operationGeneration]() {
+                if (m_repoPath == operationRepoPath) {
+                    m_remoteStatus.isPushing = false;
+                    emit remoteStatusUpdated(m_remoteStatus);
+                }
                 if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
-                m_remoteStatus.isPushing = false;
-                emit remoteStatusUpdated(m_remoteStatus);
                 emit operationFailed(formatGitError(fetchRes.stdErr, "Fetch before push failed"));
             }, Qt::QueuedConnection);
             return;
@@ -2962,15 +3138,36 @@ void GitCliService::pushOrigin()
 
         GitResult upstreamCheck = const_cast<GitCliService*>(this)->runGit({"rev-parse", "--verify", "@{upstream}"}, dir, 3000, operationGeneration);
         QStringList pushArgs = {"push"};
+        if (force) {
+            pushArgs.append("--force-with-lease");
+        }
         if (!upstreamCheck.success) {
             // Set upstream tracking on initial push
             pushArgs = {"push", "-u", remoteName, branchName};
+            if (force) {
+                pushArgs.append("--force-with-lease");
+            }
         }
 
-        GitResult res = const_cast<GitCliService*>(this)->runGit(pushArgs, dir, 120000, operationGeneration);
+        GitResult res = const_cast<GitCliService*>(this)->runGitInternal(pushArgs, dir, 120000, operationGeneration, false);
 
-        QMetaObject::invokeMethod(this, [this, res, remoteName, operationRepoPath, operationGeneration]() {
-            if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) return;
+        // Rebuild the expensive views here so the queued handlers below hit
+        // warm caches instead of issuing blocking git commands.
+        invalidateRepositoryCaches();
+        const RemoteStatus status = computeRemoteStatusNoEmit();
+        warmCachesAfterNetworkMutation();
+
+        QMetaObject::invokeMethod(this, [this, res, status, operationRepoPath, operationGeneration, force]() {
+            if (m_repoPath == operationRepoPath) {
+                m_remoteStatus.isPushing = false;
+            }
+            if (m_repositoryGeneration.load() != operationGeneration || m_repoPath != operationRepoPath) {
+                if (m_repoPath == operationRepoPath) {
+                    emit remoteStatusUpdated(m_remoteStatus);
+                }
+                return;
+            }
+            m_remoteStatus = status;
             m_remoteStatus.isPushing = false;
             if (res.success) {
                 m_lastFetchTime = QDateTime::currentDateTime();
@@ -2978,15 +3175,15 @@ void GitCliService::pushOrigin()
                 saveFetchTimes();
                 m_remoteStatus.lastFetchedText = "Last fetched just now";
                 clearUndoState();
-                invalidateRepositoryCaches();
-                getRemoteStatus();
+                emit remoteStatusUpdated(m_remoteStatus);
                 emit branchListChanged();
                 emit commitHistoryUpdated();
+                if (force) {
+                    emit operationSucceeded("Force push completed successfully");
+                }
             } else {
-                invalidateRepositoryCaches();
-                getRemoteStatus();
                 emit remoteStatusUpdated(m_remoteStatus);
-                emit operationFailed(formatGitError(res.stdErr, "Push failed"));
+                emit operationFailed(formatGitError(res.stdErr, force ? "Force push failed" : "Push failed"));
             }
         }, Qt::QueuedConnection);
     });

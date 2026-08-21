@@ -53,6 +53,7 @@ public:
     virtual bool createCommit(const QString &summary, const QString &description, const QStringList &coAuthors) = 0;
     virtual bool undoLastCommit() = 0;
     virtual bool revertCommit(const QString &sha) = 0;
+    virtual bool checkoutCommit(const QString &sha) = 0;
     virtual bool canUndoCommit() const = 0;
     virtual QString getLastUndoCommitSha() const = 0;
     virtual QString getLastUndoCommitSummary() const = 0;
@@ -69,6 +70,7 @@ public:
     virtual void fetchOrigin() = 0;
     virtual void pullOrigin() = 0;
     virtual void pushOrigin() = 0;
+    virtual void forcePushOrigin() = 0;
 
     // Stashing
     virtual QList<StashItem> getStashes() = 0;
